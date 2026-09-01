@@ -77,7 +77,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`. `Location` 1:N `P
 ## Stack
 
 - .NET 9 (net9.0 — apenas o SDK 9 está instalado neste ambiente; migrar para net8.0 LTS é uma troca de `TargetFramework` quando o SDK 8 estiver disponível)
-- Entity Framework Core + PostgreSQL
+- Entity Framework Core + MySQL (Pomelo.EntityFrameworkCore.MySql)
 - FluentValidation para os validators em `Application/Validators`
 - xUnit para os testes
 
