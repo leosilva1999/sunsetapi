@@ -23,6 +23,11 @@ builder.Services.AddOpenApi(options =>
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
     ?? throw new InvalidOperationException("Jwt configuration section not found.");
 
+if (string.IsNullOrWhiteSpace(jwtOptions.Secret))
+    throw new InvalidOperationException(
+        "Jwt:Secret is not configured. In Development it comes from appsettings.Development.json; " +
+        "in other environments, set it via 'dotnet user-secrets set \"Jwt:Secret\" \"<value>\"' or the Jwt__Secret environment variable.");
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
