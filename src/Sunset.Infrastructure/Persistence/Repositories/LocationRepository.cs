@@ -99,4 +99,17 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
         await context.Ratings.AddAsync(rating, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<decimal> GetAverageRatingAsync(Guid locationId, CancellationToken cancellationToken = default)
+    {
+        var ratings = context.Ratings.Where(r => r.LocationId == locationId);
+        if (!await ratings.AnyAsync(cancellationToken))
+            return 0m;
+
+        var average = await ratings.AverageAsync(r => r.Score, cancellationToken);
+        return Math.Round((decimal)average, 2);
+    }
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken = default) =>
+        context.SaveChangesAsync(cancellationToken);
 }

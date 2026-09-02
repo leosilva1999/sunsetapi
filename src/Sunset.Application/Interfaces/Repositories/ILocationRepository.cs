@@ -13,4 +13,6 @@ public interface ILocationRepository
     Task<IReadOnlyList<Location>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default);
     Task<Rating?> GetRatingAsync(Guid userId, Guid locationId, CancellationToken cancellationToken = default);
     Task AddRatingAsync(Rating rating, CancellationToken cancellationToken = default);
+    Task<decimal> GetAverageRatingAsync(Guid locationId, CancellationToken cancellationToken = default);
+    Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

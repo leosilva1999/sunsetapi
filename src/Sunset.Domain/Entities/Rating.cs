@@ -24,4 +24,12 @@ public class Rating : BaseEntity
         LocationId = locationId;
         Score = score;
     }
+
+    public void UpdateScore(int score)
+    {
+        if (score is < 1 or > 5)
+            throw new ArgumentOutOfRangeException(nameof(score), score, "Score must be between 1 and 5.");
+
+        Score = score;
+    }
 }
