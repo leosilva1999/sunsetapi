@@ -11,6 +11,7 @@ public class User : BaseEntity
     public ICollection<Like> Likes { get; private set; } = new List<Like>();
     public ICollection<Comment> Comments { get; private set; } = new List<Comment>();
     public ICollection<Rating> Ratings { get; private set; } = new List<Rating>();
+    public ICollection<RefreshToken> RefreshTokens { get; private set; } = new List<RefreshToken>();
 
     private User() { }
 

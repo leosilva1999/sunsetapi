@@ -11,6 +11,7 @@ public class SunsetDbContext(DbContextOptions<SunsetDbContext> options) : DbCont
     public DbSet<Like> Likes => Set<Like>();
     public DbSet<Comment> Comments => Set<Comment>();
     public DbSet<Rating> Ratings => Set<Rating>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

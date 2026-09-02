@@ -4,6 +4,6 @@ namespace Sunset.Application.Interfaces;
 
 public interface ITokenService
 {
-    string GenerateAccessToken(User user);
-    string GenerateRefreshToken();
+    (string Token, DateTime ExpiresAt) GenerateAccessToken(User user);
+    (string Token, DateTime ExpiresAt) GenerateRefreshToken();
 }
