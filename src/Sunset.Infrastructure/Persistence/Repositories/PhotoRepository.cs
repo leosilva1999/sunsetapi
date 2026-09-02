@@ -114,6 +114,20 @@ public class PhotoRepository(SunsetDbContext context) : IPhotoRepository
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlySet<Guid>> GetLikedPhotoIdsAsync(Guid userId, IEnumerable<Guid> photoIds, CancellationToken cancellationToken = default)
+    {
+        var ids = photoIds.ToList();
+        if (ids.Count == 0)
+            return new HashSet<Guid>();
+
+        var liked = await context.Likes
+            .Where(l => l.UserId == userId && ids.Contains(l.PhotoId))
+            .Select(l => l.PhotoId)
+            .ToListAsync(cancellationToken);
+
+        return liked.ToHashSet();
+    }
+
     public async Task<CursorPagedResult<Comment>> GetCommentsAsync(Guid photoId, string? cursor, int limit, CancellationToken cancellationToken = default)
     {
         var comments = context.Comments
