@@ -4,7 +4,9 @@ using Microsoft.IdentityModel.Tokens;
 using Sunset.API.Middlewares;
 using Sunset.API.OpenApi;
 using Sunset.Application;
+using Sunset.Application.Interfaces;
 using Sunset.Infrastructure;
+using Sunset.Infrastructure.Persistence;
 using Sunset.Infrastructure.Security;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -59,6 +61,13 @@ if (app.Environment.IsDevelopment())
         options.SwaggerEndpoint("/openapi/v1.json", "Sunset API v1");
         options.RoutePrefix = "swagger";
     });
+
+    using var seedScope = app.Services.CreateScope();
+    var seedProvider = seedScope.ServiceProvider;
+    await DbSeeder.SeedAsync(
+        seedProvider.GetRequiredService<SunsetDbContext>(),
+        seedProvider.GetRequiredService<IPasswordHasher>(),
+        seedProvider.GetRequiredService<ILogger<Program>>());
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
