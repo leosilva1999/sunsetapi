@@ -2,6 +2,7 @@ using Moq;
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Locations;
 using Sunset.Application.Exceptions;
+using Sunset.Application.Interfaces;
 using Sunset.Application.Interfaces.Repositories;
 using Sunset.Application.Services;
 using Sunset.Domain.Entities;
@@ -13,11 +14,12 @@ public class LocationServiceTests
 {
     private readonly Mock<ILocationRepository> _locationRepository = new();
     private readonly Mock<IPhotoRepository> _photoRepository = new();
+    private readonly Mock<ISunsetTimeService> _sunsetTimeService = new();
     private readonly LocationService _sut;
 
     public LocationServiceTests()
     {
-        _sut = new LocationService(_locationRepository.Object, _photoRepository.Object);
+        _sut = new LocationService(_locationRepository.Object, _photoRepository.Object, _sunsetTimeService.Object);
     }
 
     [Fact]
@@ -105,5 +107,35 @@ public class LocationServiceTests
         _locationRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Location?)null);
 
         await Assert.ThrowsAsync<NotFoundException>(() => _sut.RateAsync(Guid.NewGuid(), Guid.NewGuid(), new CreateRatingRequest(5)));
+    }
+
+    [Fact]
+    public async Task GetSunsetTimeAsync_WithUnknownLocation_ThrowsNotFoundException()
+    {
+        _locationRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Location?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetSunsetTimeAsync(Guid.NewGuid(), null));
+        _sunsetTimeService.Verify(s => s.GetSunsetTimeAsync(It.IsAny<double>(), It.IsAny<double>(), It.IsAny<DateOnly?>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetSunsetTimeAsync_WithExistingLocation_DelegatesToSunsetTimeServiceWithCoordinates()
+    {
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        var expected = new SunsetTimeResponse(
+            new DateOnly(2026, 9, 2), "America/Sao_Paulo", "-03:00",
+            DateTimeOffset.Parse("2026-09-02T06:25:08-03:00"),
+            DateTimeOffset.Parse("2026-09-02T18:02:31-03:00"),
+            DateTimeOffset.Parse("2026-09-02T12:13:49-03:00"),
+            41843);
+
+        _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
+        _sunsetTimeService
+            .Setup(s => s.GetSunsetTimeAsync(location.Latitude, location.Longitude, null, default))
+            .ReturnsAsync(expected);
+
+        var response = await _sut.GetSunsetTimeAsync(location.Id, null);
+
+        Assert.Equal(expected, response);
     }
 }

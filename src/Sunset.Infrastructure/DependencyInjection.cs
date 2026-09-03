@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Sunset.Application.Interfaces;
 using Sunset.Application.Interfaces.Repositories;
+using Sunset.Infrastructure.ExternalServices;
 using Sunset.Infrastructure.Persistence;
 using Sunset.Infrastructure.Persistence.Repositories;
 using Sunset.Infrastructure.Security;
@@ -31,6 +32,12 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+        services.AddHttpClient<ISunsetTimeService, SunsetTimeService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.sunrise-sunset.org/");
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
 
         return services;
     }

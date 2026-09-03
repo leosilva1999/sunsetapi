@@ -9,7 +9,10 @@ using Sunset.Domain.Enums;
 
 namespace Sunset.Application.Services;
 
-public class LocationService(ILocationRepository locationRepository, IPhotoRepository photoRepository) : ILocationService
+public class LocationService(
+    ILocationRepository locationRepository,
+    IPhotoRepository photoRepository,
+    ISunsetTimeService sunsetTimeService) : ILocationService
 {
     public async Task<CursorPagedResult<LocationResponse>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default)
     {
@@ -74,5 +77,13 @@ public class LocationService(ILocationRepository locationRepository, IPhotoRepos
         await locationRepository.SaveChangesAsync(cancellationToken);
 
         return location.ToResponse();
+    }
+
+    public async Task<SunsetTimeResponse> GetSunsetTimeAsync(Guid locationId, DateOnly? date, CancellationToken cancellationToken = default)
+    {
+        var location = await locationRepository.GetByIdAsync(locationId, cancellationToken)
+            ?? throw new NotFoundException("Location not found.");
+
+        return await sunsetTimeService.GetSunsetTimeAsync(location.Latitude, location.Longitude, date, cancellationToken);
     }
 }

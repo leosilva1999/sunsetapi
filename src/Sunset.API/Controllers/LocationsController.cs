@@ -70,6 +70,13 @@ public class LocationsController(
         return Ok(page);
     }
 
+    [HttpGet("{id:guid}/sunset")]
+    public async Task<ActionResult<SunsetTimeResponse>> GetSunset(Guid id, [FromQuery] DateOnly? date, CancellationToken cancellationToken)
+    {
+        var response = await locationService.GetSunsetTimeAsync(id, date, cancellationToken);
+        return Ok(response);
+    }
+
     [Authorize]
     [HttpPost("{id:guid}/ratings")]
     public async Task<ActionResult<LocationResponse>> Rate(Guid id, CreateRatingRequest request, CancellationToken cancellationToken)
