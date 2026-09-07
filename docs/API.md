@@ -1,0 +1,284 @@
+# Sunset API — Reference for frontend integration
+
+API .NET 9 (Clean Architecture) para o Sunset: usuários pesquisam locais com belas visões de
+pôr do sol, postam fotos marcando o local, curtem, comentam e avaliam os locais.
+
+This document describes the API **as actually implemented**, for a client (React web app) to
+integrate against. Field names below are copy-pasted from real request/response payloads, not
+paraphrased.
+
+## Base URL & running locally
+
+- All routes are prefixed with **`/api/v1`**.
+- Local dev (via Visual Studio / `dotnet run --project src/Sunset.API`): `http://localhost:5256` or `https://localhost:7044`.
+- Swagger UI (Development only): `/swagger`. Raw OpenAPI doc: `/openapi/v1.json`.
+- Content type: `application/json` for all request/response bodies. No API envelope — responses
+  are the resource (or an array/page object) directly.
+- JSON casing: **camelCase** for all fields (System.Text.Json default).
+- Dates/times: ISO 8601 strings. Most `createdAt` fields are UTC without offset
+  (e.g. `"2026-09-04T18:08:52.6071314Z"`); the sunset-time endpoint returns local
+  offset-aware timestamps (e.g. `"2026-09-04T17:44:06-03:00"`).
+
+### Local dev seed data
+
+The API auto-seeds fictitious data on startup in Development (idempotent — skipped if already
+seeded). 8 users, 6 real Brazilian sunset spots, 12 photos, likes/comments/ratings. All seed
+users share the password **`Password123!`**. Emails: `beatriz@sunsetapp.dev`,
+`rafael@sunsetapp.dev`, `camila@sunsetapp.dev`, `lucas@sunsetapp.dev`, `juliana@sunsetapp.dev`,
+`pedro@sunsetapp.dev`, `mariana@sunsetapp.dev`, `thiago@sunsetapp.dev`. Use any of these to log
+in during frontend development instead of registering a throwaway account each time.
+
+## Authentication
+
+JWT bearer. `POST /auth/register` and `POST /auth/login` return an **access token** (short-lived,
+15 min by default) and a **refresh token** (long-lived, 30 days by default, opaque random
+string — not a JWT). Send the access token on every authenticated request:
+
+```
+Authorization: Bearer <accessToken>
+```
+
+- Refresh tokens are **rotated**: calling `POST /auth/refresh` returns a new access+refresh pair
+  and invalidates the old refresh token. Store only the newest refresh token.
+- `POST /auth/logout` revokes a refresh token server-side (pass the refresh token, not the access
+  token). After logout, that refresh token can no longer be used to get new access tokens — but
+  any already-issued access token remains valid until it naturally expires (no server-side
+  access-token revocation).
+- There is no endpoint to fetch "my" user by a special alias — decode the JWT's `sub` claim
+  (the user id) or keep the `user` object returned by register/login/refresh, and call
+  `GET /users/{id}` when you need fresh profile data.
+- Endpoints not marked **🔒 auth** still read a bearer token if one is sent (e.g. to compute
+  `likedByCurrentUser` on photos), but work fine anonymously too.
+
+## ⚠️ CORS is not configured yet
+
+There is no `AddCors`/`UseCors` in `Program.cs`. A React dev server on a different origin
+(`localhost:3000`, `5173`, etc.) calling this API directly from the browser **will be blocked**
+until CORS is added. This needs a decision (allowed origins, whether credentials/cookies are
+involved — they aren't currently, auth is a bearer header not a cookie) before the frontend can
+actually talk to the API, not just documentation. Flag this back if it's blocking you.
+
+## Common conventions
+
+### Pagination (cursor-based)
+
+Feed-style list endpoints (`/photos`, `/photos/{id}/comments`, `/locations` search,
+`/locations/{id}/photos`, `/users/{id}/photos`) return:
+
+```json
+{
+  "items": [ /* ... */ ],
+  "nextCursor": "opaque-string-or-null",
+  "hasMore": true
+}
+```
+
+Pass `nextCursor` back as `?cursor=` to get the next page. Treat the cursor as an opaque token —
+don't parse or construct it. `?limit=` is accepted on all of them, default `20`, clamped to
+`1–50` server-side (accepted `?limit=200` will silently become `50`, no error).
+
+`GET /locations/ranking` is the one list endpoint that is **not** paginated — it returns a plain
+array, capped by `?limit=` (default 20, same 1–50 clamp).
+
+### Error format
+
+Non-2xx responses are:
+
+```json
+{ "title": "human-readable message", "errors": { "FieldName": ["message"] } | null }
+```
+
+`errors` is populated (grouped by field name) only for `400` validation failures; every other
+error status has `errors: null` and a single message in `title`.
+
+| Status | Meaning |
+|---|---|
+| 400 | Request failed FluentValidation rules (see `errors` for per-field messages) |
+| 401 | Missing/invalid/expired bearer token, or invalid login/refresh credentials |
+| 404 | Referenced resource (user/location/photo/comment) doesn't exist |
+| 409 | Conflict — currently only "email already registered" |
+| 502 | The sunrise-sunset.org upstream call failed (see Locations → sunset below) |
+| 500 | Unhandled server error |
+
+Model-binding failures (e.g. malformed GUID in the URL, malformed `?date=`) short-circuit to a
+`400` with ASP.NET Core's default `ProblemDetails` shape instead — don't rely on the `title`
+field being present in that specific case.
+
+### Auth requirement legend
+
+🔒 = requires `Authorization: Bearer <token>`. Endpoints without 🔒 are public (some
+optionally read the token if present, noted inline).
+
+---
+
+## Auth
+
+### `POST /auth/register`
+Body: `{ "name": string, "email": string, "password": string }`
+Validation: `name` required ≤100 chars · `email` required, valid format, ≤256 chars ·
+`password` required, ≥8 chars.
+
+### `POST /auth/login`
+Body: `{ "email": string, "password": string }`
+
+Both register and login return:
+```json
+{
+  "accessToken": "eyJ...",
+  "refreshToken": "NeX9jEIO...",
+  "expiresAt": "2026-09-04T18:23:24.59Z",
+  "user": { "id": "guid", "name": "string", "email": "string", "avatarUrl": "string|null", "createdAt": "date" }
+}
+```
+
+### `POST /auth/refresh`
+Body: `{ "refreshToken": string }` → same `AuthResponse` shape as above, with a new pair.
+
+### `POST /auth/logout`
+Body: `{ "refreshToken": string }` → `204 No Content`. Idempotent (calling it twice, or with an
+already-revoked token, still returns `204`).
+
+---
+
+## Users
+
+### `GET /users/{id}`
+→ `{ "id", "name", "email", "avatarUrl", "createdAt" }`
+
+### 🔒 `PATCH /users/me`
+Updates the **authenticated** user's own profile (no `{id}` in the URL — resolved from the
+token). Body: `{ "name": string, "avatarUrl": string | null }`.
+Validation: `name` required ≤100 chars · `avatarUrl`, when present, must be a valid absolute URL, ≤2048 chars.
+→ updated `UserResponse`.
+
+### `GET /users/{id}/photos?cursor=&limit=`
+Paginated photos authored by that user. → `CursorPagedResult<PhotoResponse>` (see Photos for
+shape). **Note:** `likedByCurrentUser` is always `false` here regardless of the caller's token —
+not wired up for this listing (only `/photos` feed and `/photos/{id}` resolve it correctly).
+
+---
+
+## Locations
+
+### `GET /locations?q=&lat=&lng=&radius=&cursor=&limit=`
+Search/browse. All query params optional.
+- `q`: substring match against name or city.
+- `lat`+`lng`+`radius` (km): must be supplied **together** to filter by distance — it's a coarse
+  bounding-box approximation, not exact great-circle distance, so don't expect razor-precise
+  radius edges.
+→ `CursorPagedResult<LocationResponse>`.
+
+### `GET /locations/ranking?period=all&limit=20`
+`period` is one of `week` | `month` | `all` (case-insensitive; default `all`), ranking by average
+rating **within that window** (not the location's all-time `avgRating` field, though that field
+is still what's returned per location). → plain array of `LocationResponse` (not paginated).
+
+### `GET /locations/{id}`
+→ `{ "id", "name", "latitude", "longitude", "city", "avgRating", "createdAt" }`. `avgRating` is a
+decimal (e.g. `4.33`), 0 for a location with no ratings yet.
+
+### 🔒 `POST /locations`
+Body: `{ "name": string, "latitude": number, "longitude": number, "city": string }`
+Validation: `name` required ≤150 · `city` required ≤100 · `latitude` ∈ [-90,90] · `longitude` ∈ [-180,180].
+→ `201 Created` with `LocationResponse`, `Location` header pointing to `GET /locations/{id}`.
+
+### `GET /locations/{id}/photos?cursor=&limit=`
+Same `likedByCurrentUser`-always-`false` caveat as `/users/{id}/photos` above.
+
+### `GET /locations/{id}/sunset?date=YYYY-MM-DD`
+Sunset/sunrise time for the location's coordinates, live from **sunrise-sunset.org** (no auth,
+no key, called on every request — no caching). `date` optional (defaults to today).
+```json
+{
+  "date": "2026-09-04",
+  "tzId": "America/Fortaleza",
+  "utcOffset": "-03:00",
+  "sunrise": "2026-09-04T05:38:00-03:00",
+  "sunset": "2026-09-04T17:44:06-03:00",
+  "solarNoon": "2026-09-04T11:41:03-03:00",
+  "dayLengthSeconds": 43566
+}
+```
+If the upstream call fails, this returns `502` — **the frontend must handle this endpoint
+failing independently of the rest of the location data being fine.** sunrise-sunset.org also
+contractually requires a visible attribution link back to their site wherever this data is
+shown — that's on the frontend to add, the API doesn't inject it.
+
+### 🔒 `POST /locations/{id}/ratings`
+Body: `{ "score": 1-5 }`. **Upsert semantics**: calling it again for the same user+location
+updates the existing rating rather than erroring or creating a duplicate. → updated
+`LocationResponse` (with recalculated `avgRating`) — note this returns the **location**, not the
+rating itself.
+
+---
+
+## Photos
+
+### `GET /photos?sort=recent&cursor=&limit=`
+`sort` is `recent` (default) | `top` (by `likesCount`, then recency).
+```json
+{
+  "items": [{
+    "id": "guid", "userId": "guid", "userName": "string", "userAvatarUrl": "string|null",
+    "locationId": "guid", "locationName": "string",
+    "imageUrl": "string", "caption": "string|null",
+    "likesCount": 5, "likedByCurrentUser": true,
+    "createdAt": "date"
+  }],
+  "nextCursor": "...", "hasMore": true
+}
+```
+`likedByCurrentUser` correctly reflects the caller's bearer token here (or `false` if anonymous).
+
+### 🔒 `POST /photos`
+Body: `{ "locationId": "guid", "imageUrl": string, "caption": string | null }`.
+**The client uploads the image to storage itself first (e.g. pre-signed S3/R2 URL) and only
+sends the resulting URL here — this endpoint never accepts binary/multipart data.**
+Validation: `locationId` required · `imageUrl` required, valid absolute URL, ≤2048 · `caption` ≤500.
+404 if `locationId` doesn't exist. → `201 Created` with `PhotoResponse`.
+
+### `GET /photos/{id}`
+→ single `PhotoResponse`, same shape as feed items, with `likedByCurrentUser` resolved.
+
+### 🔒 `DELETE /photos/{id}`
+Author-only (`403`... actually `401 UnauthorizedActionException` — see note below) if the caller
+didn't author it. → `204`.
+
+### 🔒 `POST /photos/{id}/likes` / 🔒 `DELETE /photos/{id}/likes`
+**Idempotent.** Liking an already-liked photo, or unliking one you haven't liked, is a silent
+no-op → `204` either way, `likesCount` unchanged. No "already liked" error to handle.
+
+### `GET /photos/{id}/comments?cursor=&limit=`
+→ `CursorPagedResult<CommentResponse>`:
+```json
+{ "id": "guid", "userId": "guid", "userName": "string", "userAvatarUrl": "string|null", "content": "string", "createdAt": "date" }
+```
+
+### 🔒 `POST /photos/{id}/comments`
+Body: `{ "content": string }`. Validation: required, ≤1000 chars. → `200 OK` with `CommentResponse`
+(not `201` — no `Location` header, unlike photo/location creation).
+
+### 🔒 `DELETE /comments/{id}`
+**Note the path** — this is *not* nested under `/photos/{photoId}/comments/{id}`, it's its own
+top-level `/api/v1/comments/{id}`. Author-only. → `204`.
+
+---
+
+## Known gotchas for the frontend
+
+1. **Authorization error status is `401`, not `403`**, for every "you're not allowed to do this"
+   case (deleting someone else's photo/comment) — the API doesn't distinguish "not logged in"
+   from "logged in but not the owner." A `401` on a delete/update call while the user clearly has
+   a valid session means "not the owner," not "session expired" — check the response `title`
+   text if you need to tell those apart in the UI.
+2. Query enums (`sort`, `period`) are matched **by name, case-insensitively** — send
+   `recent`/`top`, `week`/`month`/`all` as plain lowercase strings; don't send numeric enum
+   values.
+3. `likedByCurrentUser` is only accurate on `/photos` (feed) and `/photos/{id}` — it's hardcoded
+   `false` on the two "photos by X" listings (`/users/{id}/photos`, `/locations/{id}/photos`).
+4. Ratings are an **upsert** (`POST /locations/{id}/ratings` again just updates the score) — no
+   separate "edit my rating" endpoint, and no "get my rating for this location" endpoint either;
+   the frontend has to track locally whether the current user already rated a location if it
+   wants to show "update your rating" vs. "rate this" UI.
+5. There's no endpoint to list a user's ratings, likes, or comments — only their photos
+   (`GET /users/{id}/photos`).
