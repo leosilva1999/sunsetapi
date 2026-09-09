@@ -45,12 +45,13 @@ public class UserServiceTests
         var user = new User("Ana", "ana@sunset.com", "hashed");
         _userRepository.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
 
-        var request = new UpdateProfileRequest("Ana Souza", "https://sunset.com/avatar.png");
+        var request = new UpdateProfileRequest("Ana Souza", "https://sunset.com/avatar.png", "Adoro um pôr do sol.");
 
         var response = await _sut.UpdateProfileAsync(user.Id, request);
 
         Assert.Equal("Ana Souza", response.Name);
         Assert.Equal("https://sunset.com/avatar.png", response.AvatarUrl);
+        Assert.Equal("Adoro um pôr do sol.", response.Bio);
         _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
     }
 
@@ -59,7 +60,7 @@ public class UserServiceTests
     {
         _userRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((User?)null);
 
-        var request = new UpdateProfileRequest("Ana Souza", null);
+        var request = new UpdateProfileRequest("Ana Souza", null, null);
 
         await Assert.ThrowsAsync<NotFoundException>(() => _sut.UpdateProfileAsync(Guid.NewGuid(), request));
         _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Never);

@@ -16,5 +16,8 @@ public class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequ
             .Must(url => Uri.TryCreate(url, UriKind.Absolute, out _))
             .WithMessage("AvatarUrl must be a valid URL.")
             .When(x => x.AvatarUrl is not null);
+
+        RuleFor(x => x.Bio)
+            .MaximumLength(160);
     }
 }

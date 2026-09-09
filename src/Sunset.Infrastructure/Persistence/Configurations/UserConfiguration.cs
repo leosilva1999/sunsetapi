@@ -30,6 +30,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.AvatarUrl)
             .HasMaxLength(2048);
 
+        builder.Property(u => u.Bio)
+            .HasMaxLength(160);
+
         builder.Property(u => u.CreatedAt)
             .IsRequired();
 

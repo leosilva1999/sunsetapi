@@ -5,5 +5,5 @@ namespace Sunset.Application.DTOs.Users;
 public static class UserExtensions
 {
     public static UserResponse ToResponse(this User user) =>
-        new(user.Id, user.Name, user.Email, user.AvatarUrl, user.CreatedAt);
+        new(user.Id, user.Name, user.Email, user.AvatarUrl, user.Bio, user.CreatedAt);
 }

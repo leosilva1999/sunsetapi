@@ -127,7 +127,7 @@ Both register and login return:
   "accessToken": "eyJ...",
   "refreshToken": "NeX9jEIO...",
   "expiresAt": "2026-09-04T18:23:24.59Z",
-  "user": { "id": "guid", "name": "string", "email": "string", "avatarUrl": "string|null", "createdAt": "date" }
+  "user": { "id": "guid", "name": "string", "email": "string", "avatarUrl": "string|null", "bio": "string|null", "createdAt": "date" }
 }
 ```
 
@@ -143,12 +143,16 @@ already-revoked token, still returns `204`).
 ## Users
 
 ### `GET /users/{id}`
-→ `{ "id", "name", "email", "avatarUrl", "createdAt" }`
+→ `{ "id", "name", "email", "avatarUrl", "bio", "createdAt" }`. `bio` is `null` until the user
+sets one.
 
 ### 🔒 `PATCH /users/me`
 Updates the **authenticated** user's own profile (no `{id}` in the URL — resolved from the
-token). Body: `{ "name": string, "avatarUrl": string | null }`.
-Validation: `name` required ≤100 chars · `avatarUrl`, when present, must be a valid absolute URL, ≤2048 chars.
+token). Body: `{ "name": string, "avatarUrl": string | null, "bio": string | null }`.
+**All three fields are replaced wholesale** — this is not a partial patch despite the HTTP verb;
+send the current `avatarUrl`/`bio` back if you only mean to change `name`, or they'll be cleared.
+Validation: `name` required ≤100 chars · `avatarUrl`, when present, must be a valid absolute URL, ≤2048 chars ·
+`bio`, when present, ≤160 chars.
 → updated `UserResponse`.
 
 ### `GET /users/{id}/photos?cursor=&limit=`

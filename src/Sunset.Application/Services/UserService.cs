@@ -22,7 +22,7 @@ public class UserService(IUserRepository userRepository, IPhotoRepository photoR
         var user = await userRepository.GetByIdAsync(userId, cancellationToken)
             ?? throw new NotFoundException("User not found.");
 
-        user.UpdateProfile(request.Name, request.AvatarUrl);
+        user.UpdateProfile(request.Name, request.AvatarUrl, request.Bio);
         await userRepository.SaveChangesAsync(cancellationToken);
 
         return user.ToResponse();

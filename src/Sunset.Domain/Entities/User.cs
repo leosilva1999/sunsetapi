@@ -6,6 +6,7 @@ public class User : BaseEntity
     public string Email { get; private set; } = null!;
     public string PasswordHash { get; private set; } = null!;
     public string? AvatarUrl { get; private set; }
+    public string? Bio { get; private set; }
 
     public ICollection<Photo> Photos { get; private set; } = new List<Photo>();
     public ICollection<Like> Likes { get; private set; } = new List<Like>();
@@ -30,12 +31,13 @@ public class User : BaseEntity
         AvatarUrl = avatarUrl;
     }
 
-    public void UpdateProfile(string name, string? avatarUrl)
+    public void UpdateProfile(string name, string? avatarUrl, string? bio)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Name is required.", nameof(name));
 
         Name = name;
         AvatarUrl = avatarUrl;
+        Bio = bio;
     }
 }

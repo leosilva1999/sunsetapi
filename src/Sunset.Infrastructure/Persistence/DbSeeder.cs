@@ -13,16 +13,16 @@ public static class DbSeeder
 {
     private const string SeedPassword = "Password123!";
 
-    private static readonly (string Name, string Email)[] UserSeeds =
+    private static readonly (string Name, string Email, string? Bio)[] UserSeeds =
     [
-        ("Beatriz Almeida", "beatriz@sunsetapp.dev"),
-        ("Rafael Souza", "rafael@sunsetapp.dev"),
-        ("Camila Ferreira", "camila@sunsetapp.dev"),
-        ("Lucas Martins", "lucas@sunsetapp.dev"),
-        ("Juliana Costa", "juliana@sunsetapp.dev"),
-        ("Pedro Henrique", "pedro@sunsetapp.dev"),
-        ("Mariana Lima", "mariana@sunsetapp.dev"),
-        ("Thiago Rocha", "thiago@sunsetapp.dev"),
+        ("Beatriz Almeida", "beatriz@sunsetapp.dev", "Caçadora de pores do sol e café coado."),
+        ("Rafael Souza", "rafael@sunsetapp.dev", "Fotógrafo de fim de tarde nas horas vagas."),
+        ("Camila Ferreira", "camila@sunsetapp.dev", "Sempre em busca da próxima duna."),
+        ("Lucas Martins", "lucas@sunsetapp.dev", "Praiano de carteirinha."),
+        ("Juliana Costa", "juliana@sunsetapp.dev", "Céus dramáticos são minha paixão."),
+        ("Pedro Henrique", "pedro@sunsetapp.dev", "Explorando o Brasil um horizonte por vez."),
+        ("Mariana Lima", "mariana@sunsetapp.dev", "Colecionadora de finais de tarde."),
+        ("Thiago Rocha", "thiago@sunsetapp.dev", null),
     ];
 
     private static readonly (string Name, double Lat, double Lng, string City)[] LocationSeeds =
@@ -76,7 +76,12 @@ public static class DbSeeder
 
         var passwordHash = passwordHasher.Hash(SeedPassword);
         var users = UserSeeds
-            .Select(u => new User(u.Name, u.Email, passwordHash, $"https://i.pravatar.cc/300?u={u.Email}"))
+            .Select(u =>
+            {
+                var user = new User(u.Name, u.Email, passwordHash, $"https://i.pravatar.cc/300?u={u.Email}");
+                user.UpdateProfile(u.Name, user.AvatarUrl, u.Bio);
+                return user;
+            })
             .ToList();
         for (var i = 0; i < users.Count; i++)
             SetCreatedAt(users[i], now.AddDays(-random.Next(15, 200)));

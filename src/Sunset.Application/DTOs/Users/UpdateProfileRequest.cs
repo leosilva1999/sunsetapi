@@ -1,3 +1,3 @@
 namespace Sunset.Application.DTOs.Users;
 
-public sealed record UpdateProfileRequest(string Name, string? AvatarUrl);
+public sealed record UpdateProfileRequest(string Name, string? AvatarUrl, string? Bio);
