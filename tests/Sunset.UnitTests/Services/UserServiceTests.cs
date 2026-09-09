@@ -40,12 +40,15 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task UpdateProfileAsync_WithExistingUser_UpdatesAndReturnsResponse()
+    public async Task UpdateProfileAsync_WithAllFieldsSet_UpdatesAndReturnsResponse()
     {
         var user = new User("Ana", "ana@sunset.com", "hashed");
         _userRepository.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
 
-        var request = new UpdateProfileRequest("Ana Souza", "https://sunset.com/avatar.png", "Adoro um pôr do sol.");
+        var request = new UpdateProfileRequest(
+            Optional<string>.Of("Ana Souza"),
+            Optional<string?>.Of("https://sunset.com/avatar.png"),
+            Optional<string?>.Of("Adoro um pôr do sol."));
 
         var response = await _sut.UpdateProfileAsync(user.Id, request);
 
@@ -56,11 +59,40 @@ public class UserServiceTests
     }
 
     [Fact]
+    public async Task UpdateProfileAsync_WithOnlyBioSet_LeavesNameAndAvatarUrlUnchanged()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed", "https://sunset.com/original.png");
+        _userRepository.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+
+        var request = new UpdateProfileRequest(Optional<string>.Unset, Optional<string?>.Unset, Optional<string?>.Of("Nova bio."));
+
+        var response = await _sut.UpdateProfileAsync(user.Id, request);
+
+        Assert.Equal("Ana", response.Name);
+        Assert.Equal("https://sunset.com/original.png", response.AvatarUrl);
+        Assert.Equal("Nova bio.", response.Bio);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_WithBioExplicitlyNull_ClearsBio()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        user.UpdateProfile("Ana", null, "Bio antiga.");
+        _userRepository.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+
+        var request = new UpdateProfileRequest(Optional<string>.Unset, Optional<string?>.Unset, Optional<string?>.Of(null));
+
+        var response = await _sut.UpdateProfileAsync(user.Id, request);
+
+        Assert.Null(response.Bio);
+    }
+
+    [Fact]
     public async Task UpdateProfileAsync_WithUnknownUser_ThrowsNotFoundException()
     {
         _userRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((User?)null);
 
-        var request = new UpdateProfileRequest("Ana Souza", null, null);
+        var request = new UpdateProfileRequest(Optional<string>.Of("Ana Souza"), Optional<string?>.Unset, Optional<string?>.Unset);
 
         await Assert.ThrowsAsync<NotFoundException>(() => _sut.UpdateProfileAsync(Guid.NewGuid(), request));
         _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Never);

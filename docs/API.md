@@ -148,11 +148,26 @@ sets one.
 
 ### 🔒 `PATCH /users/me`
 Updates the **authenticated** user's own profile (no `{id}` in the URL — resolved from the
-token). Body: `{ "name": string, "avatarUrl": string | null, "bio": string | null }`.
-**All three fields are replaced wholesale** — this is not a partial patch despite the HTTP verb;
-send the current `avatarUrl`/`bio` back if you only mean to change `name`, or they'll be cleared.
-Validation: `name` required ≤100 chars · `avatarUrl`, when present, must be a valid absolute URL, ≤2048 chars ·
-`bio`, when present, ≤160 chars.
+token). Body: `{ "name"?: string, "avatarUrl"?: string | null, "bio"?: string | null }`.
+
+**True partial update (JSON Merge Patch, RFC 7396 style)**: only the fields present in the JSON
+body are touched.
+- **Omit a field entirely** → left unchanged. `PATCH` with `{}` is a valid no-op.
+- **Send a field as `null`** → clears it (only meaningful for `avatarUrl`/`bio`; `name` can't be
+  null — see validation below).
+- **Send a field with a value** → replaces it.
+
+So to change only the bio, send `{ "bio": "new bio" }` — no need to re-send `name`/`avatarUrl`.
+
+⚠️ **Swagger/OpenAPI's schema for this endpoint is wrong** — it shows `name`/`avatarUrl`/`bio` as
+all `required` with an opaque `OptionalOfstring` type, because the presence-vs-absence
+distinction (via a custom `Optional<T>` JSON converter) isn't something OpenAPI schema generation
+understands. Trust this doc's description of the body, not the schema shown in `/swagger`.
+
+Validation (only runs on fields actually present in the body): `name`, if present, must be
+non-empty ≤100 chars (i.e. you can omit `name`, but you can't send it as `null` or `""`) ·
+`avatarUrl`, if present and non-null, must be a valid absolute URL, ≤2048 chars · `bio`, if
+present and non-null, ≤160 chars.
 → updated `UserResponse`.
 
 ### `GET /users/{id}/photos?cursor=&limit=`

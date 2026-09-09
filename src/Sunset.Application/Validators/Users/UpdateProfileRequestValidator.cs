@@ -7,17 +7,22 @@ public class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequ
 {
     public UpdateProfileRequestValidator()
     {
-        RuleFor(x => x.Name)
+        RuleFor(x => x.Name.Value)
             .NotEmpty()
-            .MaximumLength(100);
+            .MaximumLength(100)
+            .OverridePropertyName("Name")
+            .When(x => x.Name.IsSet);
 
-        RuleFor(x => x.AvatarUrl)
+        RuleFor(x => x.AvatarUrl.Value)
             .MaximumLength(2048)
             .Must(url => Uri.TryCreate(url, UriKind.Absolute, out _))
             .WithMessage("AvatarUrl must be a valid URL.")
-            .When(x => x.AvatarUrl is not null);
+            .OverridePropertyName("AvatarUrl")
+            .When(x => x.AvatarUrl.IsSet && x.AvatarUrl.Value is not null);
 
-        RuleFor(x => x.Bio)
-            .MaximumLength(160);
+        RuleFor(x => x.Bio.Value)
+            .MaximumLength(160)
+            .OverridePropertyName("Bio")
+            .When(x => x.Bio.IsSet);
     }
 }
