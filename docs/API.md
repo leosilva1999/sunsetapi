@@ -50,13 +50,14 @@ Authorization: Bearer <accessToken>
 - Endpoints not marked **🔒 auth** still read a bearer token if one is sent (e.g. to compute
   `likedByCurrentUser` on photos), but work fine anonymously too.
 
-## ⚠️ CORS is not configured yet
+## CORS
 
-There is no `AddCors`/`UseCors` in `Program.cs`. A React dev server on a different origin
-(`localhost:3000`, `5173`, etc.) calling this API directly from the browser **will be blocked**
-until CORS is added. This needs a decision (allowed origins, whether credentials/cookies are
-involved — they aren't currently, auth is a bearer header not a cookie) before the frontend can
-actually talk to the API, not just documentation. Flag this back if it's blocking you.
+Configured via `Cors:AllowedOrigins` (a string array) in config — empty by default, meaning
+**no cross-origin browser calls are allowed unless an environment explicitly lists origins**.
+`appsettings.Development.json` pre-populates `http://localhost:3000` and `http://localhost:5173`
+(CRA/Vite defaults). If your React dev server runs on a different port, add it there — the
+policy allows any header/method for listed origins, no credentials/cookies involved (auth is a
+bearer header, not a cookie, so `credentials: 'include'` isn't needed on fetch calls).
 
 ## Common conventions
 
