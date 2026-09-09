@@ -7,6 +7,21 @@ This document describes the API **as actually implemented**, for a client (React
 integrate against. Field names below are copy-pasted from real request/response payloads, not
 paraphrased.
 
+## Recent changes
+
+New since this doc was first handed over — if you already built against the earlier contract,
+these are the diffs to check:
+
+- **`UserResponse.bio`** (`string | null`, ≤160 chars) — see [Users](#users).
+- **`PATCH /users/me` is now a true partial update** (JSON Merge Patch semantics: omitted field =
+  unchanged, `null` = clear, value = replace) — it used to require re-sending all three fields.
+  ⚠️ its Swagger schema is wrong, see the note under [Users](#users).
+- **Comment replies, one level deep**: `CommentResponse.parentCommentId` / `repliesCount`,
+  `POST /photos/{id}/comments` takes an optional `parentCommentId`, new
+  `GET /comments/{id}/replies` — see [Photos](#photos).
+- **`PhotoResponse.commentsCount`** (roots + replies combined) — see [Photos](#photos).
+- **CORS** is now configured (was previously missing/blocking) — see [CORS](#cors).
+
 ## Base URL & running locally
 
 - All routes are prefixed with **`/api/v1`**.
