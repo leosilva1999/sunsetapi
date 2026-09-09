@@ -7,6 +7,7 @@ public class Photo : BaseEntity
     public string ImageUrl { get; private set; } = null!;
     public string? Caption { get; private set; }
     public int LikesCount { get; private set; }
+    public int CommentsCount { get; private set; }
 
     public User User { get; private set; } = null!;
     public Location Location { get; private set; } = null!;
@@ -38,4 +39,8 @@ public class Photo : BaseEntity
         if (LikesCount > 0)
             LikesCount--;
     }
+
+    public void IncrementCommentsCount() => CommentsCount++;
+
+    public void DecrementCommentsCount(int by = 1) => CommentsCount = Math.Max(0, CommentsCount - by);
 }

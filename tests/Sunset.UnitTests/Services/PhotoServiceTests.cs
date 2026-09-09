@@ -197,6 +197,7 @@ public class PhotoServiceTests
 
         Assert.Equal(parent.Id, response.ParentCommentId);
         Assert.Equal(1, parent.RepliesCount);
+        Assert.Equal(1, photo.CommentsCount);
     }
 
     [Fact]
@@ -266,19 +267,47 @@ public class PhotoServiceTests
     }
 
     [Fact]
-    public async Task DeleteCommentAsync_WhenDeletingAReply_DecrementsParentRepliesCount()
+    public async Task DeleteCommentAsync_WhenDeletingAReply_DecrementsParentRepliesCountAndPhotoCommentsCount()
     {
         var user = new User("Ana", "ana@sunset.com", "hashed");
-        var parent = new Comment(user.Id, Guid.NewGuid(), "Raiz");
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        var photo = CreatePhoto(user, location);
+        photo.IncrementCommentsCount();
+        photo.IncrementCommentsCount();
+        var parent = new Comment(user.Id, photo.Id, "Raiz");
         parent.IncrementRepliesCount();
-        var reply = new Comment(user.Id, parent.PhotoId, "Resposta", parent.Id);
+        var reply = new Comment(user.Id, photo.Id, "Resposta", parent.Id);
 
         _photoRepository.Setup(r => r.GetCommentByIdAsync(reply.Id, default)).ReturnsAsync(reply);
         _photoRepository.Setup(r => r.GetCommentByIdAsync(parent.Id, default)).ReturnsAsync(parent);
+        _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
 
         await _sut.DeleteCommentAsync(user.Id, reply.Id);
 
         Assert.Equal(0, parent.RepliesCount);
+        Assert.Equal(1, photo.CommentsCount);
         _photoRepository.Verify(r => r.RemoveCommentAsync(reply, default), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteCommentAsync_WhenDeletingARootWithReplies_DecrementsPhotoCommentsCountByAllOfThem()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        var photo = CreatePhoto(user, location);
+        photo.IncrementCommentsCount();
+        photo.IncrementCommentsCount();
+        photo.IncrementCommentsCount();
+        var root = new Comment(user.Id, photo.Id, "Raiz");
+        root.IncrementRepliesCount();
+        root.IncrementRepliesCount();
+
+        _photoRepository.Setup(r => r.GetCommentByIdAsync(root.Id, default)).ReturnsAsync(root);
+        _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
+
+        await _sut.DeleteCommentAsync(user.Id, root.Id);
+
+        Assert.Equal(0, photo.CommentsCount);
+        _photoRepository.Verify(r => r.RemoveCommentAsync(root, default), Times.Once);
     }
 }

@@ -23,6 +23,10 @@ public class PhotoConfiguration : IEntityTypeConfiguration<Photo>
             .IsRequired()
             .HasDefaultValue(0);
 
+        builder.Property(p => p.CommentsCount)
+            .IsRequired()
+            .HasDefaultValue(0);
+
         builder.Property(p => p.CreatedAt)
             .IsRequired();
 

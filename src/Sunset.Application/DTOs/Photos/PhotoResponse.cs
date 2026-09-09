@@ -11,4 +11,5 @@ public sealed record PhotoResponse(
     string? Caption,
     int LikesCount,
     bool LikedByCurrentUser,
+    int CommentsCount,
     DateTime CreatedAt);

@@ -91,8 +91,8 @@ public class PhotoService(IPhotoRepository photoRepository, ILocationRepository 
 
     public async Task<CommentResponse> AddCommentAsync(Guid userId, Guid photoId, CreateCommentRequest request, CancellationToken cancellationToken = default)
     {
-        if (await photoRepository.GetByIdAsync(photoId, cancellationToken) is null)
-            throw new NotFoundException("Photo not found.");
+        var photo = await photoRepository.GetByIdAsync(photoId, cancellationToken)
+            ?? throw new NotFoundException("Photo not found.");
 
         if (request.ParentCommentId is { } parentId)
         {
@@ -104,6 +104,8 @@ public class PhotoService(IPhotoRepository photoRepository, ILocationRepository 
 
             parent.IncrementRepliesCount();
         }
+
+        photo.IncrementCommentsCount();
 
         var comment = new Comment(userId, photoId, request.Content, request.ParentCommentId);
         await photoRepository.AddCommentAsync(comment, cancellationToken);
@@ -136,10 +138,20 @@ public class PhotoService(IPhotoRepository photoRepository, ILocationRepository 
         if (comment.UserId != userId)
             throw new UnauthorizedActionException("Only the author can delete this comment.");
 
+        var photo = await photoRepository.GetByIdAsync(comment.PhotoId, cancellationToken)
+            ?? throw new NotFoundException("Photo not found.");
+
         if (comment.ParentCommentId is { } parentId)
         {
             var parent = await photoRepository.GetCommentByIdAsync(parentId, cancellationToken);
             parent?.DecrementRepliesCount();
+            photo.DecrementCommentsCount();
+        }
+        else
+        {
+            // Replies are removed by the DB cascade, not through tracked entities, so the
+            // photo's count has to absorb all of them here in one shot.
+            photo.DecrementCommentsCount(1 + comment.RepliesCount);
         }
 
         await photoRepository.RemoveCommentAsync(comment, cancellationToken);

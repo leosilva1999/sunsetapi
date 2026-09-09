@@ -242,13 +242,17 @@ rating itself.
     "id": "guid", "userId": "guid", "userName": "string", "userAvatarUrl": "string|null",
     "locationId": "guid", "locationName": "string",
     "imageUrl": "string", "caption": "string|null",
-    "likesCount": 5, "likedByCurrentUser": true,
+    "likesCount": 5, "likedByCurrentUser": true, "commentsCount": 3,
     "createdAt": "date"
   }],
   "nextCursor": "...", "hasMore": true
 }
 ```
 `likedByCurrentUser` correctly reflects the caller's bearer token here (or `false` if anonymous).
+`commentsCount` is the **total conversation size**, root comments plus replies combined — not
+just root comments. It's on every `PhotoResponse` (feed, `GET /photos/{id}`, `POST /photos`,
+etc.), denormalized and kept in sync on every comment/reply create or delete, including the
+cascade delete case (see `DELETE /comments/{id}` below).
 
 ### 🔒 `POST /photos`
 Body: `{ "locationId": "guid", "imageUrl": string, "caption": string | null }`.
