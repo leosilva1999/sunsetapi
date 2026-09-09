@@ -94,13 +94,38 @@ public class PhotoService(IPhotoRepository photoRepository, ILocationRepository 
         if (await photoRepository.GetByIdAsync(photoId, cancellationToken) is null)
             throw new NotFoundException("Photo not found.");
 
-        var comment = new Comment(userId, photoId, request.Content);
+        if (request.ParentCommentId is { } parentId)
+        {
+            var parent = await photoRepository.GetCommentByIdAsync(parentId, cancellationToken);
+            if (parent is null || parent.PhotoId != photoId)
+                throw new NotFoundException("Parent comment not found.");
+            if (parent.ParentCommentId is not null)
+                throw new ConflictException("Cannot reply to a reply.");
+
+            parent.IncrementRepliesCount();
+        }
+
+        var comment = new Comment(userId, photoId, request.Content, request.ParentCommentId);
         await photoRepository.AddCommentAsync(comment, cancellationToken);
 
         var created = await photoRepository.GetCommentByIdAsync(comment.Id, cancellationToken)
             ?? throw new NotFoundException("Comment not found.");
 
         return created.ToResponse();
+    }
+
+    public async Task<CursorPagedResult<CommentResponse>> GetRepliesAsync(Guid commentId, string? cursor, int limit, CancellationToken cancellationToken = default)
+    {
+        var comment = await photoRepository.GetCommentByIdAsync(commentId, cancellationToken)
+            ?? throw new NotFoundException("Comment not found.");
+
+        if (comment.ParentCommentId is not null)
+            throw new NotFoundException("Comment not found.");
+
+        var page = await photoRepository.GetRepliesAsync(commentId, cursor, limit, cancellationToken);
+        var items = page.Items.Select(c => c.ToResponse()).ToList();
+
+        return new CursorPagedResult<CommentResponse>(items, page.NextCursor, page.HasMore);
     }
 
     public async Task DeleteCommentAsync(Guid userId, Guid commentId, CancellationToken cancellationToken = default)
@@ -110,6 +135,12 @@ public class PhotoService(IPhotoRepository photoRepository, ILocationRepository 
 
         if (comment.UserId != userId)
             throw new UnauthorizedActionException("Only the author can delete this comment.");
+
+        if (comment.ParentCommentId is { } parentId)
+        {
+            var parent = await photoRepository.GetCommentByIdAsync(parentId, cancellationToken);
+            parent?.DecrementRepliesCount();
+        }
 
         await photoRepository.RemoveCommentAsync(comment, cancellationToken);
     }

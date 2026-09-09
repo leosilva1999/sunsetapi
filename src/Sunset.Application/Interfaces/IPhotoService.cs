@@ -14,5 +14,6 @@ public interface IPhotoService
     Task UnlikeAsync(Guid userId, Guid photoId, CancellationToken cancellationToken = default);
     Task<CursorPagedResult<CommentResponse>> GetCommentsAsync(Guid photoId, string? cursor, int limit, CancellationToken cancellationToken = default);
     Task<CommentResponse> AddCommentAsync(Guid userId, Guid photoId, CreateCommentRequest request, CancellationToken cancellationToken = default);
+    Task<CursorPagedResult<CommentResponse>> GetRepliesAsync(Guid commentId, string? cursor, int limit, CancellationToken cancellationToken = default);
     Task DeleteCommentAsync(Guid userId, Guid commentId, CancellationToken cancellationToken = default);
 }

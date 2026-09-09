@@ -63,8 +63,8 @@ bearer header, not a cookie, so `credentials: 'include'` isn't needed on fetch c
 
 ### Pagination (cursor-based)
 
-Feed-style list endpoints (`/photos`, `/photos/{id}/comments`, `/locations` search,
-`/locations/{id}/photos`, `/users/{id}/photos`) return:
+Feed-style list endpoints (`/photos`, `/photos/{id}/comments`, `/comments/{id}/replies`,
+`/locations` search, `/locations/{id}/photos`, `/users/{id}/photos`) return:
 
 ```json
 {
@@ -269,18 +269,44 @@ didn't author it. → `204`.
 no-op → `204` either way, `likesCount` unchanged. No "already liked" error to handle.
 
 ### `GET /photos/{id}/comments?cursor=&limit=`
-→ `CursorPagedResult<CommentResponse>`:
+**Root comments only** (`parentCommentId == null`) — replies are fetched separately, see below.
+Ordered newest-first. → `CursorPagedResult<CommentResponse>`:
 ```json
-{ "id": "guid", "userId": "guid", "userName": "string", "userAvatarUrl": "string|null", "content": "string", "createdAt": "date" }
+{
+  "id": "guid", "userId": "guid", "userName": "string", "userAvatarUrl": "string|null",
+  "content": "string", "createdAt": "date",
+  "parentCommentId": "guid|null", "repliesCount": 5
+}
 ```
+`parentCommentId` is always `null` in this listing (roots only). `repliesCount` — direct replies
+to that comment; use it to decide whether to show a "View N replies" affordance before fetching
+them.
 
 ### 🔒 `POST /photos/{id}/comments`
-Body: `{ "content": string }`. Validation: required, ≤1000 chars. → `200 OK` with `CommentResponse`
-(not `201` — no `Location` header, unlike photo/location creation).
+Body: `{ "content": string, "parentCommentId": "guid" | null }`.
+- `content`: required, ≤1000 chars.
+- `parentCommentId` (optional, omit or `null` for a root comment): **one level of nesting only**
+  — it must reference an existing **root** comment on the *same photo*. Referencing a comment
+  from a different photo, or one that doesn't exist, → `404`. Referencing a comment that is
+  itself a reply (i.e. trying to reply to a reply) → `409 Conflict`.
+→ `200 OK` with `CommentResponse` (not `201` — no `Location` header, unlike photo/location
+creation).
+
+### `GET /comments/{id}/replies?cursor=&limit=`
+Direct replies to root comment `{id}`, **oldest-first** (chronological, like a conversation —
+opposite order from the main comments listing). `{id}` must be a root comment; if it's itself a
+reply, or doesn't exist, → `404` (both cases look the same: "no replies list for this id"). →
+`CursorPagedResult<CommentResponse>`, same shape as above (`repliesCount` is always `0` on a
+reply — no second level of nesting).
 
 ### 🔒 `DELETE /comments/{id}`
 **Note the path** — this is *not* nested under `/photos/{photoId}/comments/{id}`, it's its own
 top-level `/api/v1/comments/{id}`. Author-only. → `204`.
+- Deleting a **reply** decrements its parent's `repliesCount`.
+- Deleting a **root comment that has replies cascades** — all its replies are deleted too, at the
+  database level (FK `ON DELETE CASCADE`), regardless of who authored them. There's no
+  confirmation step or "orphan" state; the frontend should warn the user before deleting a root
+  comment that has `repliesCount > 0`.
 
 ---
 
@@ -302,3 +328,8 @@ top-level `/api/v1/comments/{id}`. Author-only. → `204`.
    wants to show "update your rating" vs. "rate this" UI.
 5. There's no endpoint to list a user's ratings, likes, or comments — only their photos
    (`GET /users/{id}/photos`).
+6. Replies are **one level deep, hard**: the API rejects (`409`) any attempt to reply to a
+   comment that already has a `parentCommentId`. Design the UI so "Reply" only ever appears on
+   root comments, not on replies themselves — there's no server-side flattening to fall back on.
+7. Deleting a root comment silently takes its replies with it (see `DELETE /comments/{id}`
+   above) — confirm with the user before deleting a root comment when `repliesCount > 0`.

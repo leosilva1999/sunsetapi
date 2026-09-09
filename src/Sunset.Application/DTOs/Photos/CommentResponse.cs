@@ -6,4 +6,6 @@ public sealed record CommentResponse(
     string UserName,
     string? UserAvatarUrl,
     string Content,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    Guid? ParentCommentId,
+    int RepliesCount);

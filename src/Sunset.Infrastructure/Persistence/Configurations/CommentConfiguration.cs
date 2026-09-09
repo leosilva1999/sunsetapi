@@ -19,6 +19,16 @@ public class CommentConfiguration : IEntityTypeConfiguration<Comment>
         builder.Property(c => c.CreatedAt)
             .IsRequired();
 
+        builder.Property(c => c.RepliesCount)
+            .IsRequired()
+            .HasDefaultValue(0);
+
         builder.HasIndex(c => c.PhotoId);
+        builder.HasIndex(c => c.ParentCommentId);
+
+        builder.HasOne<Comment>()
+            .WithMany()
+            .HasForeignKey(c => c.ParentCommentId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -19,6 +19,7 @@ public interface IPhotoRepository
     Task<IReadOnlySet<Guid>> GetLikedPhotoIdsAsync(Guid userId, IEnumerable<Guid> photoIds, CancellationToken cancellationToken = default);
 
     Task<CursorPagedResult<Comment>> GetCommentsAsync(Guid photoId, string? cursor, int limit, CancellationToken cancellationToken = default);
+    Task<CursorPagedResult<Comment>> GetRepliesAsync(Guid parentCommentId, string? cursor, int limit, CancellationToken cancellationToken = default);
     Task<Comment?> GetCommentByIdAsync(Guid commentId, CancellationToken cancellationToken = default);
     Task AddCommentAsync(Comment comment, CancellationToken cancellationToken = default);
     Task RemoveCommentAsync(Comment comment, CancellationToken cancellationToken = default);

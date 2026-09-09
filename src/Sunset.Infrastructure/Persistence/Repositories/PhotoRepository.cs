@@ -132,7 +132,7 @@ public class PhotoRepository(SunsetDbContext context) : IPhotoRepository
     {
         var comments = context.Comments
             .Include(c => c.User)
-            .Where(c => c.PhotoId == photoId)
+            .Where(c => c.PhotoId == photoId && c.ParentCommentId == null)
             .AsQueryable();
 
         var decoded = CreatedAtCursor.TryDecode(cursor);
@@ -146,6 +146,34 @@ public class PhotoRepository(SunsetDbContext context) : IPhotoRepository
         var items = await comments
             .OrderByDescending(x => x.CreatedAt)
             .ThenByDescending(x => x.Id)
+            .Take(limit + 1)
+            .ToListAsync(cancellationToken);
+
+        var hasMore = items.Count > limit;
+        var page = items.Take(limit).ToList();
+        var nextCursor = hasMore ? CreatedAtCursor.Encode(page[^1].CreatedAt, page[^1].Id) : null;
+
+        return new CursorPagedResult<Comment>(page, nextCursor, hasMore);
+    }
+
+    public async Task<CursorPagedResult<Comment>> GetRepliesAsync(Guid parentCommentId, string? cursor, int limit, CancellationToken cancellationToken = default)
+    {
+        var replies = context.Comments
+            .Include(c => c.User)
+            .Where(c => c.ParentCommentId == parentCommentId)
+            .AsQueryable();
+
+        var decoded = CreatedAtCursor.TryDecode(cursor);
+        if (decoded is { } c)
+        {
+            replies = replies.Where(x =>
+                x.CreatedAt > c.CreatedAt ||
+                (x.CreatedAt == c.CreatedAt && x.Id.CompareTo(c.Id) > 0));
+        }
+
+        var items = await replies
+            .OrderBy(x => x.CreatedAt)
+            .ThenBy(x => x.Id)
             .Take(limit + 1)
             .ToListAsync(cancellationToken);
 

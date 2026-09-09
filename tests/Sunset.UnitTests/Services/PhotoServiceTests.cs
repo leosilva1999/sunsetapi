@@ -169,6 +169,90 @@ public class PhotoServiceTests
     }
 
     [Fact]
+    public async Task AddCommentAsync_WithValidParent_IncrementsParentRepliesCountAndCreatesReply()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        var photo = CreatePhoto(user, location);
+        var parent = new Comment(user.Id, photo.Id, "Comentario raiz");
+
+        _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
+        _photoRepository.Setup(r => r.GetCommentByIdAsync(parent.Id, default)).ReturnsAsync(parent);
+
+        Comment? added = null;
+        _photoRepository
+            .Setup(r => r.AddCommentAsync(It.IsAny<Comment>(), default))
+            .Callback<Comment, CancellationToken>((c, _) => added = c)
+            .Returns(Task.CompletedTask);
+        _photoRepository
+            .Setup(r => r.GetCommentByIdAsync(It.Is<Guid>(id => id != parent.Id), default))
+            .ReturnsAsync(() =>
+            {
+                var reply = added!;
+                typeof(Comment).GetProperty(nameof(Comment.User))!.SetValue(reply, user);
+                return reply;
+            });
+
+        var response = await _sut.AddCommentAsync(user.Id, photo.Id, new CreateCommentRequest("Resposta", parent.Id));
+
+        Assert.Equal(parent.Id, response.ParentCommentId);
+        Assert.Equal(1, parent.RepliesCount);
+    }
+
+    [Fact]
+    public async Task AddCommentAsync_WithParentFromDifferentPhoto_ThrowsNotFoundException()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        var photo = CreatePhoto(user, location);
+        var parent = new Comment(user.Id, Guid.NewGuid(), "Comentario de outra foto");
+
+        _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
+        _photoRepository.Setup(r => r.GetCommentByIdAsync(parent.Id, default)).ReturnsAsync(parent);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _sut.AddCommentAsync(user.Id, photo.Id, new CreateCommentRequest("Resposta", parent.Id)));
+        _photoRepository.Verify(r => r.AddCommentAsync(It.IsAny<Comment>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task AddCommentAsync_ReplyingToAReply_ThrowsConflictException()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        var photo = CreatePhoto(user, location);
+        var root = new Comment(user.Id, photo.Id, "Raiz");
+        var reply = new Comment(user.Id, photo.Id, "Resposta", root.Id);
+
+        _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
+        _photoRepository.Setup(r => r.GetCommentByIdAsync(reply.Id, default)).ReturnsAsync(reply);
+
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            _sut.AddCommentAsync(user.Id, photo.Id, new CreateCommentRequest("Resposta da resposta", reply.Id)));
+        _photoRepository.Verify(r => r.AddCommentAsync(It.IsAny<Comment>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetRepliesAsync_WithUnknownComment_ThrowsNotFoundException()
+    {
+        _photoRepository.Setup(r => r.GetCommentByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Comment?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetRepliesAsync(Guid.NewGuid(), null, 20));
+    }
+
+    [Fact]
+    public async Task GetRepliesAsync_WhenCommentIsItselfAReply_ThrowsNotFoundException()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var reply = new Comment(user.Id, Guid.NewGuid(), "Resposta", Guid.NewGuid());
+
+        _photoRepository.Setup(r => r.GetCommentByIdAsync(reply.Id, default)).ReturnsAsync(reply);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetRepliesAsync(reply.Id, null, 20));
+        _photoRepository.Verify(r => r.GetRepliesAsync(It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<int>(), default), Times.Never);
+    }
+
+    [Fact]
     public async Task DeleteCommentAsync_WhenNotAuthor_ThrowsUnauthorizedActionException()
     {
         var user = new User("Ana", "ana@sunset.com", "hashed");
@@ -179,5 +263,22 @@ public class PhotoServiceTests
 
         await Assert.ThrowsAsync<UnauthorizedActionException>(() => _sut.DeleteCommentAsync(Guid.NewGuid(), comment.Id));
         _photoRepository.Verify(r => r.RemoveCommentAsync(It.IsAny<Comment>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteCommentAsync_WhenDeletingAReply_DecrementsParentRepliesCount()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var parent = new Comment(user.Id, Guid.NewGuid(), "Raiz");
+        parent.IncrementRepliesCount();
+        var reply = new Comment(user.Id, parent.PhotoId, "Resposta", parent.Id);
+
+        _photoRepository.Setup(r => r.GetCommentByIdAsync(reply.Id, default)).ReturnsAsync(reply);
+        _photoRepository.Setup(r => r.GetCommentByIdAsync(parent.Id, default)).ReturnsAsync(parent);
+
+        await _sut.DeleteCommentAsync(user.Id, reply.Id);
+
+        Assert.Equal(0, parent.RepliesCount);
+        _photoRepository.Verify(r => r.RemoveCommentAsync(reply, default), Times.Once);
     }
 }
