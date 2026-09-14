@@ -20,7 +20,15 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
         if (!string.IsNullOrWhiteSpace(query.Q))
         {
             var term = query.Q.Trim();
-            locations = locations.Where(l => EF.Functions.Like(l.Name, $"%{term}%") || EF.Functions.Like(l.City, $"%{term}%"));
+
+            // MySQL's default innodb_ft_min_token_size is 3, so FULLTEXT can't match anything
+            // shorter - fall back to LIKE for short terms. That's also exactly where a LIKE
+            // '%term%' scan is cheap (it only gets expensive once matches get more selective,
+            // which is the 3+ character case the FULLTEXT index exists for).
+            var booleanQuery = BuildBooleanModeQuery(term);
+            locations = booleanQuery is null
+                ? locations.Where(l => EF.Functions.Like(l.Name, $"%{term}%") || EF.Functions.Like(l.City, $"%{term}%"))
+                : locations.Where(l => EF.Functions.Match(new[] { l.Name, l.City }, booleanQuery, MySqlMatchSearchMode.Boolean) > 0);
         }
 
         if (query.Latitude is { } lat && query.Longitude is { } lng && query.RadiusKm is { } radiusKm)
@@ -54,6 +62,27 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
         var nextCursor = hasMore ? CreatedAtCursor.Encode(page[^1].CreatedAt, page[^1].Id) : null;
 
         return new CursorPagedResult<Location>(page, nextCursor, hasMore);
+    }
+
+    // Builds a MySQL boolean-mode fulltext search string (each word required, prefix-matched:
+    // "+word*"), or null when the term can't productively use the FULLTEXT index (too short, or
+    // made up entirely of words below MySQL's minimum indexed token length) - callers should fall
+    // back to a LIKE scan in that case. Strips boolean-mode operator characters (+-<>()~*"@) from
+    // each word since we're the ones adding the operators; letting user input through unescaped
+    // would let a search term change the query's meaning (e.g. a leading "-" excludes a term).
+    private static string? BuildBooleanModeQuery(string term)
+    {
+        if (term.Length < 3)
+            return null;
+
+        var words = term
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(word => new string(word.Where(char.IsLetterOrDigit).ToArray()))
+            .Where(word => word.Length >= 3)
+            .Select(word => $"+{word}*")
+            .ToList();
+
+        return words.Count == 0 ? null : string.Join(' ', words);
     }
 
     public async Task AddAsync(Location location, CancellationToken cancellationToken = default)

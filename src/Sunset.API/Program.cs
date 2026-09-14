@@ -1,5 +1,8 @@
 using System.Text;
+using System.Text.Json;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Sunset.API.Middlewares;
 using Sunset.API.OpenApi;
@@ -60,6 +63,33 @@ builder.Services.AddCors(options =>
         .AllowAnyMethod());
 });
 
+// "Search" policy: protects instant-search-style endpoints (typeahead on every keystroke) from
+// being hammered, whether by a runaway client-side loop or a debounce bug - independent of
+// whatever debouncing the frontend does, since that's not something the API can rely on.
+const string SearchRateLimitPolicy = "Search";
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy(SearchRateLimitPolicy, httpContext => RateLimitPartition.GetSlidingWindowLimiter(
+        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = 40,
+            Window = TimeSpan.FromSeconds(10),
+            SegmentsPerWindow = 5,
+            QueueLimit = 0,
+        }));
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "application/json";
+        context.HttpContext.Response.Headers.RetryAfter = "10";
+
+        var payload = JsonSerializer.Serialize(new { title = "Too many search requests. Please slow down.", errors = (object?)null });
+        await context.HttpContext.Response.WriteAsync(payload, cancellationToken);
+    };
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -85,6 +115,8 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
 
 app.UseCors(FrontendCorsPolicy);
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

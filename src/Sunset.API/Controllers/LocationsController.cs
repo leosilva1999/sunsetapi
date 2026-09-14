@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Locations;
 using Sunset.Application.DTOs.Photos;
@@ -18,6 +19,7 @@ public class LocationsController(
     IValidator<CreateRatingRequest> createRatingValidator,
     ICurrentUserService currentUserService) : ControllerBase
 {
+    [EnableRateLimiting("Search")]
     [HttpGet]
     public async Task<ActionResult<CursorPagedResult<LocationResponse>>> Search(
         [FromQuery] string? q,

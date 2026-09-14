@@ -35,6 +35,9 @@ public class LocationConfiguration : IEntityTypeConfiguration<Location>
 
         builder.HasIndex(l => l.City);
 
+        builder.HasIndex(l => new { l.Name, l.City })
+            .IsFullText();
+
         builder.HasMany(l => l.Photos)
             .WithOne(p => p.Location)
             .HasForeignKey(p => p.LocationId)

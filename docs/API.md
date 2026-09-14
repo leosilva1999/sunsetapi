@@ -25,6 +25,11 @@ these are the diffs to check:
   + author), `GET /locations/{id}/ratings` (list), `GET /locations/{id}/ratings/me`, and
   `DELETE /locations/{id}/ratings`. ⚠️ **`POST /locations/{id}/ratings` changed its response type**
   from `LocationResponse` to `RatingResponse` — see [Locations](#locations).
+- **`GET /locations?q=` search changed semantics and is now rate limited** — built for instant
+  search (safe to call on every keystroke), it's backed by a FULLTEXT index for terms ≥3 chars,
+  which means **prefix-per-word matching, not substring** (`"osa"` no longer matches "Rosa"); ⚠️
+  if your search UI/tests assumed arbitrary substring matching, check the behavior change — see
+  [Locations](#locations).
 
 ## Base URL & running locally
 
@@ -129,6 +134,10 @@ field being present in that specific case.
 🔒 = requires `Authorization: Bearer <token>`. Endpoints without 🔒 are public (some
 optionally read the token if present, noted inline).
 
+🐌 = **rate limited** beyond the norm (currently just `GET /locations` search — see there for the
+exact limit). Every endpoint is implicitly subject to normal infrastructure-level limits; 🐌 marks
+the ones with a specific, tighter, documented policy worth knowing about.
+
 ---
 
 ## Auth
@@ -199,13 +208,32 @@ not wired up for this listing (only `/photos` feed and `/photos/{id}` resolve it
 
 ## Locations
 
-### `GET /locations?q=&lat=&lng=&radius=&cursor=&limit=`
-Search/browse. All query params optional.
-- `q`: substring match against name or city.
+### 🐌 `GET /locations?q=&lat=&lng=&radius=&cursor=&limit=`
+Search/browse — safe to call on every keystroke for a live/instant-search box (still debounce on
+the frontend; see rate limit below regardless). All query params optional.
+
+- `q` search behavior **depends on term length**, because it's backed by a MySQL FULLTEXT index
+  (`Name`, `City`) which can't index anything below MySQL's default minimum token size:
+  - **≥3 characters**: FULLTEXT boolean-mode search, **per-word prefix match** — each word in `q`
+    must match the *start* of a word in `Name` or `City`. `"jeric"` matches "**Jeric**oacoara";
+    `"praia rosa"` matches "**Praia** do **Rosa**" (multi-word is AND, order-independent). ⚠️
+    **This is not a substring match** — `"osa"` will *not* match "Rosa" (only a match starting
+    with "osa" would), unlike a naive `LIKE '%osa%'`. Punctuation/symbols in `q` are stripped
+    before searching (so `q` is safe to pass through as-is, no need to sanitize client-side).
+  - **<3 characters**: falls back to a plain `LIKE '%q%'` substring scan (real substring match,
+    anywhere in the word) — short queries can't use the index either way, so there's no downside
+    to substring semantics there, and it keeps single/double-letter input from returning nothing.
 - `lat`+`lng`+`radius` (km): must be supplied **together** to filter by distance — it's a coarse
   bounding-box approximation, not exact great-circle distance, so don't expect razor-precise
   radius edges.
+
 → `CursorPagedResult<LocationResponse>`.
+
+🐌 = **rate limited**: 40 requests per rolling 10-second window, partitioned by client IP. Over
+the limit → `429 Too Many Requests`, `Retry-After: 10` header, body
+`{"title": "Too many search requests. Please slow down.", "errors": null}`. This is independent
+of frontend debouncing — it's a floor to protect the DB even if debounce is misconfigured, buggy,
+or bypassed, so don't rely on 429s as your only signal to slow down; debounce first regardless.
 
 ### `GET /locations/ranking?period=all&limit=20`
 `period` is one of `week` | `month` | `all` (case-insensitive; default `all`), ranking by average
