@@ -43,6 +43,6 @@ public class LocationConfiguration : IEntityTypeConfiguration<Location>
         builder.HasMany(l => l.Ratings)
             .WithOne(r => r.Location)
             .HasForeignKey(r => r.LocationId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
