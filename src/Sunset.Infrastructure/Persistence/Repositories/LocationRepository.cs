@@ -92,12 +92,46 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
     }
 
     public Task<Rating?> GetRatingAsync(Guid userId, Guid locationId, CancellationToken cancellationToken = default) =>
-        context.Ratings.FirstOrDefaultAsync(r => r.UserId == userId && r.LocationId == locationId, cancellationToken);
+        context.Ratings.Include(r => r.User).FirstOrDefaultAsync(r => r.UserId == userId && r.LocationId == locationId, cancellationToken);
 
     public async Task AddRatingAsync(Rating rating, CancellationToken cancellationToken = default)
     {
         await context.Ratings.AddAsync(rating, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RemoveRatingAsync(Rating rating, CancellationToken cancellationToken = default)
+    {
+        context.Ratings.Remove(rating);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<CursorPagedResult<Rating>> GetRatingsAsync(Guid locationId, string? cursor, int limit, CancellationToken cancellationToken = default)
+    {
+        var ratings = context.Ratings
+            .Include(r => r.User)
+            .Where(r => r.LocationId == locationId)
+            .AsQueryable();
+
+        var decoded = CreatedAtCursor.TryDecode(cursor);
+        if (decoded is { } c)
+        {
+            ratings = ratings.Where(x =>
+                x.CreatedAt < c.CreatedAt ||
+                (x.CreatedAt == c.CreatedAt && x.Id.CompareTo(c.Id) < 0));
+        }
+
+        var items = await ratings
+            .OrderByDescending(x => x.CreatedAt)
+            .ThenByDescending(x => x.Id)
+            .Take(limit + 1)
+            .ToListAsync(cancellationToken);
+
+        var hasMore = items.Count > limit;
+        var page = items.Take(limit).ToList();
+        var nextCursor = hasMore ? CreatedAtCursor.Encode(page[^1].CreatedAt, page[^1].Id) : null;
+
+        return new CursorPagedResult<Rating>(page, nextCursor, hasMore);
     }
 
     public async Task<decimal> GetAverageRatingAsync(Guid locationId, CancellationToken cancellationToken = default)

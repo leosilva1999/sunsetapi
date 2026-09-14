@@ -21,6 +21,10 @@ these are the diffs to check:
   `GET /comments/{id}/replies` — see [Photos](#photos).
 - **`PhotoResponse.commentsCount`** (roots + replies combined) — see [Photos](#photos).
 - **CORS** is now configured (was previously missing/blocking) — see [CORS](#cors).
+- **Ratings now carry a comment and have their own endpoints**: `RatingResponse` (score + comment
+  + author), `GET /locations/{id}/ratings` (list), `GET /locations/{id}/ratings/me`, and
+  `DELETE /locations/{id}/ratings`. ⚠️ **`POST /locations/{id}/ratings` changed its response type**
+  from `LocationResponse` to `RatingResponse` — see [Locations](#locations).
 
 ## Base URL & running locally
 
@@ -239,11 +243,35 @@ failing independently of the rest of the location data being fine.** sunrise-sun
 contractually requires a visible attribution link back to their site wherever this data is
 shown — that's on the frontend to add, the API doesn't inject it.
 
+### `GET /locations/{id}/ratings?cursor=&limit=`
+All ratings for the location, newest-first. → `CursorPagedResult<RatingResponse>`:
+```json
+{
+  "id": "guid", "userId": "guid", "userName": "string", "userAvatarUrl": "string|null",
+  "score": 5, "comment": "string|null", "createdAt": "date"
+}
+```
+`comment` is `null` when the user rated without writing anything — it's optional, not required.
+
+### 🔒 `GET /locations/{id}/ratings/me`
+The **authenticated** user's own rating for this location. `404` if they haven't rated it yet —
+use that to decide between showing "Rate this place" vs. "Edit your rating" in the UI. → single
+`RatingResponse`.
+
 ### 🔒 `POST /locations/{id}/ratings`
-Body: `{ "score": 1-5 }`. **Upsert semantics**: calling it again for the same user+location
-updates the existing rating rather than erroring or creating a duplicate. → updated
-`LocationResponse` (with recalculated `avgRating`) — note this returns the **location**, not the
-rating itself.
+Body: `{ "score": 1-5, "comment": string | null }`. `comment` is optional (omit or send `null` for
+a stars-only rating), ≤1000 chars when present.
+**Upsert semantics**: calling it again for the same user+location updates the existing rating
+(both score and comment are replaced — this one is NOT a partial update like `PATCH /users/me`,
+sending `{"score": 3}` after previously rating with a comment **clears** the comment) rather than
+erroring or creating a duplicate.
+→ `RatingResponse` for the rating just created/updated. **This used to return `LocationResponse`
+— if you need the location's updated `avgRating` after rating, re-fetch `GET /locations/{id}`.**
+
+### 🔒 `DELETE /locations/{id}/ratings`
+Removes the **authenticated** user's own rating for this location and recalculates the location's
+`avgRating`. `404` if they hadn't rated it. → `204`. No `{ratingId}` in the path — a user has at
+most one rating per location, so there's nothing to disambiguate.
 
 ---
 
@@ -341,12 +369,14 @@ top-level `/api/v1/comments/{id}`. Author-only. → `204`.
    values.
 3. `likedByCurrentUser` is only accurate on `/photos` (feed) and `/photos/{id}` — it's hardcoded
    `false` on the two "photos by X" listings (`/users/{id}/photos`, `/locations/{id}/photos`).
-4. Ratings are an **upsert** (`POST /locations/{id}/ratings` again just updates the score) — no
-   separate "edit my rating" endpoint, and no "get my rating for this location" endpoint either;
-   the frontend has to track locally whether the current user already rated a location if it
-   wants to show "update your rating" vs. "rate this" UI.
-5. There's no endpoint to list a user's ratings, likes, or comments — only their photos
-   (`GET /users/{id}/photos`).
+4. Ratings are an **upsert** (`POST /locations/{id}/ratings` again just replaces score *and*
+   comment — it's not a partial update) — use `GET /locations/{id}/ratings/me` to check whether
+   the current user already rated a location before deciding "update your rating" vs. "rate this"
+   UI.
+5. There's no endpoint to list a user's likes or comments — only their photos
+   (`GET /users/{id}/photos`) and, per-location, their ratings show up in
+   `GET /locations/{id}/ratings` like anyone else's (filter client-side by `userId` if you need
+   just theirs).
 6. Replies are **one level deep, hard**: the API rejects (`409`) any attempt to reply to a
    comment that already has a `parentCommentId`. Design the UI so "Reply" only ever appears on
    root comments, not on replies themselves — there's no server-side flattening to fall back on.

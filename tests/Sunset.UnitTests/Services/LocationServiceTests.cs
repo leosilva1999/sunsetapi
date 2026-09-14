@@ -69,16 +69,23 @@ public class LocationServiceTests
     public async Task RateAsync_WithNoExistingRating_CreatesRatingAndRecalculatesAverage()
     {
         var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
-        var userId = Guid.NewGuid();
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var created = new Rating(user.Id, location.Id, 5, "Muito bom!");
+        SetRatingUser(created, user);
 
         _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
-        _locationRepository.Setup(r => r.GetRatingAsync(userId, location.Id, default)).ReturnsAsync((Rating?)null);
+        _locationRepository
+            .SetupSequence(r => r.GetRatingAsync(user.Id, location.Id, default))
+            .ReturnsAsync((Rating?)null)
+            .ReturnsAsync(created);
         _locationRepository.Setup(r => r.GetAverageRatingAsync(location.Id, default)).ReturnsAsync(4.5m);
 
-        var response = await _sut.RateAsync(userId, location.Id, new CreateRatingRequest(5));
+        var response = await _sut.RateAsync(user.Id, location.Id, new CreateRatingRequest(5, "Muito bom!"));
 
-        Assert.Equal(4.5m, response.AvgRating);
-        _locationRepository.Verify(r => r.AddRatingAsync(It.Is<Rating>(rt => rt.Score == 5 && rt.UserId == userId), default), Times.Once);
+        Assert.Equal(5, response.Score);
+        Assert.Equal("Muito bom!", response.Comment);
+        Assert.Equal(4.5m, location.AvgRating);
+        _locationRepository.Verify(r => r.AddRatingAsync(It.Is<Rating>(rt => rt.Score == 5 && rt.UserId == user.Id), default), Times.Once);
         _locationRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
     }
 
@@ -86,20 +93,62 @@ public class LocationServiceTests
     public async Task RateAsync_WithExistingRating_UpdatesScoreInsteadOfCreating()
     {
         var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
-        var userId = Guid.NewGuid();
-        var existingRating = new Rating(userId, location.Id, 3);
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var existingRating = new Rating(user.Id, location.Id, 3);
+        SetRatingUser(existingRating, user);
 
         _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
-        _locationRepository.Setup(r => r.GetRatingAsync(userId, location.Id, default)).ReturnsAsync(existingRating);
+        _locationRepository.Setup(r => r.GetRatingAsync(user.Id, location.Id, default)).ReturnsAsync(existingRating);
         _locationRepository.Setup(r => r.GetAverageRatingAsync(location.Id, default)).ReturnsAsync(5m);
 
-        var response = await _sut.RateAsync(userId, location.Id, new CreateRatingRequest(5));
+        var response = await _sut.RateAsync(user.Id, location.Id, new CreateRatingRequest(5, "Melhor ainda!"));
 
         Assert.Equal(5, existingRating.Score);
-        Assert.Equal(5m, response.AvgRating);
+        Assert.Equal(5, response.Score);
+        Assert.Equal("Melhor ainda!", response.Comment);
+        Assert.Equal(5m, location.AvgRating);
         _locationRepository.Verify(r => r.AddRatingAsync(It.IsAny<Rating>(), default), Times.Never);
         _locationRepository.Verify(r => r.SaveChangesAsync(default), Times.Exactly(2));
     }
+
+    [Fact]
+    public async Task GetMyRatingAsync_WithNoRating_ThrowsNotFoundException()
+    {
+        _locationRepository.Setup(r => r.GetRatingAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), default)).ReturnsAsync((Rating?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetMyRatingAsync(Guid.NewGuid(), Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task DeleteRatingAsync_RemovesRatingAndRecalculatesAverage()
+    {
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var rating = new Rating(user.Id, location.Id, 5);
+
+        _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
+        _locationRepository.Setup(r => r.GetRatingAsync(user.Id, location.Id, default)).ReturnsAsync(rating);
+        _locationRepository.Setup(r => r.GetAverageRatingAsync(location.Id, default)).ReturnsAsync(0m);
+
+        await _sut.DeleteRatingAsync(user.Id, location.Id);
+
+        Assert.Equal(0m, location.AvgRating);
+        _locationRepository.Verify(r => r.RemoveRatingAsync(rating, default), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteRatingAsync_WithNoRating_ThrowsNotFoundException()
+    {
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
+        _locationRepository.Setup(r => r.GetRatingAsync(It.IsAny<Guid>(), location.Id, default)).ReturnsAsync((Rating?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.DeleteRatingAsync(Guid.NewGuid(), location.Id));
+        _locationRepository.Verify(r => r.RemoveRatingAsync(It.IsAny<Rating>(), default), Times.Never);
+    }
+
+    private static void SetRatingUser(Rating rating, User user) =>
+        typeof(Rating).GetProperty(nameof(Rating.User))!.SetValue(rating, user);
 
     [Fact]
     public async Task RateAsync_WithUnknownLocation_ThrowsNotFoundException()

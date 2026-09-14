@@ -12,6 +12,9 @@ public interface ILocationService
     Task<LocationResponse> CreateAsync(CreateLocationRequest request, CancellationToken cancellationToken = default);
     Task<CursorPagedResult<PhotoResponse>> GetPhotosAsync(Guid locationId, string? cursor, int limit, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<LocationResponse>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default);
-    Task<LocationResponse> RateAsync(Guid userId, Guid locationId, CreateRatingRequest request, CancellationToken cancellationToken = default);
+    Task<RatingResponse> RateAsync(Guid userId, Guid locationId, CreateRatingRequest request, CancellationToken cancellationToken = default);
+    Task<CursorPagedResult<RatingResponse>> GetRatingsAsync(Guid locationId, string? cursor, int limit, CancellationToken cancellationToken = default);
+    Task<RatingResponse> GetMyRatingAsync(Guid userId, Guid locationId, CancellationToken cancellationToken = default);
+    Task DeleteRatingAsync(Guid userId, Guid locationId, CancellationToken cancellationToken = default);
     Task<SunsetTimeResponse> GetSunsetTimeAsync(Guid locationId, DateOnly? date, CancellationToken cancellationToken = default);
 }

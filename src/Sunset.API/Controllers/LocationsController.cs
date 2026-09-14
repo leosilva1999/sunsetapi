@@ -77,9 +77,31 @@ public class LocationsController(
         return Ok(response);
     }
 
+    [HttpGet("{id:guid}/ratings")]
+    public async Task<ActionResult<CursorPagedResult<RatingResponse>>> GetRatings(
+        Guid id,
+        [FromQuery] string? cursor,
+        [FromQuery] int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var page = await locationService.GetRatingsAsync(id, cursor, Math.Clamp(limit, 1, 50), cancellationToken);
+        return Ok(page);
+    }
+
+    [Authorize]
+    [HttpGet("{id:guid}/ratings/me")]
+    public async Task<ActionResult<RatingResponse>> GetMyRating(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedActionException("User is not authenticated.");
+
+        var response = await locationService.GetMyRatingAsync(userId, id, cancellationToken);
+        return Ok(response);
+    }
+
     [Authorize]
     [HttpPost("{id:guid}/ratings")]
-    public async Task<ActionResult<LocationResponse>> Rate(Guid id, CreateRatingRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<RatingResponse>> Rate(Guid id, CreateRatingRequest request, CancellationToken cancellationToken)
     {
         await createRatingValidator.ValidateAndThrowAsync(request, cancellationToken);
 
@@ -88,5 +110,16 @@ public class LocationsController(
 
         var response = await locationService.RateAsync(userId, id, request, cancellationToken);
         return Ok(response);
+    }
+
+    [Authorize]
+    [HttpDelete("{id:guid}/ratings")]
+    public async Task<IActionResult> DeleteRating(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedActionException("User is not authenticated.");
+
+        await locationService.DeleteRatingAsync(userId, id, cancellationToken);
+        return NoContent();
     }
 }

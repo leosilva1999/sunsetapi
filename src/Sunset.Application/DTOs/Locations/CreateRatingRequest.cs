@@ -1,3 +1,3 @@
 namespace Sunset.Application.DTOs.Locations;
 
-public sealed record CreateRatingRequest(int Score);
+public sealed record CreateRatingRequest(int Score, string? Comment = null);

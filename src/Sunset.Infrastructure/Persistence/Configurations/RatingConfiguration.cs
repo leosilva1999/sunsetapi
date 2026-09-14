@@ -15,6 +15,9 @@ public class RatingConfiguration : IEntityTypeConfiguration<Rating>
         builder.Property(r => r.Score)
             .IsRequired();
 
+        builder.Property(r => r.Comment)
+            .HasMaxLength(1000);
+
         builder.Property(r => r.CreatedAt)
             .IsRequired();
 

@@ -55,7 +55,7 @@ public class LocationService(
         return locations.Select(l => l.ToResponse()).ToList();
     }
 
-    public async Task<LocationResponse> RateAsync(Guid userId, Guid locationId, CreateRatingRequest request, CancellationToken cancellationToken = default)
+    public async Task<RatingResponse> RateAsync(Guid userId, Guid locationId, CreateRatingRequest request, CancellationToken cancellationToken = default)
     {
         var location = await locationRepository.GetByIdAsync(locationId, cancellationToken)
             ?? throw new NotFoundException("Location not found.");
@@ -63,12 +63,12 @@ public class LocationService(
         var existingRating = await locationRepository.GetRatingAsync(userId, locationId, cancellationToken);
         if (existingRating is null)
         {
-            var rating = new Rating(userId, locationId, request.Score);
+            var rating = new Rating(userId, locationId, request.Score, request.Comment);
             await locationRepository.AddRatingAsync(rating, cancellationToken);
         }
         else
         {
-            existingRating.UpdateScore(request.Score);
+            existingRating.Update(request.Score, request.Comment);
             await locationRepository.SaveChangesAsync(cancellationToken);
         }
 
@@ -76,7 +76,44 @@ public class LocationService(
         location.RecalculateAvgRating(averageRating);
         await locationRepository.SaveChangesAsync(cancellationToken);
 
-        return location.ToResponse();
+        var created = await locationRepository.GetRatingAsync(userId, locationId, cancellationToken)
+            ?? throw new NotFoundException("Rating not found.");
+
+        return created.ToResponse();
+    }
+
+    public async Task<CursorPagedResult<RatingResponse>> GetRatingsAsync(Guid locationId, string? cursor, int limit, CancellationToken cancellationToken = default)
+    {
+        if (await locationRepository.GetByIdAsync(locationId, cancellationToken) is null)
+            throw new NotFoundException("Location not found.");
+
+        var page = await locationRepository.GetRatingsAsync(locationId, cursor, limit, cancellationToken);
+        var items = page.Items.Select(r => r.ToResponse()).ToList();
+
+        return new CursorPagedResult<RatingResponse>(items, page.NextCursor, page.HasMore);
+    }
+
+    public async Task<RatingResponse> GetMyRatingAsync(Guid userId, Guid locationId, CancellationToken cancellationToken = default)
+    {
+        var rating = await locationRepository.GetRatingAsync(userId, locationId, cancellationToken)
+            ?? throw new NotFoundException("Rating not found.");
+
+        return rating.ToResponse();
+    }
+
+    public async Task DeleteRatingAsync(Guid userId, Guid locationId, CancellationToken cancellationToken = default)
+    {
+        var location = await locationRepository.GetByIdAsync(locationId, cancellationToken)
+            ?? throw new NotFoundException("Location not found.");
+
+        var rating = await locationRepository.GetRatingAsync(userId, locationId, cancellationToken)
+            ?? throw new NotFoundException("Rating not found.");
+
+        await locationRepository.RemoveRatingAsync(rating, cancellationToken);
+
+        var averageRating = await locationRepository.GetAverageRatingAsync(locationId, cancellationToken);
+        location.RecalculateAvgRating(averageRating);
+        await locationRepository.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<SunsetTimeResponse> GetSunsetTimeAsync(Guid locationId, DateOnly? date, CancellationToken cancellationToken = default)

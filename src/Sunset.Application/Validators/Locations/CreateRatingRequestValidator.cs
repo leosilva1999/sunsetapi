@@ -9,5 +9,8 @@ public class CreateRatingRequestValidator : AbstractValidator<CreateRatingReques
     {
         RuleFor(x => x.Score)
             .InclusiveBetween(1, 5);
+
+        RuleFor(x => x.Comment)
+            .MaximumLength(1000);
     }
 }

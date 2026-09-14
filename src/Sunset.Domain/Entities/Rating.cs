@@ -5,13 +5,14 @@ public class Rating : BaseEntity
     public Guid UserId { get; private set; }
     public Guid LocationId { get; private set; }
     public int Score { get; private set; }
+    public string? Comment { get; private set; }
 
     public User User { get; private set; } = null!;
     public Location Location { get; private set; } = null!;
 
     private Rating() { }
 
-    public Rating(Guid userId, Guid locationId, int score)
+    public Rating(Guid userId, Guid locationId, int score, string? comment = null)
     {
         if (userId == Guid.Empty)
             throw new ArgumentException("UserId is required.", nameof(userId));
@@ -23,13 +24,15 @@ public class Rating : BaseEntity
         UserId = userId;
         LocationId = locationId;
         Score = score;
+        Comment = comment;
     }
 
-    public void UpdateScore(int score)
+    public void Update(int score, string? comment)
     {
         if (score is < 1 or > 5)
             throw new ArgumentOutOfRangeException(nameof(score), score, "Score must be between 1 and 5.");
 
         Score = score;
+        Comment = comment;
     }
 }
