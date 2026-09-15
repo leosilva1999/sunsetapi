@@ -242,7 +242,10 @@ is still what's returned per location). → plain array of `LocationResponse` (n
 
 ### `GET /locations/{id}`
 → `{ "id", "name", "latitude", "longitude", "city", "avgRating", "createdAt" }`. `avgRating` is a
-decimal (e.g. `4.33`), 0 for a location with no ratings yet.
+decimal (e.g. `4.33`), 0 for a location with no ratings yet. `latitude`/`longitude` are exactly
+what a map embed needs (e.g. Google Maps Embed's `q={latitude},{longitude}`) — always validated
+on creation (-90..90 / -180..180), never missing — see `docs/proposal-location-map-embed.md` for
+the frontend spec.
 
 ### 🔒 `POST /locations`
 Body: `{ "name": string, "latitude": number, "longitude": number, "city": string }`
