@@ -60,6 +60,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`. `Location` 1:N `P
 
 **Photos**
 - `GET /photos` (`?sort=recent|top`, paginado)
+- `POST /photos/upload-url` (auth — recebe `content_type`, devolve URL pré-assinada de PUT + a `image_url` final)
 - `POST /photos` (auth — recebe `location_id` + `image_url` já enviada ao storage + legenda)
 - `GET /photos/:id`
 - `DELETE /photos/:id` (auth, só o autor)

@@ -1,8 +1,10 @@
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
+using Amazon.S3;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Sunset.API.Middlewares;
 using Sunset.API.OpenApi;
@@ -11,6 +13,7 @@ using Sunset.Application.Interfaces;
 using Sunset.Infrastructure;
 using Sunset.Infrastructure.Persistence;
 using Sunset.Infrastructure.Security;
+using Sunset.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -107,6 +110,11 @@ if (app.Environment.IsDevelopment())
     await DbSeeder.SeedAsync(
         seedProvider.GetRequiredService<SunsetDbContext>(),
         seedProvider.GetRequiredService<IPasswordHasher>(),
+        seedProvider.GetRequiredService<ILogger<Program>>());
+
+    await LocalStackBucketInitializer.EnsureBucketReadyAsync(
+        seedProvider.GetRequiredService<IAmazonS3>(),
+        seedProvider.GetRequiredService<IOptions<StorageOptions>>().Value,
         seedProvider.GetRequiredService<ILogger<Program>>());
 }
 

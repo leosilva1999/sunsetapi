@@ -13,10 +13,21 @@ namespace Sunset.API.Controllers;
 [Route("api/v1/photos")]
 public class PhotosController(
     IPhotoService photoService,
+    IPhotoStorageService photoStorageService,
     IValidator<CreatePhotoRequest> createPhotoValidator,
+    IValidator<CreatePhotoUploadUrlRequest> createUploadUrlValidator,
     IValidator<CreateCommentRequest> createCommentValidator,
     ICurrentUserService currentUserService) : ControllerBase
 {
+    [Authorize]
+    [HttpPost("upload-url")]
+    public async Task<ActionResult<PhotoUploadUrlResponse>> CreateUploadUrl(CreatePhotoUploadUrlRequest request, CancellationToken cancellationToken)
+    {
+        await createUploadUrlValidator.ValidateAndThrowAsync(request, cancellationToken);
+        var response = photoStorageService.CreateUploadUrl(RequireUserId(), request.ContentType);
+        return Ok(response);
+    }
+
     [HttpGet]
     public async Task<ActionResult<CursorPagedResult<PhotoResponse>>> GetFeed(
         [FromQuery] PhotoSortOption sort = PhotoSortOption.Recent,

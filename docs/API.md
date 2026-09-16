@@ -25,6 +25,8 @@ these are the diffs to check:
   + author), `GET /locations/{id}/ratings` (list), `GET /locations/{id}/ratings/me`, and
   `DELETE /locations/{id}/ratings`. ⚠️ **`POST /locations/{id}/ratings` changed its response type**
   from `LocationResponse` to `RatingResponse` — see [Locations](#locations).
+- **New `POST /photos/upload-url`** — get a pre-signed URL, `PUT` the image to storage yourself,
+  then pass the returned `imageUrl` to `POST /photos` — see [Photos](#photos).
 - **`GET /locations?q=` search changed semantics and is now rate limited** — built for instant
   search (safe to call on every keystroke), it's backed by a FULLTEXT index for terms ≥3 chars,
   which means **prefix-per-word matching, not substring** (`"osa"` no longer matches "Rosa"); ⚠️
@@ -328,10 +330,19 @@ just root comments. It's on every `PhotoResponse` (feed, `GET /photos/{id}`, `PO
 etc.), denormalized and kept in sync on every comment/reply create or delete, including the
 cascade delete case (see `DELETE /comments/{id}` below).
 
+### 🔒 `POST /photos/upload-url`
+Body: `{ "contentType": string }` — only `image/jpeg` or `image/png`.
+→ `{ "uploadUrl": string, "imageUrl": string }`. `PUT` the image bytes directly to `uploadUrl`
+(no auth header, `Content-Type` must match what you requested — the pre-signed URL is locked to
+it) — that request goes straight to storage, not through this API. `uploadUrl` expires in 5
+minutes. Once the `PUT` succeeds, `imageUrl` is the permanent URL to send to `POST /photos` below.
+In dev this is LocalStack (`docker compose up` from the repo root); see [Local dev
+seed data](#local-dev-seed-data)'s neighboring setup notes in `CLAUDE.md` for the bucket details.
+
 ### 🔒 `POST /photos`
 Body: `{ "locationId": "guid", "imageUrl": string, "caption": string | null }`.
-**The client uploads the image to storage itself first (e.g. pre-signed S3/R2 URL) and only
-sends the resulting URL here — this endpoint never accepts binary/multipart data.**
+**The client uploads the image to storage itself first (via `POST /photos/upload-url` above) and
+only sends the resulting URL here — this endpoint never accepts binary/multipart data.**
 Validation: `locationId` required · `imageUrl` required, valid absolute URL, ≤2048 · `caption` ≤500.
 404 if `locationId` doesn't exist. → `201 Created` with `PhotoResponse`.
 

@@ -1,0 +1,16 @@
+services:
+  # Emulates S3 for local development (see Storage config in appsettings.Development.json).
+  # No persistence volume on purpose - the bucket, its CORS rule and its public-read policy
+  # are recreated on every API startup by LocalStackBucketInitializer, so a lost container is
+  # a non-issue; only already-uploaded dev photos would need re-uploading.
+  localstack:
+    # Pinned to the last pre-merge community-only release: since 2026-03-23,
+    # localstack/localstack:latest points at the unified community+pro image, which
+    # refuses to start without a LOCALSTACK_AUTH_TOKEN (a free account) even for plain
+    # S3. 4.4.0 predates that merge and needs no account/token at all.
+    image: localstack/localstack:4.4.0
+    container_name: sunset-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
