@@ -93,6 +93,11 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`. `Location` 1:N `P
 - Build: `dotnet build`
 - Testes (todos): `dotnet test`
 - Testes (um projeto): `dotnet test tests/Sunset.UnitTests`
+- Testes de integração: `dotnet test tests/Sunset.IntegrationTests` — **exige Docker Desktop rodando**
+  (sobe um MySQL 8 real via Testcontainers; necessário porque a busca de locations usa FULLTEXT do
+  MySQL, sem equivalente em InMemory/SQLite). Um único container é compartilhado por toda a suíte
+  (`SunsetApiFactory` + `IntegrationTestCollection`); isolamento entre testes vem de dados com nomes
+  únicos por teste, não de reset de banco.
 - Rodar a API: `dotnet run --project src/Sunset.API`
 - Migração EF Core (a partir de `Sunset.Infrastructure`, com `Sunset.API` como startup project): `dotnet ef migrations add <Nome> --project src/Sunset.Infrastructure --startup-project src/Sunset.API`
 - Aplicar migrações: `dotnet ef database update --project src/Sunset.Infrastructure --startup-project src/Sunset.API`

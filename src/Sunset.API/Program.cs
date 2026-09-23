@@ -132,3 +132,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+// Top-level statements generate an internal Program class; WebApplicationFactory<Program>
+// in Sunset.IntegrationTests needs it public to bootstrap the test host.
+public partial class Program;
