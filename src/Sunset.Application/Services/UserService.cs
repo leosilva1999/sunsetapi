@@ -9,12 +9,12 @@ namespace Sunset.Application.Services;
 
 public class UserService(IUserRepository userRepository, IPhotoRepository photoRepository) : IUserService
 {
-    public async Task<UserResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<PublicUserResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var user = await userRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException("User not found.");
 
-        return user.ToResponse();
+        return user.ToPublicResponse();
     }
 
     public async Task<UserResponse> UpdateProfileAsync(Guid userId, UpdateProfileRequest request, CancellationToken cancellationToken = default)

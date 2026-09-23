@@ -19,7 +19,7 @@ public class UsersController(
     ICurrentUserService currentUserService) : ControllerBase
 {
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<UserResponse>> GetById(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<PublicUserResponse>> GetById(Guid id, CancellationToken cancellationToken)
     {
         var response = await userService.GetByIdAsync(id, cancellationToken);
         return Ok(response);

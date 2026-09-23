@@ -17,8 +17,22 @@ public class UsersEndpointsTests(SunsetApiFactory factory) : IntegrationTestBase
         var response = await client.GetAsync($"/api/v1/users/{auth.User.Id}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var user = await response.Content.ReadFromJsonAsync<UserResponse>();
+        var user = await response.Content.ReadFromJsonAsync<PublicUserResponse>();
         Assert.Equal("Ana Silva", user!.Name);
+    }
+
+    [Fact]
+    public async Task GetById_DoesNotExposeEmail()
+    {
+        // GET /users/{id} não exige autenticação e userId é público (aparece em toda
+        // foto/comentário/avaliação) - o e-mail não pode vir nessa resposta pra
+        // qualquer chamador anônimo conseguir colher e-mails de outros usuários.
+        var (auth, client) = await RegisterAndAuthenticateAsync();
+
+        var response = await client.GetAsync($"/api/v1/users/{auth.User.Id}");
+
+        var json = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("email", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -43,7 +57,7 @@ public class UsersEndpointsTests(SunsetApiFactory factory) : IntegrationTestBase
         Assert.Equal("Ana Silva", updated!.Name);
         Assert.Equal("Nova bio", updated.Bio);
 
-        var refetched = await client.GetFromJsonAsync<UserResponse>($"/api/v1/users/{auth.User.Id}");
+        var refetched = await client.GetFromJsonAsync<PublicUserResponse>($"/api/v1/users/{auth.User.Id}");
         Assert.Equal("Nova bio", refetched!.Bio);
     }
 

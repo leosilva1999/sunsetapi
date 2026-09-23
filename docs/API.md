@@ -35,6 +35,10 @@ these are the diffs to check:
 - **New `POST /users/me/avatar-upload-url`** — same pre-signed-upload pattern as
   `POST /photos/upload-url`: get a URL, `PUT` the image yourself, then pass the returned
   `avatarUrl` to `PATCH /users/me` — see [Users](#users).
+- **`GET /users/{id}` no longer returns `email`** ⚠️ — it's a public, unauthenticated endpoint and
+  `id` is exposed everywhere (photos/comments/ratings), so returning `email` there let anyone
+  harvest any user's e-mail. `email` still comes back from authenticated contexts (login/register/
+  refresh, `PATCH /users/me`) — see [Users](#users).
 
 ## Base URL & running locally
 
@@ -177,8 +181,11 @@ already-revoked token, still returns `204`).
 ## Users
 
 ### `GET /users/{id}`
-→ `{ "id", "name", "email", "avatarUrl", "bio", "createdAt" }`. `bio` is `null` until the user
-sets one.
+Public (no auth) - `id` is exposed everywhere (photos/comments/ratings), so this must not leak
+`email`. → `{ "id", "name", "avatarUrl", "bio", "createdAt" }`. `bio` is `null` until the user
+sets one. ⚠️ **No `email` field** - that only ever comes back in an authenticated context (see
+below), never from this public lookup. Before 2026-09-23 this endpoint also returned `email`;
+if you cached/typed against the old shape, drop `email` from it.
 
 ### 🔒 `PATCH /users/me`
 Updates the **authenticated** user's own profile (no `{id}` in the URL — resolved from the
