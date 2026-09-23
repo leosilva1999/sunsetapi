@@ -32,6 +32,9 @@ these are the diffs to check:
   which means **prefix-per-word matching, not substring** (`"osa"` no longer matches "Rosa"); ⚠️
   if your search UI/tests assumed arbitrary substring matching, check the behavior change — see
   [Locations](#locations).
+- **New `POST /users/me/avatar-upload-url`** — same pre-signed-upload pattern as
+  `POST /photos/upload-url`: get a URL, `PUT` the image yourself, then pass the returned
+  `avatarUrl` to `PATCH /users/me` — see [Users](#users).
 
 ## Base URL & running locally
 
@@ -200,6 +203,15 @@ non-empty ≤100 chars (i.e. you can omit `name`, but you can't send it as `null
 `avatarUrl`, if present and non-null, must be a valid absolute URL, ≤2048 chars · `bio`, if
 present and non-null, ≤160 chars.
 → updated `UserResponse`.
+
+### 🔒 `POST /users/me/avatar-upload-url`
+Same pre-signed-upload pattern as `POST /photos/upload-url` (see [Photos](#photos)), just for
+avatars instead of photo images. Body: `{ "contentType": string }` — only `image/jpeg` or
+`image/png`.
+→ `{ "uploadUrl": string, "avatarUrl": string }`. `PUT` the image bytes directly to `uploadUrl`
+(no auth header, `Content-Type` must match what you requested); `uploadUrl` expires in 5 minutes.
+Once the `PUT` succeeds, send `avatarUrl` to `PATCH /users/me` above to actually set it on the
+profile — this endpoint only generates the URL, it doesn't touch the user record itself.
 
 ### `GET /users/{id}/photos?cursor=&limit=`
 Paginated photos authored by that user. → `CursorPagedResult<PhotoResponse>` (see Photos for

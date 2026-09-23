@@ -13,13 +13,28 @@ namespace Sunset.API.Controllers;
 [Route("api/v1/users")]
 public class UsersController(
     IUserService userService,
+    IAvatarStorageService avatarStorageService,
     IValidator<UpdateProfileRequest> updateProfileValidator,
+    IValidator<CreateAvatarUploadUrlRequest> createAvatarUploadUrlValidator,
     ICurrentUserService currentUserService) : ControllerBase
 {
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<UserResponse>> GetById(Guid id, CancellationToken cancellationToken)
     {
         var response = await userService.GetByIdAsync(id, cancellationToken);
+        return Ok(response);
+    }
+
+    [Authorize]
+    [HttpPost("me/avatar-upload-url")]
+    public async Task<ActionResult<AvatarUploadUrlResponse>> CreateAvatarUploadUrl(CreateAvatarUploadUrlRequest request, CancellationToken cancellationToken)
+    {
+        await createAvatarUploadUrlValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedActionException("User is not authenticated.");
+
+        var response = avatarStorageService.CreateUploadUrl(userId, request.ContentType);
         return Ok(response);
     }
 

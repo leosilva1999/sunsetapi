@@ -44,6 +44,7 @@ public static class DependencyInjection
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
         services.AddSingleton<IAmazonS3>(_ => CreateS3Client(configuration.GetSection(StorageOptions.SectionName)));
         services.AddScoped<IPhotoStorageService, S3PhotoStorageService>();
+        services.AddScoped<IAvatarStorageService, S3AvatarStorageService>();
 
         return services;
     }
