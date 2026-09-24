@@ -2,6 +2,7 @@ using Moq;
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Users;
 using Sunset.Application.Exceptions;
+using Sunset.Application.Interfaces;
 using Sunset.Application.Interfaces.Repositories;
 using Sunset.Application.Services;
 using Sunset.Domain.Entities;
@@ -12,11 +13,14 @@ public class UserServiceTests
 {
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IPhotoRepository> _photoRepository = new();
+    private readonly Mock<IRefreshTokenRepository> _refreshTokenRepository = new();
+    private readonly Mock<IPasswordHasher> _passwordHasher = new();
     private readonly UserService _sut;
 
     public UserServiceTests()
     {
-        _sut = new UserService(_userRepository.Object, _photoRepository.Object);
+        _passwordHasher.Setup(h => h.Hash(It.IsAny<string>())).Returns("hashed");
+        _sut = new UserService(_userRepository.Object, _photoRepository.Object, _refreshTokenRepository.Object, _passwordHasher.Object);
     }
 
     [Fact]
@@ -125,6 +129,32 @@ public class UserServiceTests
         Assert.Single(page.Items);
         Assert.Equal(photo.Id, page.Items[0].Id);
         Assert.False(page.HasMore);
+    }
+
+    [Fact]
+    public async Task DeleteAccountAsync_AnonymizesTheUserAndRevokesRefreshTokens()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed", "https://sunset.com/avatar.png");
+        user.UpdateProfile("Ana", "https://sunset.com/avatar.png", "Adoro um pôr do sol.");
+        _userRepository.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+
+        await _sut.DeleteAccountAsync(user.Id);
+
+        Assert.Equal("Usuário excluído", user.Name);
+        Assert.EndsWith("@sunset.invalid", user.Email);
+        Assert.Null(user.AvatarUrl);
+        Assert.Null(user.Bio);
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(user.Id, default), Times.Once);
+        _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteAccountAsync_WithUnknownUser_ThrowsNotFoundException()
+    {
+        _userRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((User?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.DeleteAccountAsync(Guid.NewGuid()));
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(It.IsAny<Guid>(), default), Times.Never);
     }
 
     private static void SetNavigation(Photo photo, User user, Location location)

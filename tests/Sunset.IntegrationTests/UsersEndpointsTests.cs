@@ -128,6 +128,49 @@ public class UsersEndpointsTests(SunsetApiFactory factory) : IntegrationTestBase
     }
 
     [Fact]
+    public async Task DeleteMe_AnonymizesProfileRevokesSessionAndKeepsContentAttributed()
+    {
+        var email = UniqueEmail();
+        var (auth, client) = await RegisterAndAuthenticateAsync(name: "Ana Silva", email: email);
+        var location = await CreateLocationAsync(client);
+        var createPhotoResponse = await client.PostAsJsonAsync(
+            "/api/v1/photos",
+            new { locationId = location.Id, imageUrl = $"https://sunset-photos-test.s3.amazonaws.com/{Guid.NewGuid():N}.jpg", caption = (string?)null });
+        createPhotoResponse.EnsureSuccessStatusCode();
+        var photo = await createPhotoResponse.Content.ReadFromJsonAsync<PhotoResponse>();
+
+        var deleteResponse = await client.DeleteAsync("/api/v1/users/me");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        // O perfil vira "Usuário excluído" em vez de sumir - anonimização, não exclusão em cascata.
+        var profile = await client.GetFromJsonAsync<PublicUserResponse>($"/api/v1/users/{auth.User.Id}");
+        Assert.Equal("Usuário excluído", profile!.Name);
+        Assert.Null(profile.AvatarUrl);
+
+        // A foto continua existindo, só o autor deixa de ser identificável.
+        var photoAfter = await client.GetFromJsonAsync<PhotoResponse>($"/api/v1/photos/{photo!.Id}");
+        Assert.Equal("Usuário excluído", photoAfter!.UserName);
+
+        var anonClient = CreateClient();
+
+        var loginResponse = await anonClient.PostAsJsonAsync("/api/v1/auth/login", new { email, password = "Password123!" });
+        Assert.Equal(HttpStatusCode.Unauthorized, loginResponse.StatusCode);
+
+        var refreshResponse = await anonClient.PostAsJsonAsync("/api/v1/auth/refresh", new { refreshToken = auth.RefreshToken });
+        Assert.Equal(HttpStatusCode.Unauthorized, refreshResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteMe_WithoutAuth_ReturnsUnauthorized()
+    {
+        var client = CreateClient();
+
+        var response = await client.DeleteAsync("/api/v1/users/me");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GetPhotos_ReturnsOnlyThatUsersPhotos()
     {
         var (auth, client) = await RegisterAndAuthenticateAsync();

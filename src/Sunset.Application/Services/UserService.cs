@@ -7,7 +7,11 @@ using Sunset.Application.Interfaces.Repositories;
 
 namespace Sunset.Application.Services;
 
-public class UserService(IUserRepository userRepository, IPhotoRepository photoRepository) : IUserService
+public class UserService(
+    IUserRepository userRepository,
+    IPhotoRepository photoRepository,
+    IRefreshTokenRepository refreshTokenRepository,
+    IPasswordHasher passwordHasher) : IUserService
 {
     public async Task<PublicUserResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -41,5 +45,18 @@ public class UserService(IUserRepository userRepository, IPhotoRepository photoR
         var items = page.Items.Select(p => p.ToResponse()).ToList();
 
         return new CursorPagedResult<PhotoResponse>(items, page.NextCursor, page.HasMore);
+    }
+
+    public async Task DeleteAccountAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await userRepository.GetByIdAsync(userId, cancellationToken)
+            ?? throw new NotFoundException("User not found.");
+
+        var placeholderEmail = $"deleted-{userId:N}@sunset.invalid";
+        var unusablePasswordHash = passwordHasher.Hash(Guid.NewGuid().ToString());
+        user.Anonymize(placeholderEmail, unusablePasswordHash);
+
+        await refreshTokenRepository.RevokeAllForUserAsync(userId, cancellationToken);
+        await userRepository.SaveChangesAsync(cancellationToken);
     }
 }

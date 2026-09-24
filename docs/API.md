@@ -39,6 +39,8 @@ these are the diffs to check:
   `id` is exposed everywhere (photos/comments/ratings), so returning `email` there let anyone
   harvest any user's e-mail. `email` still comes back from authenticated contexts (login/register/
   refresh, `PATCH /users/me`) — see [Users](#users).
+- **New `DELETE /users/me`** — account deletion (LGPD right to erasure). Anonymizes the user in
+  place rather than cascade-deleting their photos/comments/ratings — see [Users](#users).
 
 ## Base URL & running locally
 
@@ -219,6 +221,19 @@ avatars instead of photo images. Body: `{ "contentType": string }` — only `ima
 (no auth header, `Content-Type` must match what you requested); `uploadUrl` expires in 5 minutes.
 Once the `PUT` succeeds, send `avatarUrl` to `PATCH /users/me` above to actually set it on the
 profile — this endpoint only generates the URL, it doesn't touch the user record itself.
+
+### 🔒 `DELETE /users/me`
+Deletes the **authenticated** user's own account (LGPD Art. 18, IX - right to erasure). This
+**anonymizes, it does not cascade-delete**: `name` becomes `"Usuário excluído"`, `email` becomes
+an unrecoverable placeholder, `avatarUrl`/`bio` are cleared, and the password hash is replaced
+with an unusable one - but the row (and everything FK'd to it: photos, comments, ratings, likes)
+stays. `userName`/`userAvatarUrl` on those are resolved live from the user, so every photo/
+comment/rating this person made shows up as authored by "Usuário excluído" from then on, instead
+of disappearing or taking other people's replies/likes down with it. All the user's refresh
+tokens are revoked (further `POST /auth/refresh` calls with them → `401`); any not-yet-expired
+access token stays valid until it naturally expires, same caveat as `POST /auth/logout` above.
+→ `204 No Content`. No body, no `{id}` in the path (always the caller's own account - there's no
+way to delete another user's account through this endpoint).
 
 ### `GET /users/{id}/photos?cursor=&limit=`
 Paginated photos authored by that user. → `CursorPagedResult<PhotoResponse>` (see Photos for

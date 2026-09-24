@@ -51,6 +51,17 @@ public class UsersController(
         return Ok(response);
     }
 
+    [Authorize]
+    [HttpDelete("me")]
+    public async Task<IActionResult> DeleteMe(CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedActionException("User is not authenticated.");
+
+        await userService.DeleteAccountAsync(userId, cancellationToken);
+        return NoContent();
+    }
+
     [HttpGet("{id:guid}/photos")]
     public async Task<ActionResult<CursorPagedResult<PhotoResponse>>> GetPhotos(
         Guid id,

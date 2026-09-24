@@ -40,4 +40,20 @@ public class User : BaseEntity
         AvatarUrl = avatarUrl;
         Bio = bio;
     }
+
+    // Exclusão de conta (LGPD Art. 18, IX): apaga os dados pessoais identificáveis mas
+    // preserva a linha (e as fotos/comentários/avaliações ligados a ela via FK) - Name/
+    // AvatarUrl são lidos ao vivo por foto/comentário/avaliação, então isso já basta pra
+    // exibir "Usuário excluído" em tudo que essa pessoa postou, sem cascata em conteúdo
+    // de terceiros (respostas de outras pessoas, curtidas, etc). Email vira um placeholder
+    // único (não pode colidir com o índice único de Email) e a senha, um hash inutilizável -
+    // reforça o bloqueio de login mesmo que a troca de email já impeça por si só.
+    public void Anonymize(string placeholderEmail, string unusablePasswordHash)
+    {
+        Name = "Usuário excluído";
+        Email = placeholderEmail;
+        PasswordHash = unusablePasswordHash;
+        AvatarUrl = null;
+        Bio = null;
+    }
 }
