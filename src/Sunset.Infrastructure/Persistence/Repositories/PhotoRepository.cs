@@ -93,11 +93,8 @@ public class PhotoRepository(SunsetDbContext context) : IPhotoRepository
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task RemoveAsync(Photo photo, CancellationToken cancellationToken = default)
-    {
-        context.Photos.Remove(photo);
-        await context.SaveChangesAsync(cancellationToken);
-    }
+    public Task SoftDeleteAsync(Photo photo, CancellationToken cancellationToken = default) =>
+        context.SaveChangesAsync(cancellationToken);
 
     public Task<Like?> GetLikeAsync(Guid userId, Guid photoId, CancellationToken cancellationToken = default) =>
         context.Likes.FirstOrDefaultAsync(l => l.UserId == userId && l.PhotoId == photoId, cancellationToken);
@@ -184,6 +181,11 @@ public class PhotoRepository(SunsetDbContext context) : IPhotoRepository
         return new CursorPagedResult<Comment>(page, nextCursor, hasMore);
     }
 
+    public async Task<IReadOnlyList<Comment>> GetAllRepliesAsync(Guid parentCommentId, CancellationToken cancellationToken = default) =>
+        await context.Comments
+            .Where(c => c.ParentCommentId == parentCommentId)
+            .ToListAsync(cancellationToken);
+
     public Task<Comment?> GetCommentByIdAsync(Guid commentId, CancellationToken cancellationToken = default) =>
         context.Comments.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == commentId, cancellationToken);
 
@@ -193,11 +195,8 @@ public class PhotoRepository(SunsetDbContext context) : IPhotoRepository
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task RemoveCommentAsync(Comment comment, CancellationToken cancellationToken = default)
-    {
-        context.Comments.Remove(comment);
-        await context.SaveChangesAsync(cancellationToken);
-    }
+    public Task SoftDeleteCommentAsync(Comment comment, CancellationToken cancellationToken = default) =>
+        context.SaveChangesAsync(cancellationToken);
 
     private static IQueryable<Photo> ApplyRecentCursor(IQueryable<Photo> photos, string? cursor)
     {

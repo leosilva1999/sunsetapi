@@ -1,3 +1,5 @@
+using Sunset.Domain.Enums;
+
 namespace Sunset.Domain.Entities;
 
 public class User : BaseEntity
@@ -7,6 +9,7 @@ public class User : BaseEntity
     public string PasswordHash { get; private set; } = null!;
     public string? AvatarUrl { get; private set; }
     public string? Bio { get; private set; }
+    public UserRole Role { get; private set; } = UserRole.User;
 
     public ICollection<Photo> Photos { get; private set; } = new List<Photo>();
     public ICollection<Like> Likes { get; private set; } = new List<Like>();
@@ -56,4 +59,6 @@ public class User : BaseEntity
         AvatarUrl = null;
         Bio = null;
     }
+
+    public void ChangeRole(UserRole newRole) => Role = newRole;
 }

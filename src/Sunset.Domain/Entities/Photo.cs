@@ -8,6 +8,8 @@ public class Photo : BaseEntity
     public string? Caption { get; private set; }
     public int LikesCount { get; private set; }
     public int CommentsCount { get; private set; }
+    public DateTime? DeletedAt { get; private set; }
+    public Guid? DeletedByUserId { get; private set; }
 
     public User User { get; private set; } = null!;
     public Location Location { get; private set; } = null!;
@@ -43,4 +45,10 @@ public class Photo : BaseEntity
     public void IncrementCommentsCount() => CommentsCount++;
 
     public void DecrementCommentsCount(int by = 1) => CommentsCount = Math.Max(0, CommentsCount - by);
+
+    public void SoftDelete(Guid deletedByUserId)
+    {
+        DeletedAt = DateTime.UtcNow;
+        DeletedByUserId = deletedByUserId;
+    }
 }

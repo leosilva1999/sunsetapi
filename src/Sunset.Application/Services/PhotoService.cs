@@ -8,7 +8,10 @@ using Sunset.Domain.Enums;
 
 namespace Sunset.Application.Services;
 
-public class PhotoService(IPhotoRepository photoRepository, ILocationRepository locationRepository) : IPhotoService
+public class PhotoService(
+    IPhotoRepository photoRepository,
+    ILocationRepository locationRepository,
+    IModerationActionRepository moderationActionRepository) : IPhotoService
 {
     public async Task<CursorPagedResult<PhotoResponse>> GetFeedAsync(PhotoSortOption sort, string? cursor, int limit, Guid? currentUserId, CancellationToken cancellationToken = default)
     {
@@ -42,15 +45,24 @@ public class PhotoService(IPhotoRepository photoRepository, ILocationRepository 
         return created.ToResponse();
     }
 
-    public async Task DeleteAsync(Guid userId, Guid photoId, CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(Guid userId, Guid photoId, bool isModerator, CancellationToken cancellationToken = default)
     {
         var photo = await photoRepository.GetByIdAsync(photoId, cancellationToken)
             ?? throw new NotFoundException("Photo not found.");
 
-        if (photo.UserId != userId)
+        var isAuthor = photo.UserId == userId;
+        if (!isAuthor && !isModerator)
             throw new UnauthorizedActionException("Only the author can delete this photo.");
 
-        await photoRepository.RemoveAsync(photo, cancellationToken);
+        photo.SoftDelete(userId);
+        await photoRepository.SoftDeleteAsync(photo, cancellationToken);
+
+        if (!isAuthor)
+        {
+            await moderationActionRepository.AddAsync(
+                new ModerationAction(userId, ModerationActionType.PhotoDeleted, $"Photo:{photoId}"),
+                cancellationToken);
+        }
     }
 
     public async Task LikeAsync(Guid userId, Guid photoId, CancellationToken cancellationToken = default)
@@ -130,12 +142,13 @@ public class PhotoService(IPhotoRepository photoRepository, ILocationRepository 
         return new CursorPagedResult<CommentResponse>(items, page.NextCursor, page.HasMore);
     }
 
-    public async Task DeleteCommentAsync(Guid userId, Guid commentId, CancellationToken cancellationToken = default)
+    public async Task DeleteCommentAsync(Guid userId, Guid commentId, bool isModerator, CancellationToken cancellationToken = default)
     {
         var comment = await photoRepository.GetCommentByIdAsync(commentId, cancellationToken)
             ?? throw new NotFoundException("Comment not found.");
 
-        if (comment.UserId != userId)
+        var isAuthor = comment.UserId == userId;
+        if (!isAuthor && !isModerator)
             throw new UnauthorizedActionException("Only the author can delete this comment.");
 
         var photo = await photoRepository.GetByIdAsync(comment.PhotoId, cancellationToken)
@@ -146,15 +159,32 @@ public class PhotoService(IPhotoRepository photoRepository, ILocationRepository 
             var parent = await photoRepository.GetCommentByIdAsync(parentId, cancellationToken);
             parent?.DecrementRepliesCount();
             photo.DecrementCommentsCount();
+            comment.SoftDelete(userId);
+            await photoRepository.SoftDeleteCommentAsync(comment, cancellationToken);
         }
         else
         {
-            // Replies are removed by the DB cascade, not through tracked entities, so the
-            // photo's count has to absorb all of them here in one shot.
+            // Soft-deleting the root doesn't cascade automatically (that only happens on a real
+            // DB delete) - replies are one level deep, so soft-delete them here too instead of
+            // leaving orphaned replies visible under a hidden root.
             photo.DecrementCommentsCount(1 + comment.RepliesCount);
+            comment.SoftDelete(userId);
+            await photoRepository.SoftDeleteCommentAsync(comment, cancellationToken);
+
+            var replies = await photoRepository.GetAllRepliesAsync(commentId, cancellationToken);
+            foreach (var reply in replies)
+            {
+                reply.SoftDelete(userId);
+                await photoRepository.SoftDeleteCommentAsync(reply, cancellationToken);
+            }
         }
 
-        await photoRepository.RemoveCommentAsync(comment, cancellationToken);
+        if (!isAuthor)
+        {
+            await moderationActionRepository.AddAsync(
+                new ModerationAction(userId, ModerationActionType.CommentDeleted, $"Comment:{commentId}"),
+                cancellationToken);
+        }
     }
 
     private async Task<IReadOnlySet<Guid>> GetLikedPhotoIdsAsync(Guid? currentUserId, IReadOnlyList<Photo> photos, CancellationToken cancellationToken)

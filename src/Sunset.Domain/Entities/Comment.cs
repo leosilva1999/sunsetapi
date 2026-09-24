@@ -7,6 +7,8 @@ public class Comment : BaseEntity
     public string Content { get; private set; } = null!;
     public Guid? ParentCommentId { get; private set; }
     public int RepliesCount { get; private set; }
+    public DateTime? DeletedAt { get; private set; }
+    public Guid? DeletedByUserId { get; private set; }
 
     public User User { get; private set; } = null!;
     public Photo Photo { get; private set; } = null!;
@@ -34,5 +36,11 @@ public class Comment : BaseEntity
     {
         if (RepliesCount > 0)
             RepliesCount--;
+    }
+
+    public void SoftDelete(Guid deletedByUserId)
+    {
+        DeletedAt = DateTime.UtcNow;
+        DeletedByUserId = deletedByUserId;
     }
 }

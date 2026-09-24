@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Sunset.Application.Interfaces;
 using Sunset.Domain.Entities;
+using Sunset.Domain.Enums;
 
 namespace Sunset.Infrastructure.Persistence;
 
@@ -86,6 +87,13 @@ public static class DbSeeder
         for (var i = 0; i < users.Count; i++)
             SetCreatedAt(users[i], now.AddDays(-random.Next(15, 200)));
 
+        // One moderator and one admin so the moderation flow (reports, content removal, terms
+        // of service, role promotion) can be tested locally without ever touching the DB by hand.
+        var moderator = users[0];
+        var admin = users[^1];
+        moderator.ChangeRole(UserRole.Moderator);
+        admin.ChangeRole(UserRole.Admin);
+
         var locations = LocationSeeds
             .Select(l => new Location(l.Name, l.Lat, l.Lng, l.City))
             .ToList();
@@ -145,18 +153,27 @@ public static class DbSeeder
             location.RecalculateAvgRating(Math.Round((decimal)scores.Average(), 2));
         }
 
+        var terms = new TermsOfService(
+            "Bem-vindo ao Sunset! Ao usar o app, você concorda em postar apenas fotos de sua "
+                + "autoria, respeitar outros usuários e não publicar conteúdo ofensivo, ilegal ou "
+                + "spam. Conteúdo denunciado pode ser removido por um moderador.",
+            version: 1,
+            updatedByUserId: admin.Id);
+
         context.Users.AddRange(users);
         context.Locations.AddRange(locations);
         context.Photos.AddRange(photos);
         context.Likes.AddRange(likes);
         context.Comments.AddRange(comments);
         context.Ratings.AddRange(ratings);
+        context.TermsOfServiceDocuments.Add(terms);
 
         await context.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
-            "Seeded database with {Users} users, {Locations} locations, {Photos} photos, {Likes} likes, {Comments} comments, {Ratings} ratings. All seed users share the password '{Password}'.",
-            users.Count, locations.Count, photos.Count, likes.Count, comments.Count, ratings.Count, SeedPassword);
+            "Seeded database with {Users} users, {Locations} locations, {Photos} photos, {Likes} likes, {Comments} comments, {Ratings} ratings. " +
+            "{ModeratorEmail} is a moderator and {AdminEmail} is an admin. All seed users share the password '{Password}'.",
+            users.Count, locations.Count, photos.Count, likes.Count, comments.Count, ratings.Count, moderator.Email, admin.Email, SeedPassword);
     }
 
     private static void SetCreatedAt(BaseEntity entity, DateTime createdAt) =>

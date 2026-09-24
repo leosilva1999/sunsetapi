@@ -51,6 +51,10 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(Convert.FromBase64String(jwtOptions.Secret)),
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero,
+            // MapInboundClaims = false above means claim types stay exactly as issued - without
+            // this, [Authorize(Roles = ...)] would look for the default long-form role claim URI
+            // instead of the short "role" claim TokenService actually puts in the JWT.
+            RoleClaimType = "role",
         };
     });
 
@@ -70,6 +74,9 @@ builder.Services.AddCors(options =>
 // being hammered, whether by a runaway client-side loop or a debounce bug - independent of
 // whatever debouncing the frontend does, since that's not something the API can rely on.
 const string SearchRateLimitPolicy = "Search";
+// "Reports" policy: much lower ceiling than Search - filing a report is a deliberate, infrequent
+// action, so this exists purely to stop report-flooding abuse, not accommodate legitimate bursts.
+const string ReportsRateLimitPolicy = "Reports";
 builder.Services.AddRateLimiter(options =>
 {
     options.AddPolicy(SearchRateLimitPolicy, httpContext => RateLimitPartition.GetSlidingWindowLimiter(
@@ -82,13 +89,28 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
         }));
 
+    options.AddPolicy(ReportsRateLimitPolicy, httpContext => RateLimitPartition.GetSlidingWindowLimiter(
+        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromSeconds(60),
+            SegmentsPerWindow = 6,
+            QueueLimit = 0,
+        }));
+
     options.OnRejected = async (context, cancellationToken) =>
     {
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         context.HttpContext.Response.ContentType = "application/json";
         context.HttpContext.Response.Headers.RetryAfter = "10";
 
-        var payload = JsonSerializer.Serialize(new { title = "Too many search requests. Please slow down.", errors = (object?)null });
+        var policyName = context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+        var title = policyName == ReportsRateLimitPolicy
+            ? "Too many reports. Please slow down."
+            : "Too many search requests. Please slow down.";
+
+        var payload = JsonSerializer.Serialize(new { title, errors = (object?)null });
         await context.HttpContext.Response.WriteAsync(payload, cancellationToken);
     };
 });

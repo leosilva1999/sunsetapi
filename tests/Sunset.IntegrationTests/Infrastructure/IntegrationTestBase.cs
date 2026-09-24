@@ -1,7 +1,11 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Sunset.Application.DTOs.Auth;
 using Sunset.Application.DTOs.Locations;
+using Sunset.Domain.Enums;
+using Sunset.Infrastructure.Persistence;
 
 namespace Sunset.IntegrationTests.Infrastructure;
 
@@ -36,5 +40,32 @@ public abstract class IntegrationTestBase(SunsetApiFactory factory)
         response.EnsureSuccessStatusCode();
 
         return (await response.Content.ReadFromJsonAsync<LocationResponse>())!;
+    }
+
+    // Writes the role directly to the database, bypassing the API - there is no endpoint to
+    // create the *first* Moderator/Admin (promotion itself requires an existing Admin), so tests
+    // bootstrap the same way a fresh production deploy would have to. Re-logs-in afterwards
+    // because the role claim is baked into the JWT at issuance time, not re-read on every request.
+    protected async Task<(AuthResponse Auth, HttpClient Client)> RegisterAndAuthenticateWithRoleAsync(UserRole role, string? name = null, string? email = null)
+    {
+        email ??= UniqueEmail();
+        var (auth, _) = await RegisterAndAuthenticateAsync(name, email);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SunsetDbContext>();
+            var user = await db.Users.FirstAsync(u => u.Id == auth.User.Id);
+            user.ChangeRole(role);
+            await db.SaveChangesAsync();
+        }
+
+        var client = CreateClient();
+        var loginResponse = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(email, "Password123!"));
+        loginResponse.EnsureSuccessStatusCode();
+
+        var refreshedAuth = (await loginResponse.Content.ReadFromJsonAsync<AuthResponse>())!;
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", refreshedAuth.AccessToken);
+
+        return (refreshedAuth, client);
     }
 }

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Sunset.Application.Interfaces;
+using Sunset.Domain.Enums;
 
 namespace Sunset.Infrastructure.Security;
 
@@ -18,4 +19,15 @@ public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICur
     }
 
     public bool IsAuthenticated => httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated ?? false;
+
+    public UserRole? Role
+    {
+        get
+        {
+            var value = httpContextAccessor.HttpContext?.User.FindFirstValue("role");
+            return Enum.TryParse<UserRole>(value, out var role) ? role : null;
+        }
+    }
+
+    public bool IsModerator => Role is UserRole.Moderator or UserRole.Admin;
 }

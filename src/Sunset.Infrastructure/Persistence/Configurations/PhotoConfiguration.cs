@@ -33,6 +33,7 @@ public class PhotoConfiguration : IEntityTypeConfiguration<Photo>
         builder.HasIndex(p => p.UserId);
         builder.HasIndex(p => p.LocationId);
         builder.HasIndex(p => p.CreatedAt);
+        builder.HasIndex(p => p.DeletedAt);
 
         builder.HasMany(p => p.Likes)
             .WithOne(l => l.Photo)
@@ -43,5 +44,12 @@ public class PhotoConfiguration : IEntityTypeConfiguration<Photo>
             .WithOne(c => c.Photo)
             .HasForeignKey(c => c.PhotoId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Who moderated it away, if anyone - Restrict like every other User FK (see
+        // UserConfiguration), so a moderator's account can't be deleted out from under this.
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(p => p.DeletedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

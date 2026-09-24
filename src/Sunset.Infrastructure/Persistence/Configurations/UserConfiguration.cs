@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Sunset.Domain.Entities;
+using Sunset.Domain.Enums;
 
 namespace Sunset.Infrastructure.Persistence.Configurations;
 
@@ -35,6 +36,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.Property(u => u.CreatedAt)
             .IsRequired();
+
+        builder.Property(u => u.Role)
+            .IsRequired()
+            .HasDefaultValue(UserRole.User);
 
         builder.HasMany(u => u.Photos)
             .WithOne(p => p.User)

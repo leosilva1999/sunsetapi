@@ -1,7 +1,9 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Sunset.Application.Common;
+using Sunset.Application.DTOs.Moderation;
 using Sunset.Application.DTOs.Photos;
 using Sunset.Application.Exceptions;
 using Sunset.Application.Interfaces;
@@ -14,9 +16,11 @@ namespace Sunset.API.Controllers;
 public class PhotosController(
     IPhotoService photoService,
     IPhotoStorageService photoStorageService,
+    IModerationService moderationService,
     IValidator<CreatePhotoRequest> createPhotoValidator,
     IValidator<CreatePhotoUploadUrlRequest> createUploadUrlValidator,
     IValidator<CreateCommentRequest> createCommentValidator,
+    IValidator<CreateReportRequest> createReportValidator,
     ICurrentUserService currentUserService) : ControllerBase
 {
     [Authorize]
@@ -61,7 +65,7 @@ public class PhotosController(
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
-        await photoService.DeleteAsync(RequireUserId(), id, cancellationToken);
+        await photoService.DeleteAsync(RequireUserId(), id, currentUserService.IsModerator, cancellationToken);
         return NoContent();
     }
 
@@ -98,6 +102,16 @@ public class PhotosController(
     {
         await createCommentValidator.ValidateAndThrowAsync(request, cancellationToken);
         var response = await photoService.AddCommentAsync(RequireUserId(), id, request, cancellationToken);
+        return Ok(response);
+    }
+
+    [Authorize]
+    [EnableRateLimiting("Reports")]
+    [HttpPost("{id:guid}/reports")]
+    public async Task<ActionResult<ReportResponse>> Report(Guid id, CreateReportRequest request, CancellationToken cancellationToken)
+    {
+        await createReportValidator.ValidateAndThrowAsync(request, cancellationToken);
+        var response = await moderationService.CreateReportAsync(RequireUserId(), ReportTargetType.Photo, id, request, cancellationToken);
         return Ok(response);
     }
 

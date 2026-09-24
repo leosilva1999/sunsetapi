@@ -45,6 +45,23 @@ these are the diffs to check:
   accept any well-formed absolute URL, which let a client set someone's avatar to an
   attacker-controlled tracking URL (every viewer's browser would then request it, leaking their
   IP). Only URLs from `POST /users/me/avatar-upload-url` are accepted now — see [Users](#users).
+- **New moderation system**: `UserResponse.role` (`User`/`Moderator`/`Admin`), reporting
+  (`POST /photos/{id}/reports`, `POST /comments/{id}/reports`), a moderator queue
+  (`GET`/`PATCH /moderation/reports`), role promotion (`PATCH /moderation/users/{id}/role`,
+  Admin-only), and terms of service (`GET`/`PUT /terms`, `PUT` Admin-only) — see
+  [Moderation](#moderation). ⚠️ **`DELETE /photos/{id}` and `DELETE /comments/{id}` now also
+  accept a Moderator/Admin caller**, not just the author — see the updated notes under
+  [Photos](#photos).
+- **First genuine `403 Forbidden` in the API** ⚠️ — previously *every* "not allowed" case was a
+  `401` (see gotcha #1, now split in two). A `403` means "you're authenticated but your role
+  doesn't allow this" (Moderator/Admin-only endpoints); it comes from ASP.NET Core's own
+  authorization middleware, so its body is **not** this API's usual `{ title, errors }` shape —
+  see [Error format](#error-format).
+- **Deleted photos/comments are now soft-deleted, not removed** — `DELETE` still behaves the same
+  from the client's perspective (`204`, then `404` on subsequent fetches), but the row is kept
+  (with who deleted it and when) instead of erased, so a root comment's replies are no longer
+  dropped via a database `CASCADE` — they're soft-deleted individually, same as before but at the
+  application layer. No client-visible change unless you were relying on the old cascade timing.
 
 ## Base URL & running locally
 
@@ -61,11 +78,14 @@ these are the diffs to check:
 ### Local dev seed data
 
 The API auto-seeds fictitious data on startup in Development (idempotent — skipped if already
-seeded). 8 users, 6 real Brazilian sunset spots, 12 photos, likes/comments/ratings. All seed
-users share the password **`Password123!`**. Emails: `beatriz@sunsetapp.dev`,
-`rafael@sunsetapp.dev`, `camila@sunsetapp.dev`, `lucas@sunsetapp.dev`, `juliana@sunsetapp.dev`,
-`pedro@sunsetapp.dev`, `mariana@sunsetapp.dev`, `thiago@sunsetapp.dev`. Use any of these to log
-in during frontend development instead of registering a throwaway account each time.
+seeded). 8 users, 6 real Brazilian sunset spots, 12 photos, likes/comments/ratings, plus an
+initial terms-of-service (version 1). All seed users share the password **`Password123!`**.
+Emails: `beatriz@sunsetapp.dev`, `rafael@sunsetapp.dev`, `camila@sunsetapp.dev`,
+`lucas@sunsetapp.dev`, `juliana@sunsetapp.dev`, `pedro@sunsetapp.dev`, `mariana@sunsetapp.dev`,
+`thiago@sunsetapp.dev`. Use any of these to log in during frontend development instead of
+registering a throwaway account each time. `beatriz@sunsetapp.dev` seeds as a **Moderator** and
+`thiago@sunsetapp.dev` as an **Admin**, so the moderation endpoints (see
+[Moderation](#moderation)) are testable without a manual role promotion.
 
 ## Authentication
 
@@ -134,24 +154,30 @@ error status has `errors: null` and a single message in `title`.
 | Status | Meaning |
 |---|---|
 | 400 | Request failed FluentValidation rules (see `errors` for per-field messages) |
-| 401 | Missing/invalid/expired bearer token, or invalid login/refresh credentials |
-| 404 | Referenced resource (user/location/photo/comment) doesn't exist |
-| 409 | Conflict — currently only "email already registered" |
+| 401 | Missing/invalid/expired bearer token, invalid login/refresh credentials, or "not the owner" (see gotcha below) |
+| 403 | Authenticated, but your role doesn't allow this (Moderator/Admin-only endpoint) |
+| 404 | Referenced resource (user/location/photo/comment/report) doesn't exist |
+| 409 | Conflict — "email already registered", or "you already reported this" |
 | 502 | The sunrise-sunset.org upstream call failed (see Locations → sunset below) |
 | 500 | Unhandled server error |
 
 Model-binding failures (e.g. malformed GUID in the URL, malformed `?date=`) short-circuit to a
 `400` with ASP.NET Core's default `ProblemDetails` shape instead — don't rely on the `title`
-field being present in that specific case.
+field being present in that specific case. **`403` responses have the same caveat** — they come
+from ASP.NET Core's authorization middleware before this API's code ever runs, so the body is
+whatever ASP.NET Core's default is (typically empty), not `{ title, errors }`.
 
 ### Auth requirement legend
 
 🔒 = requires `Authorization: Bearer <token>`. Endpoints without 🔒 are public (some
 optionally read the token if present, noted inline).
 
-🐌 = **rate limited** beyond the norm (currently just `GET /locations` search — see there for the
-exact limit). Every endpoint is implicitly subject to normal infrastructure-level limits; 🐌 marks
-the ones with a specific, tighter, documented policy worth knowing about.
+🐌 = **rate limited** beyond the norm (`GET /locations` search, `POST .../reports` — see each for
+the exact limit). Every endpoint is implicitly subject to normal infrastructure-level limits; 🐌
+marks the ones with a specific, tighter, documented policy worth knowing about.
+
+🛡️ = requires a **role** on top of being authenticated (Moderator or Admin — noted inline which).
+Missing the role → `403`, not `401` (see [Error format](#error-format)).
 
 ---
 
@@ -171,7 +197,7 @@ Both register and login return:
   "accessToken": "eyJ...",
   "refreshToken": "NeX9jEIO...",
   "expiresAt": "2026-09-04T18:23:24.59Z",
-  "user": { "id": "guid", "name": "string", "email": "string", "avatarUrl": "string|null", "bio": "string|null", "createdAt": "date" }
+  "user": { "id": "guid", "name": "string", "email": "string", "avatarUrl": "string|null", "bio": "string|null", "role": "User", "createdAt": "date" }
 }
 ```
 
@@ -391,8 +417,10 @@ Validation: `locationId` required · `imageUrl` required, valid absolute URL, �
 → single `PhotoResponse`, same shape as feed items, with `likedByCurrentUser` resolved.
 
 ### 🔒 `DELETE /photos/{id}`
-Author-only (`403`... actually `401 UnauthorizedActionException` — see note below) if the caller
-didn't author it. → `204`.
+Author **or** a Moderator/Admin caller → `204`; anyone else → `401` (see gotcha #1 — this
+particular check still isn't a `403`, unlike the newer Moderator/Admin-only endpoints). Soft
+delete under the hood (row kept, just hidden) — no visible difference to the client, but see
+[Moderation](#moderation) if you're a moderator deleting someone else's content.
 
 ### 🔒 `POST /photos/{id}/likes` / 🔒 `DELETE /photos/{id}/likes`
 **Idempotent.** Liking an already-liked photo, or unliking one you haven't liked, is a silent
@@ -431,22 +459,81 @@ reply — no second level of nesting).
 
 ### 🔒 `DELETE /comments/{id}`
 **Note the path** — this is *not* nested under `/photos/{photoId}/comments/{id}`, it's its own
-top-level `/api/v1/comments/{id}`. Author-only. → `204`.
+top-level `/api/v1/comments/{id}`. Author **or** a Moderator/Admin caller → `204`; anyone else →
+`401`. Soft delete under the hood, same as photos.
 - Deleting a **reply** decrements its parent's `repliesCount`.
-- Deleting a **root comment that has replies cascades** — all its replies are deleted too, at the
-  database level (FK `ON DELETE CASCADE`), regardless of who authored them. There's no
-  confirmation step or "orphan" state; the frontend should warn the user before deleting a root
-  comment that has `repliesCount > 0`.
+- Deleting a **root comment that has replies cascades** — all its replies are soft-deleted too,
+  regardless of who authored them. There's no confirmation step or "orphan" state; the frontend
+  should warn the user before deleting a root comment that has `repliesCount > 0`.
+
+---
+
+## Moderation
+
+Roles (`UserResponse.role`): `User` (default), `Moderator`, `Admin`. Both come back in the
+`user` object from register/login/refresh, and from `PATCH /users/me` — decide whether to show
+moderator UI off of that, no need to decode the JWT yourself. Every Moderator/Admin-only endpoint
+below is 🛡️-marked; missing the role → `403`, not `401` (see [Error format](#error-format)).
+
+⚠️ **There is no endpoint to create the first Admin.** `PATCH /moderation/users/{id}/role`
+requires an existing Admin caller, so bootstrapping one has to happen outside the API — in
+Development this is `DbSeeder` (see below); in any other environment, a direct database write
+(`UPDATE users SET Role = 2 WHERE Email = '...'` — `0` = User, `1` = Moderator, `2` = Admin).
+
+### 🔒🐌 `POST /photos/{id}/reports` / 🔒🐌 `POST /comments/{id}/reports`
+Body: `{ "reason": "Spam" | "Inappropriate" | "Harassment" | "Other", "details"?: string }`.
+`details` ≤500 chars. Rate limited: 10 requests/60s per IP (tighter than search — filing a report
+is a deliberate, infrequent action, this exists only to stop flooding). One report per
+(reporter, target) pair — reporting the same photo/comment again → `409`. Target must exist (not
+already deleted) → `404` otherwise.
+→ `200 OK`:
+```json
+{
+  "id": "guid", "reporterId": "guid", "reporterName": "string",
+  "targetType": "Photo", "targetId": "guid", "reason": "Spam", "details": "string|null",
+  "status": "Pending", "createdAt": "date", "resolvedByUserId": "guid|null", "resolvedAt": "date|null"
+}
+```
+
+### 🔒🛡️ `GET /moderation/reports?status=Pending&cursor=&limit=` (Moderator or Admin)
+`status` defaults to `Pending` (also accepts `Resolved`/`Dismissed`). →
+`CursorPagedResult<ReportResponse>`, same shape as above, newest-first.
+
+### 🔒🛡️ `PATCH /moderation/reports/{id}` (Moderator or Admin)
+Body: `{ "status": "Resolved" | "Dismissed" }` — `status` can't be `Pending` (that's the initial
+state, not something you set going forward) → `400` otherwise. Does **not** delete the reported
+content itself; resolving a report and deleting the photo/comment it's about are two separate
+calls (`DELETE /photos/{id}` or `DELETE /comments/{id}`, which now also accept a Moderator/Admin
+caller — see [Photos](#photos)). → updated `ReportResponse`.
+
+### 🔒🛡️ `PATCH /moderation/users/{id}/role` (Admin only)
+Body: `{ "role": "User" | "Moderator" | "Admin" }`. No safeguard against demoting/promoting
+yourself or the last remaining Admin — the API trusts the caller. → updated `UserResponse`
+(includes `email`, unlike the public `GET /users/{id}`).
+
+### `GET /terms`
+Public, no auth. → `{ "id": "guid", "content": "string", "version": 1, "createdAt": "date" }`.
+`404` only if no terms have ever been published (shouldn't happen outside a from-scratch dev DB
+that hasn't run `DbSeeder` or `PUT /terms` yet).
+
+### 🔒🛡️ `PUT /terms` (Admin only)
+Body: `{ "content": string }`, required, ≤20000 chars. **Every update creates a new version** —
+there's no in-place edit, so old versions aren't retrievable through the API but aren't lost
+either (each publish moves `version` forward from 1). → the new, now-current `TermsOfServiceResponse`.
 
 ---
 
 ## Known gotchas for the frontend
 
-1. **Authorization error status is `401`, not `403`**, for every "you're not allowed to do this"
-   case (deleting someone else's photo/comment) — the API doesn't distinguish "not logged in"
-   from "logged in but not the owner." A `401` on a delete/update call while the user clearly has
-   a valid session means "not the owner," not "session expired" — check the response `title`
-   text if you need to tell those apart in the UI.
+1. **`401` vs `403` depends on *which* check failed, and they mean different things.** The
+   original "not the owner" checks (deleting someone else's photo/comment) predate roles and are
+   still `401`, not `403` — the API doesn't distinguish "not logged in" from "logged in but not
+   the owner" there. A `401` on a delete/update call while the user clearly has a valid session
+   means "not the owner," not "session expired" — check the response `title` text if you need to
+   tell those apart in the UI. The newer 🛡️-marked Moderator/Admin-only endpoints (`/moderation/*`,
+   `PUT /terms`) are different: those correctly return `403` when authenticated but under-privileged,
+   via ASP.NET Core's own authorization middleware (see the `403` caveat under
+   [Error format](#error-format)).
 2. Query enums (`sort`, `period`) are matched **by name, case-insensitively** — send
    `recent`/`top`, `week`/`month`/`all` as plain lowercase strings; don't send numeric enum
    values.

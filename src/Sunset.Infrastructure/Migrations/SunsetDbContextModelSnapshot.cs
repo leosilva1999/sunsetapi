@@ -36,6 +36,12 @@ namespace Sunset.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("DeletedByUserId")
+                        .HasColumnType("char(36)");
+
                     b.Property<Guid?>("ParentCommentId")
                         .HasColumnType("char(36)");
 
@@ -51,6 +57,10 @@ namespace Sunset.Infrastructure.Migrations
                         .HasColumnType("char(36)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DeletedAt");
+
+                    b.HasIndex("DeletedByUserId");
 
                     b.HasIndex("ParentCommentId");
 
@@ -125,6 +135,39 @@ namespace Sunset.Infrastructure.Migrations
                     b.ToTable("locations", (string)null);
                 });
 
+            modelBuilder.Entity("Sunset.Domain.Entities.ModerationAction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("ActionType")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("ModeratorId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("TargetDescription")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("ModeratorId");
+
+                    b.ToTable("moderation_actions", (string)null);
+                });
+
             modelBuilder.Entity("Sunset.Domain.Entities.Photo", b =>
                 {
                     b.Property<Guid>("Id")
@@ -142,6 +185,12 @@ namespace Sunset.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("DeletedByUserId")
+                        .HasColumnType("char(36)");
 
                     b.Property<string>("ImageUrl")
                         .IsRequired()
@@ -162,6 +211,10 @@ namespace Sunset.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedAt");
+
+                    b.HasIndex("DeletedAt");
+
+                    b.HasIndex("DeletedByUserId");
 
                     b.HasIndex("LocationId");
 
@@ -239,6 +292,81 @@ namespace Sunset.Infrastructure.Migrations
                     b.ToTable("refresh_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("Sunset.Domain.Entities.Report", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<int>("Reason")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ReporterId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("ResolvedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("TargetType")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ResolvedByUserId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("ReporterId", "TargetType", "TargetId")
+                        .IsUnique();
+
+                    b.ToTable("reports", (string)null);
+                });
+
+            modelBuilder.Entity("Sunset.Domain.Entities.TermsOfService", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("mediumtext");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("Version")
+                        .IsUnique();
+
+                    b.ToTable("terms_of_service", (string)null);
+                });
+
             modelBuilder.Entity("Sunset.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -271,6 +399,11 @@ namespace Sunset.Infrastructure.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("varchar(256)");
 
+                    b.Property<int>("Role")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
@@ -281,6 +414,11 @@ namespace Sunset.Infrastructure.Migrations
 
             modelBuilder.Entity("Sunset.Domain.Entities.Comment", b =>
                 {
+                    b.HasOne("Sunset.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("DeletedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Sunset.Domain.Entities.Comment", null)
                         .WithMany()
                         .HasForeignKey("ParentCommentId")
@@ -322,8 +460,24 @@ namespace Sunset.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Sunset.Domain.Entities.ModerationAction", b =>
+                {
+                    b.HasOne("Sunset.Domain.Entities.User", "Moderator")
+                        .WithMany()
+                        .HasForeignKey("ModeratorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Moderator");
+                });
+
             modelBuilder.Entity("Sunset.Domain.Entities.Photo", b =>
                 {
+                    b.HasOne("Sunset.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("DeletedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Sunset.Domain.Entities.Location", "Location")
                         .WithMany("Photos")
                         .HasForeignKey("LocationId")
@@ -369,6 +523,33 @@ namespace Sunset.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Sunset.Domain.Entities.Report", b =>
+                {
+                    b.HasOne("Sunset.Domain.Entities.User", "Reporter")
+                        .WithMany()
+                        .HasForeignKey("ReporterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sunset.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ResolvedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Reporter");
+                });
+
+            modelBuilder.Entity("Sunset.Domain.Entities.TermsOfService", b =>
+                {
+                    b.HasOne("Sunset.Domain.Entities.User", "UpdatedBy")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("UpdatedBy");
                 });
 
             modelBuilder.Entity("Sunset.Domain.Entities.Location", b =>

@@ -30,6 +30,9 @@ public static class DependencyInjection
         services.AddScoped<ILocationRepository, LocationRepository>();
         services.AddScoped<IPhotoRepository, PhotoRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IReportRepository, ReportRepository>();
+        services.AddScoped<IModerationActionRepository, ModerationActionRepository>();
+        services.AddScoped<ITermsOfServiceRepository, TermsOfServiceRepository>();
 
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ITokenService, TokenService>();

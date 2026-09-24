@@ -25,10 +25,16 @@ public class CommentConfiguration : IEntityTypeConfiguration<Comment>
 
         builder.HasIndex(c => c.PhotoId);
         builder.HasIndex(c => c.ParentCommentId);
+        builder.HasIndex(c => c.DeletedAt);
 
         builder.HasOne<Comment>()
             .WithMany()
             .HasForeignKey(c => c.ParentCommentId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(c => c.DeletedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

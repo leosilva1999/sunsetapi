@@ -13,11 +13,12 @@ public class PhotoServiceTests
 {
     private readonly Mock<IPhotoRepository> _photoRepository = new();
     private readonly Mock<ILocationRepository> _locationRepository = new();
+    private readonly Mock<IModerationActionRepository> _moderationActionRepository = new();
     private readonly PhotoService _sut;
 
     public PhotoServiceTests()
     {
-        _sut = new PhotoService(_photoRepository.Object, _locationRepository.Object);
+        _sut = new PhotoService(_photoRepository.Object, _locationRepository.Object, _moderationActionRepository.Object);
     }
 
     private static Photo CreatePhoto(User user, Location location, Guid? userId = null)
@@ -108,12 +109,12 @@ public class PhotoServiceTests
 
         _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
 
-        await Assert.ThrowsAsync<UnauthorizedActionException>(() => _sut.DeleteAsync(Guid.NewGuid(), photo.Id));
-        _photoRepository.Verify(r => r.RemoveAsync(It.IsAny<Photo>(), default), Times.Never);
+        await Assert.ThrowsAsync<UnauthorizedActionException>(() => _sut.DeleteAsync(Guid.NewGuid(), photo.Id, isModerator: false));
+        _photoRepository.Verify(r => r.SoftDeleteAsync(It.IsAny<Photo>(), default), Times.Never);
     }
 
     [Fact]
-    public async Task DeleteAsync_WhenAuthor_RemovesPhoto()
+    public async Task DeleteAsync_WhenAuthor_SoftDeletesPhoto()
     {
         var user = new User("Ana", "ana@sunset.com", "hashed");
         var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
@@ -121,9 +122,30 @@ public class PhotoServiceTests
 
         _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
 
-        await _sut.DeleteAsync(user.Id, photo.Id);
+        await _sut.DeleteAsync(user.Id, photo.Id, isModerator: false);
 
-        _photoRepository.Verify(r => r.RemoveAsync(photo, default), Times.Once);
+        _photoRepository.Verify(r => r.SoftDeleteAsync(photo, default), Times.Once);
+        Assert.NotNull(photo.DeletedAt);
+        _moderationActionRepository.Verify(r => r.AddAsync(It.IsAny<ModerationAction>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ByModeratorOnOthersPhoto_SoftDeletesAndLogsModerationAction()
+    {
+        var author = new User("Ana", "ana@sunset.com", "hashed");
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        var photo = CreatePhoto(author, location);
+        var moderatorId = Guid.NewGuid();
+
+        _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
+
+        await _sut.DeleteAsync(moderatorId, photo.Id, isModerator: true);
+
+        _photoRepository.Verify(r => r.SoftDeleteAsync(photo, default), Times.Once);
+        Assert.Equal(moderatorId, photo.DeletedByUserId);
+        _moderationActionRepository.Verify(
+            r => r.AddAsync(It.Is<ModerationAction>(a => a.ModeratorId == moderatorId && a.ActionType == ModerationActionType.PhotoDeleted), default),
+            Times.Once);
     }
 
     [Fact]
@@ -262,8 +284,8 @@ public class PhotoServiceTests
 
         _photoRepository.Setup(r => r.GetCommentByIdAsync(comment.Id, default)).ReturnsAsync(comment);
 
-        await Assert.ThrowsAsync<UnauthorizedActionException>(() => _sut.DeleteCommentAsync(Guid.NewGuid(), comment.Id));
-        _photoRepository.Verify(r => r.RemoveCommentAsync(It.IsAny<Comment>(), default), Times.Never);
+        await Assert.ThrowsAsync<UnauthorizedActionException>(() => _sut.DeleteCommentAsync(Guid.NewGuid(), comment.Id, isModerator: false));
+        _photoRepository.Verify(r => r.SoftDeleteCommentAsync(It.IsAny<Comment>(), default), Times.Never);
     }
 
     [Fact]
@@ -282,15 +304,15 @@ public class PhotoServiceTests
         _photoRepository.Setup(r => r.GetCommentByIdAsync(parent.Id, default)).ReturnsAsync(parent);
         _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
 
-        await _sut.DeleteCommentAsync(user.Id, reply.Id);
+        await _sut.DeleteCommentAsync(user.Id, reply.Id, isModerator: false);
 
         Assert.Equal(0, parent.RepliesCount);
         Assert.Equal(1, photo.CommentsCount);
-        _photoRepository.Verify(r => r.RemoveCommentAsync(reply, default), Times.Once);
+        _photoRepository.Verify(r => r.SoftDeleteCommentAsync(reply, default), Times.Once);
     }
 
     [Fact]
-    public async Task DeleteCommentAsync_WhenDeletingARootWithReplies_DecrementsPhotoCommentsCountByAllOfThem()
+    public async Task DeleteCommentAsync_WhenDeletingARootWithReplies_DecrementsPhotoCommentsCountAndSoftDeletesReplies()
     {
         var user = new User("Ana", "ana@sunset.com", "hashed");
         var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
@@ -301,13 +323,24 @@ public class PhotoServiceTests
         var root = new Comment(user.Id, photo.Id, "Raiz");
         root.IncrementRepliesCount();
         root.IncrementRepliesCount();
+        var replies = new List<Comment>
+        {
+            new(user.Id, photo.Id, "Resposta 1", root.Id),
+            new(user.Id, photo.Id, "Resposta 2", root.Id),
+        };
 
         _photoRepository.Setup(r => r.GetCommentByIdAsync(root.Id, default)).ReturnsAsync(root);
         _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
+        _photoRepository.Setup(r => r.GetAllRepliesAsync(root.Id, default)).ReturnsAsync(replies);
 
-        await _sut.DeleteCommentAsync(user.Id, root.Id);
+        await _sut.DeleteCommentAsync(user.Id, root.Id, isModerator: false);
 
         Assert.Equal(0, photo.CommentsCount);
-        _photoRepository.Verify(r => r.RemoveCommentAsync(root, default), Times.Once);
+        _photoRepository.Verify(r => r.SoftDeleteCommentAsync(root, default), Times.Once);
+        foreach (var reply in replies)
+        {
+            Assert.NotNull(reply.DeletedAt);
+            _photoRepository.Verify(r => r.SoftDeleteCommentAsync(reply, default), Times.Once);
+        }
     }
 }
