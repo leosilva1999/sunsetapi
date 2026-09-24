@@ -1,20 +1,25 @@
+using Sunset.Domain.Enums;
+
 namespace Sunset.Domain.Entities;
 
 /// <summary>
-/// Each edit inserts a new row instead of updating in place - the current version is simply the
-/// one with the highest <see cref="Version"/>, which gives free history with no separate table.
+/// A versioned legal document (terms of service, privacy policy, ...). Each edit inserts a new
+/// row instead of updating in place - the current version of a given <see cref="DocumentType"/>
+/// is simply the one with the highest <see cref="Version"/>, which gives free history with no
+/// separate table. Versions are numbered independently per <see cref="DocumentType"/>.
 /// </summary>
-public class TermsOfService : BaseEntity
+public class LegalDocument : BaseEntity
 {
+    public LegalDocumentType DocumentType { get; private set; }
     public string Content { get; private set; } = null!;
     public int Version { get; private set; }
     public Guid UpdatedByUserId { get; private set; }
 
     public User UpdatedBy { get; private set; } = null!;
 
-    private TermsOfService() { }
+    private LegalDocument() { }
 
-    public TermsOfService(string content, int version, Guid updatedByUserId)
+    public LegalDocument(LegalDocumentType documentType, string content, int version, Guid updatedByUserId)
     {
         if (string.IsNullOrWhiteSpace(content))
             throw new ArgumentException("Content is required.", nameof(content));
@@ -23,6 +28,7 @@ public class TermsOfService : BaseEntity
         if (updatedByUserId == Guid.Empty)
             throw new ArgumentException("UpdatedByUserId is required.", nameof(updatedByUserId));
 
+        DocumentType = documentType;
         Content = content;
         Version = version;
         UpdatedByUserId = updatedByUserId;

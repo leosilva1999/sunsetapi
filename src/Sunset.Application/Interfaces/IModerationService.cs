@@ -11,8 +11,8 @@ public interface IModerationService
     Task<CursorPagedResult<ReportResponse>> GetReportsAsync(ReportStatus status, string? cursor, int limit, CancellationToken cancellationToken = default);
     Task<ReportResponse> ResolveReportAsync(Guid moderatorId, Guid reportId, ResolveReportRequest request, CancellationToken cancellationToken = default);
 
-    Task<TermsOfServiceResponse> GetCurrentTermsAsync(CancellationToken cancellationToken = default);
-    Task<TermsOfServiceResponse> UpdateTermsAsync(Guid adminId, UpdateTermsOfServiceRequest request, CancellationToken cancellationToken = default);
+    Task<LegalDocumentResponse> GetCurrentLegalDocumentAsync(LegalDocumentType documentType, CancellationToken cancellationToken = default);
+    Task<LegalDocumentResponse> UpdateLegalDocumentAsync(Guid adminId, LegalDocumentType documentType, UpdateLegalDocumentRequest request, CancellationToken cancellationToken = default);
 
     Task<UserResponse> ChangeUserRoleAsync(Guid adminId, Guid targetUserId, ChangeUserRoleRequest request, CancellationToken cancellationToken = default);
 }

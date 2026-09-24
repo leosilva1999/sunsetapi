@@ -12,7 +12,7 @@ public class ModerationServiceTests
 {
     private readonly Mock<IReportRepository> _reportRepository = new();
     private readonly Mock<IModerationActionRepository> _moderationActionRepository = new();
-    private readonly Mock<ITermsOfServiceRepository> _termsOfServiceRepository = new();
+    private readonly Mock<ILegalDocumentRepository> _legalDocumentRepository = new();
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IPhotoRepository> _photoRepository = new();
     private readonly ModerationService _sut;
@@ -22,7 +22,7 @@ public class ModerationServiceTests
         _sut = new ModerationService(
             _reportRepository.Object,
             _moderationActionRepository.Object,
-            _termsOfServiceRepository.Object,
+            _legalDocumentRepository.Object,
             _userRepository.Object,
             _photoRepository.Object);
     }
@@ -118,30 +118,44 @@ public class ModerationServiceTests
     }
 
     [Fact]
-    public async Task UpdateTermsAsync_WhenNoneExistYet_CreatesVersionOne()
+    public async Task UpdateLegalDocumentAsync_WhenNoneExistYet_CreatesVersionOne()
     {
         var adminId = Guid.NewGuid();
-        _termsOfServiceRepository.Setup(r => r.GetCurrentAsync(default)).ReturnsAsync((TermsOfService?)null);
+        _legalDocumentRepository.Setup(r => r.GetCurrentAsync(LegalDocumentType.TermsOfService, default)).ReturnsAsync((LegalDocument?)null);
 
-        var response = await _sut.UpdateTermsAsync(adminId, new UpdateTermsOfServiceRequest("Termos v1"));
+        var response = await _sut.UpdateLegalDocumentAsync(adminId, LegalDocumentType.TermsOfService, new UpdateLegalDocumentRequest("Termos v1"));
 
         Assert.Equal(1, response.Version);
-        _termsOfServiceRepository.Verify(r => r.AddAsync(It.Is<TermsOfService>(t => t.Version == 1), default), Times.Once);
+        _legalDocumentRepository.Verify(r => r.AddAsync(It.Is<LegalDocument>(t => t.Version == 1), default), Times.Once);
         _moderationActionRepository.Verify(
-            r => r.AddAsync(It.Is<ModerationAction>(a => a.ActionType == ModerationActionType.TermsOfServiceUpdated), default),
+            r => r.AddAsync(It.Is<ModerationAction>(a => a.ActionType == ModerationActionType.LegalDocumentUpdated), default),
             Times.Once);
     }
 
     [Fact]
-    public async Task UpdateTermsAsync_WhenAVersionExists_IncrementsIt()
+    public async Task UpdateLegalDocumentAsync_WhenAVersionExists_IncrementsIt()
     {
         var adminId = Guid.NewGuid();
-        var current = new TermsOfService("Termos v1", 1, adminId);
-        _termsOfServiceRepository.Setup(r => r.GetCurrentAsync(default)).ReturnsAsync(current);
+        var current = new LegalDocument(LegalDocumentType.TermsOfService, "Termos v1", 1, adminId);
+        _legalDocumentRepository.Setup(r => r.GetCurrentAsync(LegalDocumentType.TermsOfService, default)).ReturnsAsync(current);
 
-        var response = await _sut.UpdateTermsAsync(adminId, new UpdateTermsOfServiceRequest("Termos v2"));
+        var response = await _sut.UpdateLegalDocumentAsync(adminId, LegalDocumentType.TermsOfService, new UpdateLegalDocumentRequest("Termos v2"));
 
         Assert.Equal(2, response.Version);
+    }
+
+    [Fact]
+    public async Task UpdateLegalDocumentAsync_VersionsPrivacyPolicyIndependentlyFromTerms()
+    {
+        var adminId = Guid.NewGuid();
+        var currentTerms = new LegalDocument(LegalDocumentType.TermsOfService, "Termos v3", 3, adminId);
+        _legalDocumentRepository.Setup(r => r.GetCurrentAsync(LegalDocumentType.TermsOfService, default)).ReturnsAsync(currentTerms);
+        _legalDocumentRepository.Setup(r => r.GetCurrentAsync(LegalDocumentType.PrivacyPolicy, default)).ReturnsAsync((LegalDocument?)null);
+
+        var response = await _sut.UpdateLegalDocumentAsync(adminId, LegalDocumentType.PrivacyPolicy, new UpdateLegalDocumentRequest("Privacidade v1"));
+
+        Assert.Equal(1, response.Version);
+        Assert.Equal(LegalDocumentType.PrivacyPolicy, response.DocumentType);
     }
 
     [Fact]

@@ -3,9 +3,9 @@ using Sunset.Application.DTOs.Moderation;
 
 namespace Sunset.Application.Validators.Moderation;
 
-public class UpdateTermsOfServiceRequestValidator : AbstractValidator<UpdateTermsOfServiceRequest>
+public class UpdateLegalDocumentRequestValidator : AbstractValidator<UpdateLegalDocumentRequest>
 {
-    public UpdateTermsOfServiceRequestValidator()
+    public UpdateLegalDocumentRequestValidator()
     {
         RuleFor(x => x.Content)
             .NotEmpty()

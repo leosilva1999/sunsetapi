@@ -153,10 +153,19 @@ public static class DbSeeder
             location.RecalculateAvgRating(Math.Round((decimal)scores.Average(), 2));
         }
 
-        var terms = new TermsOfService(
+        var terms = new LegalDocument(
+            LegalDocumentType.TermsOfService,
             "Bem-vindo ao Sunset! Ao usar o app, você concorda em postar apenas fotos de sua "
                 + "autoria, respeitar outros usuários e não publicar conteúdo ofensivo, ilegal ou "
                 + "spam. Conteúdo denunciado pode ser removido por um moderador.",
+            version: 1,
+            updatedByUserId: admin.Id);
+
+        var privacyPolicy = new LegalDocument(
+            LegalDocumentType.PrivacyPolicy,
+            "Coletamos apenas os dados necessários para operar o Sunset: nome, e-mail, fotos e "
+                + "avaliações que você publica. Você pode excluir sua conta a qualquer momento "
+                + "(anonimização, nos termos da LGPD). Não vendemos seus dados a terceiros.",
             version: 1,
             updatedByUserId: admin.Id);
 
@@ -166,7 +175,7 @@ public static class DbSeeder
         context.Likes.AddRange(likes);
         context.Comments.AddRange(comments);
         context.Ratings.AddRange(ratings);
-        context.TermsOfServiceDocuments.Add(terms);
+        context.LegalDocuments.AddRange(terms, privacyPolicy);
 
         await context.SaveChangesAsync(cancellationToken);
 

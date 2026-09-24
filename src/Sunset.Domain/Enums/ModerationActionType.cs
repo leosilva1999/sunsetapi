@@ -6,6 +6,6 @@ public enum ModerationActionType
     CommentDeleted,
     ReportResolved,
     ReportDismissed,
-    TermsOfServiceUpdated,
+    LegalDocumentUpdated,
     UserRoleChanged
 }

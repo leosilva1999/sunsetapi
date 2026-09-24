@@ -164,14 +164,15 @@ public class ModerationEndpointsTests(SunsetApiFactory factory) : IntegrationTes
         var (_, admin) = await RegisterAndAuthenticateWithRoleAsync(UserRole.Admin);
         var content = $"Termos de uso {Guid.NewGuid():N}";
 
-        var updateResponse = await admin.PutAsJsonAsync("/api/v1/terms", new UpdateTermsOfServiceRequest(content));
+        var updateResponse = await admin.PutAsJsonAsync("/api/v1/terms", new UpdateLegalDocumentRequest(content));
         Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
-        var updated = await updateResponse.Content.ReadFromJsonAsync<TermsOfServiceResponse>();
+        var updated = await updateResponse.Content.ReadFromJsonAsync<LegalDocumentResponse>();
         Assert.Equal(content, updated!.Content);
+        Assert.Equal(LegalDocumentType.TermsOfService, updated.DocumentType);
 
         var afterResponse = await CreateClient().GetAsync("/api/v1/terms");
         Assert.Equal(HttpStatusCode.OK, afterResponse.StatusCode);
-        var after = await afterResponse.Content.ReadFromJsonAsync<TermsOfServiceResponse>();
+        var after = await afterResponse.Content.ReadFromJsonAsync<LegalDocumentResponse>();
         Assert.Equal(updated.Version, after!.Version);
         Assert.Equal(content, after.Content);
     }
@@ -181,7 +182,35 @@ public class ModerationEndpointsTests(SunsetApiFactory factory) : IntegrationTes
     {
         var (_, moderator) = await RegisterAndAuthenticateWithRoleAsync(UserRole.Moderator);
 
-        var response = await moderator.PutAsJsonAsync("/api/v1/terms", new UpdateTermsOfServiceRequest("Tentativa de edicao"));
+        var response = await moderator.PutAsJsonAsync("/api/v1/terms", new UpdateLegalDocumentRequest("Tentativa de edicao"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdatePrivacyByAdmin_ThenGetPrivacy_ReflectsTheNewVersion()
+    {
+        var (_, admin) = await RegisterAndAuthenticateWithRoleAsync(UserRole.Admin);
+        var content = $"Politica de privacidade {Guid.NewGuid():N}";
+
+        var updateResponse = await admin.PutAsJsonAsync("/api/v1/privacy", new UpdateLegalDocumentRequest(content));
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        var updated = await updateResponse.Content.ReadFromJsonAsync<LegalDocumentResponse>();
+        Assert.Equal(content, updated!.Content);
+        Assert.Equal(LegalDocumentType.PrivacyPolicy, updated.DocumentType);
+
+        var afterResponse = await CreateClient().GetAsync("/api/v1/privacy");
+        Assert.Equal(HttpStatusCode.OK, afterResponse.StatusCode);
+        var after = await afterResponse.Content.ReadFromJsonAsync<LegalDocumentResponse>();
+        Assert.Equal(updated.Version, after!.Version);
+    }
+
+    [Fact]
+    public async Task UpdatePrivacy_ByModeratorNotAdmin_ReturnsForbidden()
+    {
+        var (_, moderator) = await RegisterAndAuthenticateWithRoleAsync(UserRole.Moderator);
+
+        var response = await moderator.PutAsJsonAsync("/api/v1/privacy", new UpdateLegalDocumentRequest("Tentativa de edicao"));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }

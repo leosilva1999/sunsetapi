@@ -12,7 +12,7 @@ namespace Sunset.Application.Services;
 public class ModerationService(
     IReportRepository reportRepository,
     IModerationActionRepository moderationActionRepository,
-    ITermsOfServiceRepository termsOfServiceRepository,
+    ILegalDocumentRepository legalDocumentRepository,
     IUserRepository userRepository,
     IPhotoRepository photoRepository) : IModerationService
 {
@@ -61,27 +61,27 @@ public class ModerationService(
         return report.ToResponse();
     }
 
-    public async Task<TermsOfServiceResponse> GetCurrentTermsAsync(CancellationToken cancellationToken = default)
+    public async Task<LegalDocumentResponse> GetCurrentLegalDocumentAsync(LegalDocumentType documentType, CancellationToken cancellationToken = default)
     {
-        var terms = await termsOfServiceRepository.GetCurrentAsync(cancellationToken)
-            ?? throw new NotFoundException("Terms of service have not been published yet.");
+        var document = await legalDocumentRepository.GetCurrentAsync(documentType, cancellationToken)
+            ?? throw new NotFoundException($"{documentType} has not been published yet.");
 
-        return terms.ToResponse();
+        return document.ToResponse();
     }
 
-    public async Task<TermsOfServiceResponse> UpdateTermsAsync(Guid adminId, UpdateTermsOfServiceRequest request, CancellationToken cancellationToken = default)
+    public async Task<LegalDocumentResponse> UpdateLegalDocumentAsync(Guid adminId, LegalDocumentType documentType, UpdateLegalDocumentRequest request, CancellationToken cancellationToken = default)
     {
-        var current = await termsOfServiceRepository.GetCurrentAsync(cancellationToken);
+        var current = await legalDocumentRepository.GetCurrentAsync(documentType, cancellationToken);
         var nextVersion = (current?.Version ?? 0) + 1;
 
-        var terms = new TermsOfService(request.Content, nextVersion, adminId);
-        await termsOfServiceRepository.AddAsync(terms, cancellationToken);
+        var document = new LegalDocument(documentType, request.Content, nextVersion, adminId);
+        await legalDocumentRepository.AddAsync(document, cancellationToken);
 
         await moderationActionRepository.AddAsync(
-            new ModerationAction(adminId, ModerationActionType.TermsOfServiceUpdated, $"TermsOfService:v{nextVersion}"),
+            new ModerationAction(adminId, ModerationActionType.LegalDocumentUpdated, $"{documentType}:v{nextVersion}"),
             cancellationToken);
 
-        return terms.ToResponse();
+        return document.ToResponse();
     }
 
     public async Task<UserResponse> ChangeUserRoleAsync(Guid adminId, Guid targetUserId, ChangeUserRoleRequest request, CancellationToken cancellationToken = default)

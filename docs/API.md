@@ -62,6 +62,11 @@ these are the diffs to check:
   (with who deleted it and when) instead of erased, so a root comment's replies are no longer
   dropped via a database `CASCADE` — they're soft-deleted individually, same as before but at the
   application layer. No client-visible change unless you were relying on the old cascade timing.
+- **New `GET`/`PUT /privacy`** (privacy policy), sharing the exact same versioned-document
+  mechanism as `/terms`. ⚠️ **`/terms`'s response shape changed**: `TermsOfServiceResponse` is now
+  the generic `LegalDocumentResponse` (adds a `documentType` field: `"TermsOfService"` or
+  `"PrivacyPolicy"`), and each document type now versions independently instead of sharing one
+  global counter — see [Moderation](#moderation).
 
 ## Base URL & running locally
 
@@ -79,7 +84,7 @@ these are the diffs to check:
 
 The API auto-seeds fictitious data on startup in Development (idempotent — skipped if already
 seeded). 8 users, 6 real Brazilian sunset spots, 12 photos, likes/comments/ratings, plus an
-initial terms-of-service (version 1). All seed users share the password **`Password123!`**.
+initial terms-of-service and privacy policy (each version 1). All seed users share the password **`Password123!`**.
 Emails: `beatriz@sunsetapp.dev`, `rafael@sunsetapp.dev`, `camila@sunsetapp.dev`,
 `lucas@sunsetapp.dev`, `juliana@sunsetapp.dev`, `pedro@sunsetapp.dev`, `mariana@sunsetapp.dev`,
 `thiago@sunsetapp.dev`. Use any of these to log in during frontend development instead of
@@ -511,15 +516,23 @@ Body: `{ "role": "User" | "Moderator" | "Admin" }`. No safeguard against demotin
 yourself or the last remaining Admin — the API trusts the caller. → updated `UserResponse`
 (includes `email`, unlike the public `GET /users/{id}`).
 
-### `GET /terms`
-Public, no auth. → `{ "id": "guid", "content": "string", "version": 1, "createdAt": "date" }`.
-`404` only if no terms have ever been published (shouldn't happen outside a from-scratch dev DB
-that hasn't run `DbSeeder` or `PUT /terms` yet).
+### `GET /terms` / `GET /privacy`
+Public, no auth. Both share the same shape and versioning mechanism (see below) — the only
+difference is which document you get. →
+`{ "id": "guid", "documentType": "TermsOfService" | "PrivacyPolicy", "content": "string", "version": 1, "createdAt": "date" }`.
+`404` only if that particular document has never been published (shouldn't happen outside a
+from-scratch dev DB that hasn't run `DbSeeder` or `PUT /terms`/`PUT /privacy` yet).
 
-### 🔒🛡️ `PUT /terms` (Admin only)
+### 🔒🛡️ `PUT /terms` / 🔒🛡️ `PUT /privacy` (Admin only)
 Body: `{ "content": string }`, required, ≤20000 chars. **Every update creates a new version** —
 there's no in-place edit, so old versions aren't retrievable through the API but aren't lost
-either (each publish moves `version` forward from 1). → the new, now-current `TermsOfServiceResponse`.
+either. Versions are numbered **independently per document** (each publish moves that
+document's own `version` forward from 1 — updating `/terms` never touches `/privacy`'s version
+counter, and vice versa). → the new, now-current `LegalDocumentResponse`.
+
+⚠️ Before 2026-09-24, this was terms-of-service-only (`TermsOfServiceResponse`, versions numbered
+globally). If you built against that shape: the response now always includes `documentType`, and
+the type name changed.
 
 ---
 
@@ -531,7 +544,7 @@ either (each publish moves `version` forward from 1). → the new, now-current `
    the owner" there. A `401` on a delete/update call while the user clearly has a valid session
    means "not the owner," not "session expired" — check the response `title` text if you need to
    tell those apart in the UI. The newer 🛡️-marked Moderator/Admin-only endpoints (`/moderation/*`,
-   `PUT /terms`) are different: those correctly return `403` when authenticated but under-privileged,
+   `PUT /terms`, `PUT /privacy`) are different: those correctly return `403` when authenticated but under-privileged,
    via ASP.NET Core's own authorization middleware (see the `403` caveat under
    [Error format](#error-format)).
 2. Query enums (`sort`, `period`) are matched **by name, case-insensitively** — send

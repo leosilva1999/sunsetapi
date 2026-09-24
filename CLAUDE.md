@@ -41,7 +41,7 @@ Regras:
 | `Rating` | id, user_id, location_id, score (1–5) | par (user_id, location_id) único — nota do local, separada da curtida na foto |
 | `Report` | id, reporter_id, target_type, target_id, reason, status | par (reporter_id, target_type, target_id) único; `target_id` sem FK (associação polimórfica Photo/Comment) |
 | `ModerationAction` | id, moderator_id, action_type, target_description | log de auditoria append-only, sem endpoint de leitura ainda |
-| `TermsOfService` | id, content, version, updated_by_user_id | cada edição cria uma linha nova (histórico via `version`), sem update in-place |
+| `LegalDocument` | id, document_type, content, version, updated_by_user_id | `document_type`: `TermsOfService`\|`PrivacyPolicy`; cada edição cria uma linha nova (histórico via `version`, numerado por tipo), sem update in-place |
 
 Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`ModerationAction`.
 `Location` 1:N `Photo`/`Rating`. `Photo` 1:N `Like`/`Comment`.
@@ -77,7 +77,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - `GET /moderation/reports` (`?status=Pending|Resolved|Dismissed`, paginado)
 - `PATCH /moderation/reports/:id` (resolver/dispensar)
 - `PATCH /moderation/users/:id/role` (admin only — promove/rebaixa)
-- `GET /terms` (público), `PUT /terms` (admin only — cria nova versão)
+- `GET /terms` / `GET /privacy` (público), `PUT /terms` / `PUT /privacy` (admin only — cria nova versão, numerada por documento)
 
 ## Decisões de design
 

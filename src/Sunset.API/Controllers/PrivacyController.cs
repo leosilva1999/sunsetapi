@@ -9,8 +9,8 @@ using Sunset.Domain.Enums;
 namespace Sunset.API.Controllers;
 
 [ApiController]
-[Route("api/v1/terms")]
-public class TermsController(
+[Route("api/v1/privacy")]
+public class PrivacyController(
     IModerationService moderationService,
     IValidator<UpdateLegalDocumentRequest> updateDocumentValidator,
     ICurrentUserService currentUserService) : ControllerBase
@@ -18,7 +18,7 @@ public class TermsController(
     [HttpGet]
     public async Task<ActionResult<LegalDocumentResponse>> GetCurrent(CancellationToken cancellationToken)
     {
-        var response = await moderationService.GetCurrentLegalDocumentAsync(LegalDocumentType.TermsOfService, cancellationToken);
+        var response = await moderationService.GetCurrentLegalDocumentAsync(LegalDocumentType.PrivacyPolicy, cancellationToken);
         return Ok(response);
     }
 
@@ -31,7 +31,7 @@ public class TermsController(
         var adminId = currentUserService.UserId
             ?? throw new UnauthorizedActionException("User is not authenticated.");
 
-        var response = await moderationService.UpdateLegalDocumentAsync(adminId, LegalDocumentType.TermsOfService, request, cancellationToken);
+        var response = await moderationService.UpdateLegalDocumentAsync(adminId, LegalDocumentType.PrivacyPolicy, request, cancellationToken);
         return Ok(response);
     }
 }
