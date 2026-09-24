@@ -16,4 +16,10 @@ public class S3AvatarStorageService(IAmazonS3 s3Client, IOptions<StorageOptions>
 
         return new AvatarUploadUrlResponse(uploadUrl, avatarUrl);
     }
+
+    public bool IsValidAvatarUrl(string url)
+    {
+        var prefix = $"{options.Value.PublicBaseUrl.TrimEnd('/')}/avatars/";
+        return url.StartsWith(prefix, StringComparison.Ordinal);
+    }
 }

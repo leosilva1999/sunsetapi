@@ -41,6 +41,10 @@ these are the diffs to check:
   refresh, `PATCH /users/me`) — see [Users](#users).
 - **New `DELETE /users/me`** — account deletion (LGPD right to erasure). Anonymizes the user in
   place rather than cascade-deleting their photos/comments/ratings — see [Users](#users).
+- **`PATCH /users/me`'s `avatarUrl` must now point into our own storage bucket** ⚠️ — it used to
+  accept any well-formed absolute URL, which let a client set someone's avatar to an
+  attacker-controlled tracking URL (every viewer's browser would then request it, leaking their
+  IP). Only URLs from `POST /users/me/avatar-upload-url` are accepted now — see [Users](#users).
 
 ## Base URL & running locally
 
@@ -209,8 +213,11 @@ understands. Trust this doc's description of the body, not the schema shown in `
 
 Validation (only runs on fields actually present in the body): `name`, if present, must be
 non-empty ≤100 chars (i.e. you can omit `name`, but you can't send it as `null` or `""`) ·
-`avatarUrl`, if present and non-null, must be a valid absolute URL, ≤2048 chars · `bio`, if
-present and non-null, ≤160 chars.
+`avatarUrl`, if present and non-null, must be a valid absolute URL ≤2048 chars **and must point
+into our own storage bucket** (i.e. start with the same base URL `POST
+/users/me/avatar-upload-url` returns) — `400` otherwise. In practice this means the only way to
+set `avatarUrl` is: call `POST /users/me/avatar-upload-url`, `PUT` the image there, then send the
+`avatarUrl` you got back here verbatim · `bio`, if present and non-null, ≤160 chars.
 → updated `UserResponse`.
 
 ### 🔒 `POST /users/me/avatar-upload-url`

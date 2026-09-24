@@ -95,6 +95,33 @@ public class UsersEndpointsTests(SunsetApiFactory factory) : IntegrationTestBase
     }
 
     [Fact]
+    public async Task UpdateMe_WithAvatarUrlOutsideOurStorage_ReturnsBadRequest()
+    {
+        // Sem essa checagem, o PATCH aceitaria qualquer domínio como avatar - todo viewer do
+        // perfil/comentário/avaliação dessa pessoa teria o navegador batendo nesse domínio,
+        // vazando IP pro dono da URL.
+        var (_, client) = await RegisterAndAuthenticateAsync();
+
+        var response = await client.PatchAsJsonAsync("/api/v1/users/me", new { avatarUrl = "https://evil.example.com/tracker.png" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateMe_WithAvatarUrlFromOurStorage_Succeeds()
+    {
+        var (_, client) = await RegisterAndAuthenticateAsync();
+        var uploadUrlResponse = await client.PostAsJsonAsync("/api/v1/users/me/avatar-upload-url", new CreateAvatarUploadUrlRequest("image/png"));
+        var uploadUrl = (await uploadUrlResponse.Content.ReadFromJsonAsync<AvatarUploadUrlResponse>())!;
+
+        var response = await client.PatchAsJsonAsync("/api/v1/users/me", new { avatarUrl = uploadUrl.AvatarUrl });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var updated = await response.Content.ReadFromJsonAsync<UserResponse>();
+        Assert.Equal(uploadUrl.AvatarUrl, updated!.AvatarUrl);
+    }
+
+    [Fact]
     public async Task CreateAvatarUploadUrl_ReturnsPutUrlAndFinalAvatarUrl()
     {
         var (_, client) = await RegisterAndAuthenticateAsync();
