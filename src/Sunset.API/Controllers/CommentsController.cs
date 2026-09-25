@@ -19,6 +19,13 @@ public class CommentsController(
     IValidator<CreateReportRequest> createReportValidator,
     ICurrentUserService currentUserService) : ControllerBase
 {
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<CommentResponse>> GetById(Guid id, CancellationToken cancellationToken)
+    {
+        var response = await photoService.GetCommentAsync(id, cancellationToken);
+        return Ok(response);
+    }
+
     [HttpGet("{id:guid}/replies")]
     public async Task<ActionResult<CursorPagedResult<CommentResponse>>> GetReplies(
         Guid id,

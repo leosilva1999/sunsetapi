@@ -101,6 +101,14 @@ public class PhotoService(
         return new CursorPagedResult<CommentResponse>(items, page.NextCursor, page.HasMore);
     }
 
+    public async Task<CommentResponse> GetCommentAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var comment = await photoRepository.GetCommentByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException("Comment not found.");
+
+        return comment.ToResponse();
+    }
+
     public async Task<CommentResponse> AddCommentAsync(Guid userId, Guid photoId, CreateCommentRequest request, CancellationToken cancellationToken = default)
     {
         var photo = await photoRepository.GetByIdAsync(photoId, cancellationToken)

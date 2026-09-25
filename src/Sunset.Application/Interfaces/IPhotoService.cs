@@ -13,6 +13,7 @@ public interface IPhotoService
     Task LikeAsync(Guid userId, Guid photoId, CancellationToken cancellationToken = default);
     Task UnlikeAsync(Guid userId, Guid photoId, CancellationToken cancellationToken = default);
     Task<CursorPagedResult<CommentResponse>> GetCommentsAsync(Guid photoId, string? cursor, int limit, CancellationToken cancellationToken = default);
+    Task<CommentResponse> GetCommentAsync(Guid id, CancellationToken cancellationToken = default);
     Task<CommentResponse> AddCommentAsync(Guid userId, Guid photoId, CreateCommentRequest request, CancellationToken cancellationToken = default);
     Task<CursorPagedResult<CommentResponse>> GetRepliesAsync(Guid commentId, string? cursor, int limit, CancellationToken cancellationToken = default);
     Task DeleteCommentAsync(Guid userId, Guid commentId, bool isModerator, CancellationToken cancellationToken = default);

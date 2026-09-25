@@ -67,6 +67,11 @@ these are the diffs to check:
   the generic `LegalDocumentResponse` (adds a `documentType` field: `"TermsOfService"` or
   `"PrivacyPolicy"`), and each document type now versions independently instead of sharing one
   global counter — see [Moderation](#moderation).
+- **New `GET /comments/{id}`** — a single-comment fetch that was missing (only listings existed),
+  now returns `photoId` too — see [Photos](#photos).
+- **New `GET /moderation/users?q=`** (Admin only) — the moderation UI had no way to find a user's
+  id to promote/demote them; simple substring search over name/email — see
+  [Moderation](#moderation).
 
 ## Base URL & running locally
 
@@ -436,7 +441,7 @@ no-op → `204` either way, `likesCount` unchanged. No "already liked" error to 
 Ordered newest-first. → `CursorPagedResult<CommentResponse>`:
 ```json
 {
-  "id": "guid", "userId": "guid", "userName": "string", "userAvatarUrl": "string|null",
+  "id": "guid", "photoId": "guid", "userId": "guid", "userName": "string", "userAvatarUrl": "string|null",
   "content": "string", "createdAt": "date",
   "parentCommentId": "guid|null", "repliesCount": 5
 }
@@ -444,6 +449,12 @@ Ordered newest-first. → `CursorPagedResult<CommentResponse>`:
 `parentCommentId` is always `null` in this listing (roots only). `repliesCount` — direct replies
 to that comment; use it to decide whether to show a "View N replies" affordance before fetching
 them.
+
+### `GET /comments/{id}`
+Single comment fetch (root or reply) — same `CommentResponse` shape as above, `photoId` included
+so you can link back to the photo it's on without already knowing it (useful from a moderation
+context, where a `ReportResponse` for a `Comment` only gives you `targetId`). `404` if it doesn't
+exist (or was deleted).
 
 ### 🔒 `POST /photos/{id}/comments`
 Body: `{ "content": string, "parentCommentId": "guid" | null }`.
@@ -515,6 +526,15 @@ caller — see [Photos](#photos)). → updated `ReportResponse`.
 Body: `{ "role": "User" | "Moderator" | "Admin" }`. No safeguard against demoting/promoting
 yourself or the last remaining Admin — the API trusts the caller. → updated `UserResponse`
 (includes `email`, unlike the public `GET /users/{id}`).
+
+### 🔒🛡️ `GET /moderation/users?q=&cursor=&limit=` (Admin only, not Moderator)
+Exists so an Admin can *find* the user they want to promote/demote via the endpoint above —
+there's no other way to discover a user's id (no public search/listing endpoint). `q` optional,
+matched against `Name` OR `Email` as a plain substring (`LIKE '%q%'`, no FULLTEXT index here,
+unlike `/locations`); omit it to list users newest-first. → `CursorPagedResult<UserResponse>`
+(includes `email`, same reasoning as the role-change response above — this is already gated to
+Admin only). Admin-only rather than Moderator-too like the rest of `/moderation/*`, since its only
+consumer is the Admin-only role-change flow.
 
 ### `GET /terms` / `GET /privacy`
 Public, no auth. Both share the same shape and versioning mechanism (see below) — the only

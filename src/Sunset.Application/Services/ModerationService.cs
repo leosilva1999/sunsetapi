@@ -98,4 +98,12 @@ public class ModerationService(
 
         return user.ToResponse();
     }
+
+    public async Task<CursorPagedResult<UserResponse>> SearchUsersAsync(string? query, string? cursor, int limit, CancellationToken cancellationToken = default)
+    {
+        var page = await userRepository.SearchAsync(query, cursor, limit, cancellationToken);
+        var items = page.Items.Select(u => u.ToResponse()).ToList();
+
+        return new CursorPagedResult<UserResponse>(items, page.NextCursor, page.HasMore);
+    }
 }

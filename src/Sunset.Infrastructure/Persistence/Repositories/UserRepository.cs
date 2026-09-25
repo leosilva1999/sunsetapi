@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Sunset.Application.Common;
 using Sunset.Application.Interfaces.Repositories;
 using Sunset.Domain.Entities;
+using Sunset.Infrastructure.Persistence.Cursors;
 
 namespace Sunset.Infrastructure.Persistence.Repositories;
 
@@ -23,4 +25,32 @@ public class UserRepository(SunsetDbContext context) : IUserRepository
 
     public Task SaveChangesAsync(CancellationToken cancellationToken = default) =>
         context.SaveChangesAsync(cancellationToken);
+
+    public async Task<CursorPagedResult<User>> SearchAsync(string? query, string? cursor, int limit, CancellationToken cancellationToken = default)
+    {
+        var users = context.Users.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query))
+            users = users.Where(u => EF.Functions.Like(u.Name, $"%{query}%") || EF.Functions.Like(u.Email, $"%{query}%"));
+
+        var decoded = CreatedAtCursor.TryDecode(cursor);
+        if (decoded is { } c)
+        {
+            users = users.Where(u =>
+                u.CreatedAt < c.CreatedAt ||
+                (u.CreatedAt == c.CreatedAt && u.Id.CompareTo(c.Id) < 0));
+        }
+
+        var items = await users
+            .OrderByDescending(u => u.CreatedAt)
+            .ThenByDescending(u => u.Id)
+            .Take(limit + 1)
+            .ToListAsync(cancellationToken);
+
+        var hasMore = items.Count > limit;
+        var page = items.Take(limit).ToList();
+        var nextCursor = hasMore ? CreatedAtCursor.Encode(page[^1].CreatedAt, page[^1].Id) : null;
+
+        return new CursorPagedResult<User>(page, nextCursor, hasMore);
+    }
 }

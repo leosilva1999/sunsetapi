@@ -153,6 +153,31 @@ public class PhotosEndpointsTests(SunsetApiFactory factory) : IntegrationTestBas
     }
 
     [Fact]
+    public async Task GetCommentById_ReturnsItWithPhotoId()
+    {
+        var (_, owner) = await RegisterAndAuthenticateAsync();
+        var location = await CreateLocationAsync(owner);
+        var photo = await CreatePhotoAsync(owner, location.Id);
+        var addResponse = await owner.PostAsJsonAsync($"/api/v1/photos/{photo.Id}/comments", new CreateCommentRequest("Muito bonito!"));
+        var comment = (await addResponse.Content.ReadFromJsonAsync<CommentResponse>())!;
+
+        var response = await owner.GetFromJsonAsync<CommentResponse>($"/api/v1/comments/{comment.Id}");
+
+        Assert.Equal("Muito bonito!", response!.Content);
+        Assert.Equal(photo.Id, response.PhotoId);
+    }
+
+    [Fact]
+    public async Task GetCommentById_WithUnknownId_ReturnsNotFound()
+    {
+        var client = CreateClient();
+
+        var response = await client.GetAsync($"/api/v1/comments/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task AddReply_IncrementsParentRepliesCount()
     {
         var (_, owner) = await RegisterAndAuthenticateAsync();

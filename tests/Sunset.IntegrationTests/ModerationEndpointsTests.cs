@@ -238,4 +238,28 @@ public class ModerationEndpointsTests(SunsetApiFactory factory) : IntegrationTes
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    [Fact]
+    public async Task SearchUsers_ByAdmin_FindsUserByNameSubstring()
+    {
+        var (_, admin) = await RegisterAndAuthenticateWithRoleAsync(UserRole.Admin);
+        var uniqueName = $"Zzyzx Moderation Search {Guid.NewGuid():N}";
+        var (targetAuth, _) = await RegisterAndAuthenticateAsync(name: uniqueName);
+
+        var response = await admin.GetAsync($"/api/v1/moderation/users?q={Uri.EscapeDataString(uniqueName[..20])}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await response.Content.ReadFromJsonAsync<CursorPagedResult<UserResponse>>();
+        Assert.Contains(page!.Items, u => u.Id == targetAuth.User.Id);
+    }
+
+    [Fact]
+    public async Task SearchUsers_ByModeratorNotAdmin_ReturnsForbidden()
+    {
+        var (_, moderator) = await RegisterAndAuthenticateWithRoleAsync(UserRole.Moderator);
+
+        var response = await moderator.GetAsync("/api/v1/moderation/users");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 }
