@@ -16,4 +16,6 @@ public interface IModerationService
 
     Task<UserResponse> ChangeUserRoleAsync(Guid adminId, Guid targetUserId, ChangeUserRoleRequest request, CancellationToken cancellationToken = default);
     Task<CursorPagedResult<UserResponse>> SearchUsersAsync(string? query, string? cursor, int limit, CancellationToken cancellationToken = default);
+
+    Task<CursorPagedResult<ModerationActionResponse>> GetActionsAsync(string? cursor, int limit, CancellationToken cancellationToken = default);
 }

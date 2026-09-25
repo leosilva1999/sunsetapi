@@ -63,6 +63,16 @@ public class ModerationController(
         return Ok(page);
     }
 
+    [HttpGet("actions")]
+    public async Task<ActionResult<CursorPagedResult<ModerationActionResponse>>> GetActions(
+        [FromQuery] string? cursor = null,
+        [FromQuery] int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var page = await moderationService.GetActionsAsync(cursor, Math.Clamp(limit, 1, 50), cancellationToken);
+        return Ok(page);
+    }
+
     private Guid RequireUserId() =>
         currentUserService.UserId ?? throw new UnauthorizedActionException("User is not authenticated.");
 }

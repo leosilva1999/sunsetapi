@@ -262,4 +262,37 @@ public class ModerationEndpointsTests(SunsetApiFactory factory) : IntegrationTes
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    [Fact]
+    public async Task GetActions_AfterResolvingAReport_ListsIt()
+    {
+        var (_, owner) = await RegisterAndAuthenticateAsync();
+        var location = await CreateLocationAsync(owner);
+        var photo = await CreatePhotoAsync(owner, location.Id);
+        var (_, reporter) = await RegisterAndAuthenticateAsync();
+        var reportResponse = await reporter.PostAsJsonAsync($"/api/v1/photos/{photo.Id}/reports", new CreateReportRequest(ReportReason.Spam));
+        var report = (await reportResponse.Content.ReadFromJsonAsync<ReportResponse>())!;
+
+        var (_, moderator) = await RegisterAndAuthenticateWithRoleAsync(UserRole.Moderator, name: "Moderadora Acao");
+        await moderator.PatchAsJsonAsync($"/api/v1/moderation/reports/{report.Id}", new ResolveReportRequest(ReportStatus.Resolved));
+
+        var response = await moderator.GetAsync("/api/v1/moderation/actions?limit=50");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await response.Content.ReadFromJsonAsync<CursorPagedResult<ModerationActionResponse>>();
+        Assert.Contains(page!.Items, a =>
+            a.ActionType == ModerationActionType.ReportResolved &&
+            a.ModeratorName == "Moderadora Acao" &&
+            a.TargetDescription == $"Report:{report.Id}");
+    }
+
+    [Fact]
+    public async Task GetActions_ByRegularUser_ReturnsForbidden()
+    {
+        var (_, user) = await RegisterAndAuthenticateAsync();
+
+        var response = await user.GetAsync("/api/v1/moderation/actions");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 }

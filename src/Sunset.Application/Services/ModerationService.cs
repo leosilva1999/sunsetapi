@@ -106,4 +106,12 @@ public class ModerationService(
 
         return new CursorPagedResult<UserResponse>(items, page.NextCursor, page.HasMore);
     }
+
+    public async Task<CursorPagedResult<ModerationActionResponse>> GetActionsAsync(string? cursor, int limit, CancellationToken cancellationToken = default)
+    {
+        var page = await moderationActionRepository.GetAllAsync(cursor, limit, cancellationToken);
+        var items = page.Items.Select(a => a.ToResponse()).ToList();
+
+        return new CursorPagedResult<ModerationActionResponse>(items, page.NextCursor, page.HasMore);
+    }
 }

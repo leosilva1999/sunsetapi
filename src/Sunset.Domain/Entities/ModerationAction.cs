@@ -4,7 +4,7 @@ namespace Sunset.Domain.Entities;
 
 /// <summary>
 /// Append-only audit log of moderator/admin actions - written for accountability, no update or
-/// delete. No endpoint reads this yet; it exists so the history isn't lost before one is built.
+/// delete. Read via GET /moderation/actions.
 /// </summary>
 public class ModerationAction : BaseEntity
 {

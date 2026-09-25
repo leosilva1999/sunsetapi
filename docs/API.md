@@ -72,6 +72,8 @@ these are the diffs to check:
 - **New `GET /moderation/users?q=`** (Admin only) — the moderation UI had no way to find a user's
   id to promote/demote them; simple substring search over name/email — see
   [Moderation](#moderation).
+- **New `GET /moderation/actions?cursor=&limit=`** (Moderator or Admin) — read side of the
+  `ModerationAction` audit log, which was write-only until now — see [Moderation](#moderation).
 
 ## Base URL & running locally
 
@@ -535,6 +537,26 @@ unlike `/locations`); omit it to list users newest-first. → `CursorPagedResult
 (includes `email`, same reasoning as the role-change response above — this is already gated to
 Admin only). Admin-only rather than Moderator-too like the rest of `/moderation/*`, since its only
 consumer is the Admin-only role-change flow.
+
+### 🔒🛡️ `GET /moderation/actions?cursor=&limit=` (Moderator or Admin)
+Read side of the append-only audit log that `ModerationAction` writes to on every action below
+(resolving/dismissing a report, deleting someone else's photo/comment, publishing a legal
+document, changing a role) — newest-first. →
+```json
+{
+  "id": "guid", "moderatorId": "guid", "moderatorName": "string",
+  "actionType": "PhotoDeleted" | "CommentDeleted" | "ReportResolved" | "ReportDismissed" |
+    "LegalDocumentUpdated" | "UserRoleChanged",
+  "targetDescription": "string", "notes": "string|null", "createdAt": "date"
+}
+```
+`targetDescription` is a free-text label the writing code chose for itself, **not a typed
+reference** — it's `"Photo:{id}"` / `"Comment:{id}"` / `"User:{id}"` / `"Report:{id}"` /
+`"{documentType}:v{version}"` depending on `actionType`, so parse it by convention if you want to
+link back to the thing (`Report:{id}` doesn't have a good link target since it's the *report* id,
+not what the report was about — you'd need to have that report's own record, which this doesn't
+carry). `notes` is only ever populated for `UserRoleChanged` (`"New role: {role}"`), `null`
+otherwise.
 
 ### `GET /terms` / `GET /privacy`
 Public, no auth. Both share the same shape and versioning mechanism (see below) — the only
