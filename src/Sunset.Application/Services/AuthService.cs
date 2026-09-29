@@ -13,7 +13,8 @@ public class AuthService(
     IUserRepository userRepository,
     IRefreshTokenRepository refreshTokenRepository,
     IPasswordHasher passwordHasher,
-    ITokenService tokenService) : IAuthService
+    ITokenService tokenService,
+    IGoogleIdTokenVerifier googleIdTokenVerifier) : IAuthService
 {
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
     {
@@ -33,6 +34,27 @@ public class AuthService(
         var user = await userRepository.GetByEmailAsync(request.Email, cancellationToken);
         if (user is null || !passwordHasher.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedActionException("Invalid email or password.");
+
+        return await IssueTokensAsync(user, cancellationToken);
+    }
+
+    public async Task<AuthResponse> GoogleLoginAsync(GoogleAuthRequest request, CancellationToken cancellationToken = default)
+    {
+        var googleUser = await googleIdTokenVerifier.VerifyAsync(request.IdToken, cancellationToken);
+        if (googleUser is null || !googleUser.EmailVerified)
+            throw new UnauthorizedActionException("Invalid Google credential.");
+
+        // E-mail já verificado pelo Google - se já existe uma conta com esse e-mail (criada
+        // por senha ou por um login Google anterior), só autentica como ela. Senão, cria uma
+        // conta nova com uma senha aleatória inutilizável (mesmo padrão de UserService.Anonymize),
+        // já que PasswordHash é obrigatório na entidade mas essa conta nunca terá senha própria.
+        var user = await userRepository.GetByEmailAsync(googleUser.Email, cancellationToken);
+        if (user is null)
+        {
+            var unusablePasswordHash = passwordHasher.Hash(Guid.NewGuid().ToString());
+            user = new User(googleUser.Name, googleUser.Email, unusablePasswordHash);
+            await userRepository.AddAsync(user, cancellationToken);
+        }
 
         return await IssueTokensAsync(user, cancellationToken);
     }

@@ -11,7 +11,8 @@ public class AuthController(
     IAuthService authService,
     IValidator<RegisterRequest> registerValidator,
     IValidator<LoginRequest> loginValidator,
-    IValidator<RefreshTokenRequest> refreshTokenValidator) : ControllerBase
+    IValidator<RefreshTokenRequest> refreshTokenValidator,
+    IValidator<GoogleAuthRequest> googleAuthValidator) : ControllerBase
 {
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register(RegisterRequest request, CancellationToken cancellationToken)
@@ -26,6 +27,14 @@ public class AuthController(
     {
         await loginValidator.ValidateAndThrowAsync(request, cancellationToken);
         var response = await authService.LoginAsync(request, cancellationToken);
+        return Ok(response);
+    }
+
+    [HttpPost("google")]
+    public async Task<ActionResult<AuthResponse>> Google(GoogleAuthRequest request, CancellationToken cancellationToken)
+    {
+        await googleAuthValidator.ValidateAndThrowAsync(request, cancellationToken);
+        var response = await authService.GoogleLoginAsync(request, cancellationToken);
         return Ok(response);
     }
 

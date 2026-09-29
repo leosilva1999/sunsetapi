@@ -74,6 +74,9 @@ these are the diffs to check:
   [Moderation](#moderation).
 - **New `GET /moderation/actions?cursor=&limit=`** (Moderator or Admin) — read side of the
   `ModerationAction` audit log, which was write-only until now — see [Moderation](#moderation).
+- **New `POST /auth/google`** — sign in/up with a Google ID token, verified server-side against
+  `GoogleAuth:ClientId`; returns the same `AuthResponse` shape as register/login — see
+  [Auth](#auth).
 
 ## Base URL & running locally
 
@@ -203,7 +206,16 @@ Validation: `name` required ≤100 chars · `email` required, valid format, ≤2
 ### `POST /auth/login`
 Body: `{ "email": string, "password": string }`
 
-Both register and login return:
+### `POST /auth/google`
+Body: `{ "idToken": string }` — an ID token from Google Identity Services (frontend), verified
+server-side against `GoogleAuth:ClientId` (audience, signature, expiry). `401` if the token is
+invalid or its email isn't verified by Google. Finds an existing user by the token's email, or
+creates one with a random unusable password (an account created this way has no password of its
+own, so `POST /auth/login` will never succeed for it — only `/auth/google` will). If a
+password-based account already exists with that email, logs into it instead of creating a
+duplicate.
+
+Register, login and google return:
 ```json
 {
   "accessToken": "eyJ...",

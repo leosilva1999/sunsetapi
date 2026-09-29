@@ -71,6 +71,26 @@ public class AuthEndpointsTests(SunsetApiFactory factory) : IntegrationTestBase(
     }
 
     [Fact]
+    public async Task Google_WithInvalidToken_ReturnsUnauthorized()
+    {
+        var client = CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/v1/auth/google", new GoogleAuthRequest("not-a-real-google-token"));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Google_WithEmptyToken_ReturnsBadRequest()
+    {
+        var client = CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/v1/auth/google", new GoogleAuthRequest(""));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Refresh_WithValidRefreshToken_IssuesNewAccessToken()
     {
         var client = CreateClient();

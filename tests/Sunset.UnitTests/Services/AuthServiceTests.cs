@@ -14,6 +14,7 @@ public class AuthServiceTests
     private readonly Mock<IRefreshTokenRepository> _refreshTokenRepository = new();
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
     private readonly Mock<ITokenService> _tokenService = new();
+    private readonly Mock<IGoogleIdTokenVerifier> _googleIdTokenVerifier = new();
     private readonly AuthService _sut;
 
     public AuthServiceTests()
@@ -22,7 +23,8 @@ public class AuthServiceTests
             _userRepository.Object,
             _refreshTokenRepository.Object,
             _passwordHasher.Object,
-            _tokenService.Object);
+            _tokenService.Object,
+            _googleIdTokenVerifier.Object);
 
         _tokenService
             .Setup(t => t.GenerateAccessToken(It.IsAny<User>()))
@@ -95,6 +97,66 @@ public class AuthServiceTests
         var response = await _sut.LoginAsync(request);
 
         Assert.Equal("access-token", response.AccessToken);
+    }
+
+    [Fact]
+    public async Task GoogleLoginAsync_WithInvalidToken_ThrowsUnauthorizedActionException()
+    {
+        _googleIdTokenVerifier
+            .Setup(v => v.VerifyAsync("bad-token", default))
+            .ReturnsAsync((GoogleUserInfo?)null);
+
+        var request = new GoogleAuthRequest("bad-token");
+
+        await Assert.ThrowsAsync<UnauthorizedActionException>(() => _sut.GoogleLoginAsync(request));
+        _userRepository.Verify(r => r.AddAsync(It.IsAny<User>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task GoogleLoginAsync_WithUnverifiedEmail_ThrowsUnauthorizedActionException()
+    {
+        _googleIdTokenVerifier
+            .Setup(v => v.VerifyAsync("unverified-token", default))
+            .ReturnsAsync(new GoogleUserInfo("ana@sunset.com", false, "Ana"));
+
+        var request = new GoogleAuthRequest("unverified-token");
+
+        await Assert.ThrowsAsync<UnauthorizedActionException>(() => _sut.GoogleLoginAsync(request));
+    }
+
+    [Fact]
+    public async Task GoogleLoginAsync_WithNewEmail_CreatesUserAndReturnsTokens()
+    {
+        _googleIdTokenVerifier
+            .Setup(v => v.VerifyAsync("good-token", default))
+            .ReturnsAsync(new GoogleUserInfo("new@sunset.com", true, "Ana"));
+        _userRepository.Setup(r => r.GetByEmailAsync("new@sunset.com", default)).ReturnsAsync((User?)null);
+        _passwordHasher.Setup(h => h.Hash(It.IsAny<string>())).Returns("unusable-hash");
+
+        var request = new GoogleAuthRequest("good-token");
+
+        var response = await _sut.GoogleLoginAsync(request);
+
+        Assert.Equal("access-token", response.AccessToken);
+        Assert.Equal("new@sunset.com", response.User.Email);
+        _userRepository.Verify(r => r.AddAsync(It.Is<User>(u => u.Email == "new@sunset.com"), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task GoogleLoginAsync_WithExistingEmail_LogsInWithoutCreatingUser()
+    {
+        var existingUser = new User("Ana", "ana@sunset.com", "hashed");
+        _googleIdTokenVerifier
+            .Setup(v => v.VerifyAsync("good-token", default))
+            .ReturnsAsync(new GoogleUserInfo("ana@sunset.com", true, "Ana"));
+        _userRepository.Setup(r => r.GetByEmailAsync("ana@sunset.com", default)).ReturnsAsync(existingUser);
+
+        var request = new GoogleAuthRequest("good-token");
+
+        var response = await _sut.GoogleLoginAsync(request);
+
+        Assert.Equal("ana@sunset.com", response.User.Email);
+        _userRepository.Verify(r => r.AddAsync(It.IsAny<User>(), default), Times.Never);
     }
 
     [Fact]
