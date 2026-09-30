@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Sunset.Application.Interfaces;
 using Sunset.Application.Interfaces.Repositories;
+using Sunset.Infrastructure.Email;
 using Sunset.Infrastructure.ExternalServices;
 using Sunset.Infrastructure.Persistence;
 using Sunset.Infrastructure.Persistence.Repositories;
@@ -24,6 +25,8 @@ public static class DependencyInjection
 
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<GoogleAuthOptions>(configuration.GetSection(GoogleAuthOptions.SectionName));
+        services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.SectionName));
+        services.Configure<FrontendOptions>(configuration.GetSection(FrontendOptions.SectionName));
 
         services.AddHttpContextAccessor();
 
@@ -34,11 +37,14 @@ public static class DependencyInjection
         services.AddScoped<IReportRepository, ReportRepository>();
         services.AddScoped<IModerationActionRepository, ModerationActionRepository>();
         services.AddScoped<ILegalDocumentRepository, LegalDocumentRepository>();
+        services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
 
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IGoogleIdTokenVerifier, GoogleIdTokenVerifier>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<IFrontendUrlProvider, FrontendUrlProvider>();
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
 
         services.AddHttpClient<ISunsetTimeService, SunsetTimeService>(client =>
         {

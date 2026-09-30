@@ -37,13 +37,12 @@ public class TokenService(IOptions<JwtOptions> options) : ITokenService
         return (new JwtSecurityTokenHandler().WriteToken(token), expiresAt);
     }
 
-    public (string Token, DateTime ExpiresAt) GenerateRefreshToken()
-    {
-        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64))
+    public (string Token, DateTime ExpiresAt) GenerateRefreshToken() =>
+        (GenerateOpaqueToken(), DateTime.UtcNow.AddDays(_options.RefreshTokenDays));
+
+    public string GenerateOpaqueToken() =>
+        Convert.ToBase64String(RandomNumberGenerator.GetBytes(64))
             .Replace('+', '-')
             .Replace('/', '_')
             .TrimEnd('=');
-
-        return (token, DateTime.UtcNow.AddDays(_options.RefreshTokenDays));
-    }
 }

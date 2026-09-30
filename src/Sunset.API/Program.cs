@@ -77,6 +77,16 @@ const string SearchRateLimitPolicy = "Search";
 // "Reports" policy: much lower ceiling than Search - filing a report is a deliberate, infrequent
 // action, so this exists purely to stop report-flooding abuse, not accommodate legitimate bursts.
 const string ReportsRateLimitPolicy = "Reports";
+// "PasswordReset" policy: forgot-password sends an email to a third party's inbox on every call
+// (even for unknown addresses, since the endpoint always returns 204) - without this, the
+// endpoint itself would be a free tool for spamming/harassing an arbitrary email address.
+const string PasswordResetRateLimitPolicy = "PasswordReset";
+var rateLimitTitlesByPolicy = new Dictionary<string, string>
+{
+    [SearchRateLimitPolicy] = "Too many search requests. Please slow down.",
+    [ReportsRateLimitPolicy] = "Too many reports. Please slow down.",
+    [PasswordResetRateLimitPolicy] = "Too many password reset requests. Please slow down.",
+};
 builder.Services.AddRateLimiter(options =>
 {
     options.AddPolicy(SearchRateLimitPolicy, httpContext => RateLimitPartition.GetSlidingWindowLimiter(
@@ -99,6 +109,20 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
         }));
 
+    // The 15-minute window is deliberately much longer than the whole integration test run, so
+    // (unlike Search/Reports, whose shorter windows can cycle mid-suite) it would otherwise trip
+    // deterministically partway through Sunset.IntegrationTests instead of just under real abuse.
+    var passwordResetPermitLimit = builder.Environment.IsEnvironment("Testing") ? int.MaxValue : 5;
+    options.AddPolicy(PasswordResetRateLimitPolicy, httpContext => RateLimitPartition.GetSlidingWindowLimiter(
+        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = passwordResetPermitLimit,
+            Window = TimeSpan.FromMinutes(15),
+            SegmentsPerWindow = 3,
+            QueueLimit = 0,
+        }));
+
     options.OnRejected = async (context, cancellationToken) =>
     {
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
@@ -106,9 +130,9 @@ builder.Services.AddRateLimiter(options =>
         context.HttpContext.Response.Headers.RetryAfter = "10";
 
         var policyName = context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
-        var title = policyName == ReportsRateLimitPolicy
-            ? "Too many reports. Please slow down."
-            : "Too many search requests. Please slow down.";
+        var title = (policyName is not null && rateLimitTitlesByPolicy.TryGetValue(policyName, out var policyTitle))
+            ? policyTitle
+            : rateLimitTitlesByPolicy[SearchRateLimitPolicy];
 
         var payload = JsonSerializer.Serialize(new { title, errors = (object?)null });
         await context.HttpContext.Response.WriteAsync(payload, cancellationToken);

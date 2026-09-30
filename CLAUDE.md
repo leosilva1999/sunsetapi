@@ -42,14 +42,16 @@ Regras:
 | `Report` | id, reporter_id, target_type, target_id, reason, status | par (reporter_id, target_type, target_id) único; `target_id` sem FK (associação polimórfica Photo/Comment) |
 | `ModerationAction` | id, moderator_id, action_type, target_description | log de auditoria append-only, sem endpoint de leitura ainda |
 | `LegalDocument` | id, document_type, content, version, updated_by_user_id | `document_type`: `TermsOfService`\|`PrivacyPolicy`; cada edição cria uma linha nova (histórico via `version`, numerado por tipo), sem update in-place |
+| `PasswordResetToken` | id, user_id, token_hash, expires_at, used_at | mesmo padrão de `RefreshToken` (hash SHA-256, nunca o token puro); validade de 30 min, uso único |
 
-Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`ModerationAction`.
+Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`ModerationAction`/`PasswordResetToken`.
 `Location` 1:N `Photo`/`Rating`. `Photo` 1:N `Like`/`Comment`.
 
 ## Endpoints (prefixo `/api/v1`)
 
 **Auth**
-- `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`
+- `POST /auth/register`, `POST /auth/login`, `POST /auth/google`, `POST /auth/refresh`, `POST /auth/logout`
+- `POST /auth/forgot-password`, `POST /auth/reset-password` (recuperação de senha por e-mail, rate limited)
 
 **Users**
 - `GET /users/:id`, `PATCH /users/me` (auth), `GET /users/:id/photos`
@@ -95,12 +97,21 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   JsonStringEnumConverter))]` na propriedade do DTO (não um `AddJsonOptions` global, que só
   afeta o serializer do próprio servidor e quebraria clientes/testes que leem a resposta com
   as próprias opções padrão).
+- **E-mail (SMTP)**: `IEmailSender` (Application) implementado com MailKit (Infrastructure) — o
+  `System.Net.Mail.SmtpClient` embutido é obsoleto. Conteúdo do e-mail é montado por quem chama
+  (ex: `AuthService`), a interface só transporta `to/subject/htmlBody`. Em dev/testes, roda contra
+  o Mailpit (Docker, sem credencial) em vez de um SMTP real — ver `docker-compose.yml` e
+  `FakeEmailSender` nos testes de integração.
+- **Redefinição de senha**: mesmo padrão de `RefreshToken` (token opaco, hash SHA-256 salvo,
+  nunca o token puro). `forgot-password` sempre retorna 204 mesmo pra e-mail inexistente (evita
+  enumeração de contas). `reset-password` revoga todos os refresh tokens do usuário ao suceder.
 
 ## Stack
 
 - .NET 9 (net9.0 — apenas o SDK 9 está instalado neste ambiente; migrar para net8.0 LTS é uma troca de `TargetFramework` quando o SDK 8 estiver disponível)
 - Entity Framework Core + MySQL (Pomelo.EntityFrameworkCore.MySql)
 - FluentValidation para os validators em `Application/Validators`
+- MailKit para envio de e-mail via SMTP (Mailpit em dev/testes)
 - xUnit para os testes
 
 ## Convenções de código

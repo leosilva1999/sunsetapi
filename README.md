@@ -12,8 +12,9 @@ conteúdo, termos de uso e política de privacidade versionados).
 - **FluentValidation** para validação de requests
 - **JWT** (Bearer token) para autenticação
 - **S3** (ou compatível) para armazenamento de imagens, via upload direto com URL pré-assinada — emulado localmente com **LocalStack**
+- **MailKit** para envio de e-mail via SMTP (redefinição de senha) — emulado localmente com **Mailpit**
 - **xUnit** + **Moq** para testes unitários, **Testcontainers** para testes de integração contra um MySQL real
-- **Docker** (LocalStack em dev, MySQL descartável nos testes de integração)
+- **Docker** (LocalStack + Mailpit em dev, MySQL descartável nos testes de integração)
 
 ## Arquitetura
 
@@ -37,8 +38,8 @@ Mais detalhes de convenções de código e decisões de design em [`CLAUDE.md`](
 
 ## Funcionalidades
 
-- **Autenticação**: registro/login com JWT (access + refresh token rotativo), exclusão de conta
-  (anonimização, LGPD).
+- **Autenticação**: registro/login com JWT (access + refresh token rotativo), login com Google,
+  redefinição de senha por e-mail, exclusão de conta (anonimização, LGPD).
 - **Locais**: busca com FULLTEXT + geolocalização, ranking por período (semana/mês/todos),
   horário estimado de pôr do sol.
 - **Fotos**: upload direto ao storage via URL pré-assinada, feed paginado (recentes/mais
@@ -57,6 +58,7 @@ Referência completa de endpoints, formatos de request/response e comportamentos
 - MySQL 8 rodando localmente (ou acessível via connection string)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) — necessário para:
   - **LocalStack**, que emula o S3 em desenvolvimento (upload de fotos/avatares)
+  - **Mailpit**, que captura os e-mails enviados em desenvolvimento (redefinição de senha) sem precisar de um servidor SMTP real
   - **Testcontainers**, que sobe um MySQL descartável para os testes de integração
 
 ## Como rodar localmente
@@ -82,7 +84,7 @@ Referência completa de endpoints, formatos de request/response e comportamentos
    dotnet ef database update --project src/Sunset.Infrastructure --startup-project src/Sunset.API
    ```
 
-4. Suba o LocalStack (emulação de S3):
+4. Suba o LocalStack (emulação de S3) e o Mailpit (captura de e-mails):
    ```bash
    docker compose up -d
    ```
@@ -94,7 +96,9 @@ Referência completa de endpoints, formatos de request/response e comportamentos
 
    Em ambiente de desenvolvimento, o Swagger UI abre automaticamente
    (`http://localhost:5256/swagger`), e o banco é populado com dados fictícios no primeiro
-   startup (idempotente — não roda de novo se já houver usuários).
+   startup (idempotente — não roda de novo se já houver usuários). E-mails enviados pela API
+   (ex.: redefinição de senha) ficam disponíveis em `http://localhost:8025` (UI do Mailpit) — não
+   são entregues a caixas de entrada reais.
 
 ### Dados de seed (apenas em Development)
 

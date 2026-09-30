@@ -14,3 +14,14 @@ services:
       - "4566:4566"
     environment:
       - SERVICES=s3
+
+  # Catches every email the API sends in development instead of a real SMTP provider - no
+  # credentials needed, nothing ever leaves the machine. UI at http://localhost:8025 to read
+  # captured emails (e.g. the password reset link). No volume - a lost container just means
+  # losing already-captured emails, which is fine for a dev-only mailbox.
+  mailpit:
+    image: axllent/mailpit:v1.20.3
+    container_name: sunset-mailpit
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI

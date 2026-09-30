@@ -12,10 +12,15 @@ namespace Sunset.Application.Services;
 public class AuthService(
     IUserRepository userRepository,
     IRefreshTokenRepository refreshTokenRepository,
+    IPasswordResetTokenRepository passwordResetTokenRepository,
     IPasswordHasher passwordHasher,
     ITokenService tokenService,
-    IGoogleIdTokenVerifier googleIdTokenVerifier) : IAuthService
+    IGoogleIdTokenVerifier googleIdTokenVerifier,
+    IEmailSender emailSender,
+    IFrontendUrlProvider frontendUrlProvider) : IAuthService
 {
+    private static readonly TimeSpan PasswordResetTokenLifetime = TimeSpan.FromMinutes(30);
+
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
     {
         if (await userRepository.ExistsByEmailAsync(request.Email, cancellationToken))
@@ -84,6 +89,47 @@ public class AuthService(
 
         storedToken.Revoke();
         await refreshTokenRepository.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await userRepository.GetByEmailAsync(request.Email, cancellationToken);
+        // Silently no-op for an unknown email - responding differently here would let a caller
+        // enumerate which addresses have accounts by watching for a 404 vs. this endpoint's
+        // otherwise-always-204.
+        if (user is null)
+            return;
+
+        var rawToken = tokenService.GenerateOpaqueToken();
+        var expiresAt = DateTime.UtcNow.Add(PasswordResetTokenLifetime);
+        await passwordResetTokenRepository.AddAsync(new PasswordResetToken(user.Id, Hash(rawToken), expiresAt), cancellationToken);
+
+        var resetLink = $"{frontendUrlProvider.BaseUrl.TrimEnd('/')}/reset-password?token={Uri.EscapeDataString(rawToken)}";
+        var htmlBody = $"""
+            <p>Olá, {user.Name}!</p>
+            <p>Recebemos uma solicitação para redefinir sua senha no Sunset. Clique no link abaixo para escolher uma nova senha:</p>
+            <p><a href="{resetLink}">{resetLink}</a></p>
+            <p>Esse link expira em 30 minutos. Se você não pediu essa redefinição, pode ignorar este e-mail.</p>
+            """;
+
+        await emailSender.SendAsync(user.Email, "Redefinição de senha - Sunset", htmlBody, cancellationToken);
+    }
+
+    public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        var tokenHash = Hash(request.Token);
+        var storedToken = await passwordResetTokenRepository.GetByTokenHashAsync(tokenHash, cancellationToken);
+        if (storedToken is null || !storedToken.IsActive)
+            throw new UnauthorizedActionException("Invalid or expired reset token.");
+
+        storedToken.User.ChangePassword(passwordHasher.Hash(request.NewPassword));
+        storedToken.MarkUsed();
+        await passwordResetTokenRepository.SaveChangesAsync(cancellationToken);
+
+        // Forces re-login everywhere - whoever reset the password (hopefully the account owner,
+        // but the whole point of a reset flow is that we can't be sure) shouldn't leave every
+        // other already-logged-in session still valid, same reasoning as DeleteAccountAsync.
+        await refreshTokenRepository.RevokeAllForUserAsync(storedToken.UserId, cancellationToken);
     }
 
     private async Task<AuthResponse> IssueTokensAsync(User user, CancellationToken cancellationToken)

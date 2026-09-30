@@ -15,6 +15,7 @@ public class SunsetDbContext(DbContextOptions<SunsetDbContext> options) : DbCont
     public DbSet<Report> Reports => Set<Report>();
     public DbSet<ModerationAction> ModerationActions => Set<ModerationAction>();
     public DbSet<LegalDocument> LegalDocuments => Set<LegalDocument>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

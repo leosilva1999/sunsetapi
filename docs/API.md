@@ -77,6 +77,11 @@ these are the diffs to check:
 - **New `POST /auth/google`** — sign in/up with a Google ID token, verified server-side against
   `GoogleAuth:ClientId`; returns the same `AuthResponse` shape as register/login — see
   [Auth](#auth).
+- **New `POST /auth/forgot-password` / `POST /auth/reset-password`** — password recovery via a
+  single-use, 30-minute emailed token; `forgot-password` always returns `204` regardless of
+  whether the email exists (no account enumeration), and a successful reset revokes every refresh
+  token for that user. Both are rate limited (5/15min per IP). In Development the email lands in
+  Mailpit (`http://localhost:8025`), not a real inbox — see [Auth](#auth) and the README.
 
 ## Base URL & running locally
 
@@ -169,11 +174,11 @@ error status has `errors: null` and a single message in `title`.
 | Status | Meaning |
 |---|---|
 | 400 | Request failed FluentValidation rules (see `errors` for per-field messages) |
-| 401 | Missing/invalid/expired bearer token, invalid login/refresh credentials, or "not the owner" (see gotcha below) |
+| 401 | Missing/invalid/expired bearer token, invalid login/refresh/reset-password credentials, or "not the owner" (see gotcha below) |
 | 403 | Authenticated, but your role doesn't allow this (Moderator/Admin-only endpoint) |
 | 404 | Referenced resource (user/location/photo/comment/report) doesn't exist |
 | 409 | Conflict — "email already registered", or "you already reported this" |
-| 502 | The sunrise-sunset.org upstream call failed (see Locations → sunset below) |
+| 502 | An upstream call failed — sunrise-sunset.org (see Locations → sunset), or SMTP for `POST /auth/forgot-password` |
 | 500 | Unhandled server error |
 
 Model-binding failures (e.g. malformed GUID in the URL, malformed `?date=`) short-circuit to a
@@ -187,7 +192,8 @@ whatever ASP.NET Core's default is (typically empty), not `{ title, errors }`.
 🔒 = requires `Authorization: Bearer <token>`. Endpoints without 🔒 are public (some
 optionally read the token if present, noted inline).
 
-🐌 = **rate limited** beyond the norm (`GET /locations` search, `POST .../reports` — see each for
+🐌 = **rate limited** beyond the norm (`GET /locations` search, `POST .../reports`,
+`POST /auth/forgot-password`/`reset-password` — see each for
 the exact limit). Every endpoint is implicitly subject to normal infrastructure-level limits; 🐌
 marks the ones with a specific, tighter, documented policy worth knowing about.
 
@@ -231,6 +237,25 @@ Body: `{ "refreshToken": string }` → same `AuthResponse` shape as above, with 
 ### `POST /auth/logout`
 Body: `{ "refreshToken": string }` → `204 No Content`. Idempotent (calling it twice, or with an
 already-revoked token, still returns `204`).
+
+### 🐌 `POST /auth/forgot-password`
+Body: `{ "email": string }` → **always `204`**, whether or not that email has an account —
+responding differently would let a caller enumerate registered emails by probing this endpoint.
+If the account exists, emails it a link (`{Frontend:BaseUrl}/reset-password?token=...`) built
+around a single-use, 30-minute-lived token. Sending the email is synchronous with the request;
+if the SMTP server is unreachable, this returns `502` instead (see `ExternalServiceException` in
+[Error format](#error-format)). Rate limited: 5 requests/15min per IP — much tighter than
+`Search`/`Reports`, since every call (even for an unknown email) triggers an outbound email.
+In Development, the email lands in [Mailpit](http://localhost:8025) instead of a real inbox —
+see the README.
+
+### 🐌 `POST /auth/reset-password`
+Body: `{ "token": string, "newPassword": string }` — `newPassword` same rule as registration
+(≥8 chars). → `204` on success; `401` if the token is invalid, expired, or already used (tokens
+are single-use — a second call with the same token, even a valid one already spent, is a `401`).
+On success, **every refresh token for that user is revoked** (same as `DELETE /users/me`) — every
+already-logged-in session is forced to log in again, since whoever reset the password isn't
+provably the account owner just by having clicked an emailed link.
 
 ---
 

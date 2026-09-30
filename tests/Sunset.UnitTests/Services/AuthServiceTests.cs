@@ -12,19 +12,27 @@ public class AuthServiceTests
 {
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IRefreshTokenRepository> _refreshTokenRepository = new();
+    private readonly Mock<IPasswordResetTokenRepository> _passwordResetTokenRepository = new();
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
     private readonly Mock<ITokenService> _tokenService = new();
     private readonly Mock<IGoogleIdTokenVerifier> _googleIdTokenVerifier = new();
+    private readonly Mock<IEmailSender> _emailSender = new();
+    private readonly Mock<IFrontendUrlProvider> _frontendUrlProvider = new();
     private readonly AuthService _sut;
 
     public AuthServiceTests()
     {
+        _frontendUrlProvider.Setup(p => p.BaseUrl).Returns("https://app.sunset.dev");
+
         _sut = new AuthService(
             _userRepository.Object,
             _refreshTokenRepository.Object,
+            _passwordResetTokenRepository.Object,
             _passwordHasher.Object,
             _tokenService.Object,
-            _googleIdTokenVerifier.Object);
+            _googleIdTokenVerifier.Object,
+            _emailSender.Object,
+            _frontendUrlProvider.Object);
 
         _tokenService
             .Setup(t => t.GenerateAccessToken(It.IsAny<User>()))
@@ -33,6 +41,10 @@ public class AuthServiceTests
         _tokenService
             .Setup(t => t.GenerateRefreshToken())
             .Returns(("refresh-token", DateTime.UtcNow.AddDays(30)));
+
+        _tokenService
+            .Setup(t => t.GenerateOpaqueToken())
+            .Returns("reset-token");
     }
 
     [Fact]
@@ -226,8 +238,88 @@ public class AuthServiceTests
         _refreshTokenRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
     }
 
+    [Fact]
+    public async Task ForgotPasswordAsync_WithUnknownEmail_DoesNothing()
+    {
+        _userRepository.Setup(r => r.GetByEmailAsync("ghost@sunset.com", default)).ReturnsAsync((User?)null);
+
+        await _sut.ForgotPasswordAsync(new ForgotPasswordRequest("ghost@sunset.com"));
+
+        _passwordResetTokenRepository.Verify(r => r.AddAsync(It.IsAny<PasswordResetToken>(), default), Times.Never);
+        _emailSender.Verify(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task ForgotPasswordAsync_WithKnownEmail_CreatesTokenAndSendsEmail()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        _userRepository.Setup(r => r.GetByEmailAsync("ana@sunset.com", default)).ReturnsAsync(user);
+
+        await _sut.ForgotPasswordAsync(new ForgotPasswordRequest("ana@sunset.com"));
+
+        _passwordResetTokenRepository.Verify(r => r.AddAsync(It.Is<PasswordResetToken>(t => t.UserId == user.Id), default), Times.Once);
+        _emailSender.Verify(
+            e => e.SendAsync("ana@sunset.com", It.IsAny<string>(), It.Is<string>(body => body.Contains("reset-token")), default),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_WithUnknownToken_ThrowsUnauthorizedActionException()
+    {
+        _passwordResetTokenRepository
+            .Setup(r => r.GetByTokenHashAsync(It.IsAny<string>(), default))
+            .ReturnsAsync((PasswordResetToken?)null);
+
+        await Assert.ThrowsAsync<UnauthorizedActionException>(() => _sut.ResetPasswordAsync(new ResetPasswordRequest("bad-token", "newpassword1")));
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_WithExpiredToken_ThrowsUnauthorizedActionException()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var token = new PasswordResetToken(user.Id, "some-hash", DateTime.UtcNow.AddMinutes(-5));
+        SetUserOnResetToken(token, user);
+        _passwordResetTokenRepository.Setup(r => r.GetByTokenHashAsync(It.IsAny<string>(), default)).ReturnsAsync(token);
+
+        await Assert.ThrowsAsync<UnauthorizedActionException>(() => _sut.ResetPasswordAsync(new ResetPasswordRequest("some-token", "newpassword1")));
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_WithAlreadyUsedToken_ThrowsUnauthorizedActionException()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var token = new PasswordResetToken(user.Id, "some-hash", DateTime.UtcNow.AddMinutes(30));
+        token.MarkUsed();
+        SetUserOnResetToken(token, user);
+        _passwordResetTokenRepository.Setup(r => r.GetByTokenHashAsync(It.IsAny<string>(), default)).ReturnsAsync(token);
+
+        await Assert.ThrowsAsync<UnauthorizedActionException>(() => _sut.ResetPasswordAsync(new ResetPasswordRequest("some-token", "newpassword1")));
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_WithValidToken_ChangesPasswordMarksUsedAndRevokesRefreshTokens()
+    {
+        var user = new User("Ana", "ana@sunset.com", "old-hash");
+        var token = new PasswordResetToken(user.Id, "some-hash", DateTime.UtcNow.AddMinutes(30));
+        SetUserOnResetToken(token, user);
+        _passwordResetTokenRepository.Setup(r => r.GetByTokenHashAsync(It.IsAny<string>(), default)).ReturnsAsync(token);
+        _passwordHasher.Setup(h => h.Hash("newpassword1")).Returns("new-hash");
+
+        await _sut.ResetPasswordAsync(new ResetPasswordRequest("some-token", "newpassword1"));
+
+        Assert.Equal("new-hash", user.PasswordHash);
+        Assert.NotNull(token.UsedAt);
+        _passwordResetTokenRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(user.Id, default), Times.Once);
+    }
+
     private static void SetUserOnToken(RefreshToken token, User user)
     {
         typeof(RefreshToken).GetProperty(nameof(RefreshToken.User))!.SetValue(token, user);
+    }
+
+    private static void SetUserOnResetToken(PasswordResetToken token, User user)
+    {
+        typeof(PasswordResetToken).GetProperty(nameof(PasswordResetToken.User))!.SetValue(token, user);
     }
 }

@@ -1,6 +1,9 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Sunset.Application.Interfaces;
 using Sunset.Infrastructure.Persistence;
 using Testcontainers.MySql;
 
@@ -19,6 +22,19 @@ public class SunsetApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     private readonly MySqlContainer _mySqlContainer = new MySqlBuilder("mysql:8.0")
         .WithDatabase("sunset_test")
         .Build();
+
+    public FakeEmailSender EmailSender { get; } = new();
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        // The suite shouldn't depend on Mailpit running or on any network - swap the real SMTP
+        // sender for an in-memory one tests can inspect.
+        builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(EmailSender);
+        });
+    }
 
     public async Task InitializeAsync()
     {
@@ -42,6 +58,7 @@ public class SunsetApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("Storage__AccessKey", "test");
         Environment.SetEnvironmentVariable("Storage__SecretKey", "test");
         Environment.SetEnvironmentVariable("Cors__AllowedOrigins__0", "http://localhost:3000");
+        Environment.SetEnvironmentVariable("Frontend__BaseUrl", "https://sunset-tests.dev");
 
         // Triggers host build (reads the env vars set above), then applies migrations so the
         // schema - FULLTEXT index included - actually exists.

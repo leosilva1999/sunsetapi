@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Sunset.Application.DTOs.Auth;
 using Sunset.Application.Interfaces;
 
@@ -12,7 +13,9 @@ public class AuthController(
     IValidator<RegisterRequest> registerValidator,
     IValidator<LoginRequest> loginValidator,
     IValidator<RefreshTokenRequest> refreshTokenValidator,
-    IValidator<GoogleAuthRequest> googleAuthValidator) : ControllerBase
+    IValidator<GoogleAuthRequest> googleAuthValidator,
+    IValidator<ForgotPasswordRequest> forgotPasswordValidator,
+    IValidator<ResetPasswordRequest> resetPasswordValidator) : ControllerBase
 {
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register(RegisterRequest request, CancellationToken cancellationToken)
@@ -51,6 +54,24 @@ public class AuthController(
     {
         await refreshTokenValidator.ValidateAndThrowAsync(request, cancellationToken);
         await authService.LogoutAsync(request, cancellationToken);
+        return NoContent();
+    }
+
+    [EnableRateLimiting("PasswordReset")]
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request, CancellationToken cancellationToken)
+    {
+        await forgotPasswordValidator.ValidateAndThrowAsync(request, cancellationToken);
+        await authService.ForgotPasswordAsync(request, cancellationToken);
+        return NoContent();
+    }
+
+    [EnableRateLimiting("PasswordReset")]
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken cancellationToken)
+    {
+        await resetPasswordValidator.ValidateAndThrowAsync(request, cancellationToken);
+        await authService.ResetPasswordAsync(request, cancellationToken);
         return NoContent();
     }
 }

@@ -61,4 +61,12 @@ public class User : BaseEntity
     }
 
     public void ChangeRole(UserRole newRole) => Role = newRole;
+
+    public void ChangePassword(string newPasswordHash)
+    {
+        if (string.IsNullOrWhiteSpace(newPasswordHash))
+            throw new ArgumentException("PasswordHash is required.", nameof(newPasswordHash));
+
+        PasswordHash = newPasswordHash;
+    }
 }
