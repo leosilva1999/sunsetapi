@@ -82,6 +82,9 @@ these are the diffs to check:
   whether the email exists (no account enumeration), and a successful reset revokes every refresh
   token for that user. Both are rate limited (5/15min per IP). In Development the email lands in
   Mailpit (`http://localhost:8025`), not a real inbox — see [Auth](#auth) and the README.
+- **`PhotoResponse.city`** — the photo's location's city, denormalized the same way
+  `locationName` already was, so a photo card can show "{user} em {location}, {city}" without an
+  extra lookup — see [Photos](#photos).
 
 ## Base URL & running locally
 
@@ -432,7 +435,7 @@ most one rating per location, so there's nothing to disambiguate.
 {
   "items": [{
     "id": "guid", "userId": "guid", "userName": "string", "userAvatarUrl": "string|null",
-    "locationId": "guid", "locationName": "string",
+    "locationId": "guid", "locationName": "string", "city": "string",
     "imageUrl": "string", "caption": "string|null",
     "likesCount": 5, "likedByCurrentUser": true, "commentsCount": 3,
     "createdAt": "date"

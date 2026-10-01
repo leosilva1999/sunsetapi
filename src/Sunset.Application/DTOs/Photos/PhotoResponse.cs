@@ -7,6 +7,7 @@ public sealed record PhotoResponse(
     string? UserAvatarUrl,
     Guid LocationId,
     string LocationName,
+    string City,
     string ImageUrl,
     string? Caption,
     int LikesCount,

@@ -12,6 +12,7 @@ public static class PhotoExtensions
             photo.User.AvatarUrl,
             photo.LocationId,
             photo.Location.Name,
+            photo.Location.City,
             photo.ImageUrl,
             photo.Caption,
             photo.LikesCount,
