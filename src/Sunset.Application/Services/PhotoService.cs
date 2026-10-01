@@ -22,6 +22,9 @@ public class PhotoService(
         return new CursorPagedResult<PhotoResponse>(items, page.NextCursor, page.HasMore);
     }
 
+    public async Task<PhotoCountResponse> GetTotalCountAsync(CancellationToken cancellationToken = default) =>
+        new(await photoRepository.GetTotalCountAsync(cancellationToken));
+
     public async Task<PhotoResponse> GetByIdAsync(Guid id, Guid? currentUserId, CancellationToken cancellationToken = default)
     {
         var photo = await photoRepository.GetByIdAsync(id, cancellationToken)

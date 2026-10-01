@@ -43,6 +43,13 @@ public class PhotosController(
         return Ok(page);
     }
 
+    [HttpGet("count")]
+    public async Task<ActionResult<PhotoCountResponse>> GetTotalCount(CancellationToken cancellationToken)
+    {
+        var response = await photoService.GetTotalCountAsync(cancellationToken);
+        return Ok(response);
+    }
+
     [Authorize]
     [HttpPost]
     public async Task<ActionResult<PhotoResponse>> Create(CreatePhotoRequest request, CancellationToken cancellationToken)

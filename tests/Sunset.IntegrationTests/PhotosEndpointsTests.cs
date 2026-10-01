@@ -56,6 +56,19 @@ public class PhotosEndpointsTests(SunsetApiFactory factory) : IntegrationTestBas
     }
 
     [Fact]
+    public async Task GetTotalCount_AfterCreatingAPhoto_IncreasesByOne()
+    {
+        var (_, client) = await RegisterAndAuthenticateAsync();
+        var location = await CreateLocationAsync(client);
+
+        var before = await client.GetFromJsonAsync<PhotoCountResponse>("/api/v1/photos/count");
+        await CreatePhotoAsync(client, location.Id);
+        var after = await client.GetFromJsonAsync<PhotoCountResponse>("/api/v1/photos/count");
+
+        Assert.Equal(before!.Count + 1, after!.Count);
+    }
+
+    [Fact]
     public async Task Create_WithUnknownLocation_ReturnsNotFound()
     {
         var (_, client) = await RegisterAndAuthenticateAsync();

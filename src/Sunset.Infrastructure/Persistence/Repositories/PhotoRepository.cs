@@ -15,6 +15,11 @@ public class PhotoRepository(SunsetDbContext context) : IPhotoRepository
             .Include(p => p.Location)
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
+    // A query filter global do Photo (DeletedAt == null, ver SunsetDbContext) já exclui
+    // fotos soft-deleted daqui - é um COUNT(*) simples sobre o índice de DeletedAt.
+    public Task<int> GetTotalCountAsync(CancellationToken cancellationToken = default) =>
+        context.Photos.CountAsync(cancellationToken);
+
     public async Task<CursorPagedResult<Photo>> GetFeedAsync(PhotoSortOption sort, string? cursor, int limit, CancellationToken cancellationToken = default)
     {
         var photos = context.Photos.Include(p => p.User).Include(p => p.Location).AsQueryable();

@@ -85,6 +85,8 @@ these are the diffs to check:
 - **`PhotoResponse.city`** — the photo's location's city, denormalized the same way
   `locationName` already was, so a photo card can show "{user} em {location}, {city}" without an
   extra lookup — see [Photos](#photos).
+- **New `GET /photos/count`** — total non-deleted photos, backing the "X pôr do sol catalogados"
+  stat on the home page — see [Photos](#photos).
 
 ## Base URL & running locally
 
@@ -448,6 +450,10 @@ most one rating per location, so there's nothing to disambiguate.
 just root comments. It's on every `PhotoResponse` (feed, `GET /photos/{id}`, `POST /photos`,
 etc.), denormalized and kept in sync on every comment/reply create or delete, including the
 cascade delete case (see `DELETE /comments/{id}` below).
+
+### `GET /photos/count`
+→ `{ "count": 18402 }` — total non-deleted photos. Cheap `COUNT(*)` over an indexed column; used
+by the frontend to show a real number on the home page instead of a hardcoded one.
 
 ### 🔒 `POST /photos/upload-url`
 Body: `{ "contentType": string }` — only `image/jpeg` or `image/png`.
