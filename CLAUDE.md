@@ -43,9 +43,11 @@ Regras:
 | `ModerationAction` | id, moderator_id, action_type, target_description | log de auditoria append-only, sem endpoint de leitura ainda |
 | `LegalDocument` | id, document_type, content, version, updated_by_user_id | `document_type`: `TermsOfService`\|`PrivacyPolicy`; cada edição cria uma linha nova (histórico via `version`, numerado por tipo), sem update in-place |
 | `PasswordResetToken` | id, user_id, token_hash, expires_at, used_at | mesmo padrão de `RefreshToken` (hash SHA-256, nunca o token puro); validade de 30 min, uso único |
+| `Follow` | id, follower_id, following_id | par (follower_id, following_id) único; `User` ganha `followers_count`/`following_count` desnormalizados |
+| `Notification` | id, recipient_user_id, type, actor_user_id, target_description | `target_description` livre (sem FK polimórfica), mesmo padrão de `ModerationAction`; lido via polling, sem push em tempo real |
 
-Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`ModerationAction`/`PasswordResetToken`.
-`Location` 1:N `Photo`/`Rating`. `Photo` 1:N `Like`/`Comment`.
+Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`ModerationAction`/`PasswordResetToken`/`Notification`.
+`Location` 1:N `Photo`/`Rating`. `Photo` 1:N `Like`/`Comment`. `User` N:N `User` via `Follow`.
 
 ## Endpoints (prefixo `/api/v1`)
 
@@ -55,6 +57,10 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 
 **Users**
 - `GET /users/:id`, `PATCH /users/me` (auth), `GET /users/:id/photos`
+- `POST /users/:id/follow` / `DELETE /users/:id/follow` (auth), `GET /users/:id/followers`, `GET /users/:id/following`
+
+**Notifications** (auth, sempre "minhas")
+- `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/:id/read`, `POST /notifications/read-all`
 
 **Locations**
 - `GET /locations` (busca: `?q=`, `?lat=&lng=&radius=`, paginado)
@@ -105,6 +111,10 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - **Redefinição de senha**: mesmo padrão de `RefreshToken` (token opaco, hash SHA-256 salvo,
   nunca o token puro). `forgot-password` sempre retorna 204 mesmo pra e-mail inexistente (evita
   enumeração de contas). `reset-password` revoga todos os refresh tokens do usuário ao suceder.
+- **Notificações via polling**: o sino do frontend consulta `GET /notifications/unread-count`
+  periodicamente — sem SignalR/WebSocket. `PhotoService`/`UserService` gravam `Notification`
+  direto via `INotificationRepository` (mesmo padrão de `IModerationActionRepository` injetado
+  em `PhotoService` pra auditoria), nunca notificando o próprio autor da ação.
 
 ## Stack
 

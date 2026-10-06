@@ -8,15 +8,6 @@ namespace Sunset.IntegrationTests;
 
 public class PhotosEndpointsTests(SunsetApiFactory factory) : IntegrationTestBase(factory)
 {
-    private static async Task<PhotoResponse> CreatePhotoAsync(HttpClient authenticatedClient, Guid locationId, string? caption = null)
-    {
-        var request = new CreatePhotoRequest(locationId, $"https://sunset-photos-test.s3.amazonaws.com/{Guid.NewGuid():N}.jpg", caption);
-        var response = await authenticatedClient.PostAsJsonAsync("/api/v1/photos", request);
-        response.EnsureSuccessStatusCode();
-
-        return (await response.Content.ReadFromJsonAsync<PhotoResponse>())!;
-    }
-
     [Fact]
     public async Task CreateUploadUrl_ReturnsPutUrlAndFinalImageUrl()
     {

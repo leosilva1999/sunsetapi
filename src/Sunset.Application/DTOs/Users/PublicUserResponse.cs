@@ -4,4 +4,12 @@ namespace Sunset.Application.DTOs.Users;
 // autenticação e é referenciável por qualquer userId exposto em fotos/comentários/
 // avaliações; UserResponse (com Email) fica restrita a contextos autenticados
 // (login/register/refresh, PATCH /users/me).
-public sealed record PublicUserResponse(Guid Id, string Name, string? AvatarUrl, string? Bio, DateTime CreatedAt);
+public sealed record PublicUserResponse(
+    Guid Id,
+    string Name,
+    string? AvatarUrl,
+    string? Bio,
+    int FollowersCount,
+    int FollowingCount,
+    bool IsFollowedByCurrentUser,
+    DateTime CreatedAt);

@@ -11,7 +11,8 @@ namespace Sunset.Application.Services;
 public class PhotoService(
     IPhotoRepository photoRepository,
     ILocationRepository locationRepository,
-    IModerationActionRepository moderationActionRepository) : IPhotoService
+    IModerationActionRepository moderationActionRepository,
+    INotificationRepository notificationRepository) : IPhotoService
 {
     public async Task<CursorPagedResult<PhotoResponse>> GetFeedAsync(PhotoSortOption sort, string? cursor, int limit, Guid? currentUserId, CancellationToken cancellationToken = default)
     {
@@ -78,6 +79,13 @@ public class PhotoService(
 
         photo.IncrementLikes();
         await photoRepository.AddLikeAsync(new Like(userId, photoId), cancellationToken);
+
+        if (photo.UserId != userId)
+        {
+            await notificationRepository.AddAsync(
+                new Notification(photo.UserId, NotificationType.PhotoLiked, userId, $"Photo:{photoId}"),
+                cancellationToken);
+        }
     }
 
     public async Task UnlikeAsync(Guid userId, Guid photoId, CancellationToken cancellationToken = default)
@@ -117,9 +125,10 @@ public class PhotoService(
         var photo = await photoRepository.GetByIdAsync(photoId, cancellationToken)
             ?? throw new NotFoundException("Photo not found.");
 
+        Comment? parent = null;
         if (request.ParentCommentId is { } parentId)
         {
-            var parent = await photoRepository.GetCommentByIdAsync(parentId, cancellationToken);
+            parent = await photoRepository.GetCommentByIdAsync(parentId, cancellationToken);
             if (parent is null || parent.PhotoId != photoId)
                 throw new NotFoundException("Parent comment not found.");
             if (parent.ParentCommentId is not null)
@@ -132,6 +141,22 @@ public class PhotoService(
 
         var comment = new Comment(userId, photoId, request.Content, request.ParentCommentId);
         await photoRepository.AddCommentAsync(comment, cancellationToken);
+
+        if (parent is not null)
+        {
+            if (parent.UserId != userId)
+            {
+                await notificationRepository.AddAsync(
+                    new Notification(parent.UserId, NotificationType.CommentReplied, userId, $"Comment:{parent.Id}"),
+                    cancellationToken);
+            }
+        }
+        else if (photo.UserId != userId)
+        {
+            await notificationRepository.AddAsync(
+                new Notification(photo.UserId, NotificationType.PhotoCommented, userId, $"Photo:{photoId}"),
+                cancellationToken);
+        }
 
         var created = await photoRepository.GetCommentByIdAsync(comment.Id, cancellationToken)
             ?? throw new NotFoundException("Comment not found.");

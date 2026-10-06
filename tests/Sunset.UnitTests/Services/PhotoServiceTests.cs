@@ -14,11 +14,12 @@ public class PhotoServiceTests
     private readonly Mock<IPhotoRepository> _photoRepository = new();
     private readonly Mock<ILocationRepository> _locationRepository = new();
     private readonly Mock<IModerationActionRepository> _moderationActionRepository = new();
+    private readonly Mock<INotificationRepository> _notificationRepository = new();
     private readonly PhotoService _sut;
 
     public PhotoServiceTests()
     {
-        _sut = new PhotoService(_photoRepository.Object, _locationRepository.Object, _moderationActionRepository.Object);
+        _sut = new PhotoService(_photoRepository.Object, _locationRepository.Object, _moderationActionRepository.Object, _notificationRepository.Object);
     }
 
     private static Photo CreatePhoto(User user, Location location, Guid? userId = null)
@@ -180,6 +181,24 @@ public class PhotoServiceTests
 
         Assert.Equal(1, photo.LikesCount);
         _photoRepository.Verify(r => r.AddLikeAsync(It.Is<Like>(l => l.UserId == likerId && l.PhotoId == photo.Id), default), Times.Once);
+        _notificationRepository.Verify(r => r.AddAsync(
+            It.Is<Notification>(n => n.RecipientUserId == photo.UserId && n.ActorUserId == likerId && n.Type == NotificationType.PhotoLiked),
+            default), Times.Once);
+    }
+
+    [Fact]
+    public async Task LikeAsync_WhenLikingOwnPhoto_DoesNotNotify()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        var photo = CreatePhoto(user, location);
+
+        _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
+        _photoRepository.Setup(r => r.GetLikeAsync(user.Id, photo.Id, default)).ReturnsAsync((Like?)null);
+
+        await _sut.LikeAsync(user.Id, photo.Id);
+
+        _notificationRepository.Verify(r => r.AddAsync(It.IsAny<Notification>(), default), Times.Never);
     }
 
     [Fact]
@@ -220,6 +239,81 @@ public class PhotoServiceTests
         Assert.Equal(parent.Id, response.ParentCommentId);
         Assert.Equal(1, parent.RepliesCount);
         Assert.Equal(1, photo.CommentsCount);
+    }
+
+    [Fact]
+    public async Task AddCommentAsync_RootCommentOnAnothersPhoto_NotifiesPhotoOwner()
+    {
+        var owner = new User("Ana", "ana@sunset.com", "hashed");
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        var photo = CreatePhoto(owner, location);
+        var commenter = new User("Bia", "bia@sunset.com", "hashed");
+        var createdComment = new Comment(commenter.Id, photo.Id, "Muito lindo!");
+        typeof(Comment).GetProperty(nameof(Comment.User))!.SetValue(createdComment, commenter);
+
+        _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
+        _photoRepository
+            .Setup(r => r.GetCommentByIdAsync(It.IsAny<Guid>(), default))
+            .ReturnsAsync(createdComment);
+
+        await _sut.AddCommentAsync(commenter.Id, photo.Id, new CreateCommentRequest("Muito lindo!"));
+
+        _notificationRepository.Verify(r => r.AddAsync(
+            It.Is<Notification>(n => n.RecipientUserId == owner.Id && n.ActorUserId == commenter.Id && n.Type == NotificationType.PhotoCommented),
+            default), Times.Once);
+    }
+
+    [Fact]
+    public async Task AddCommentAsync_RootCommentOnOwnPhoto_DoesNotNotify()
+    {
+        var owner = new User("Ana", "ana@sunset.com", "hashed");
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        var photo = CreatePhoto(owner, location);
+        var createdComment = new Comment(owner.Id, photo.Id, "Muito lindo!");
+        typeof(Comment).GetProperty(nameof(Comment.User))!.SetValue(createdComment, owner);
+
+        _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
+        _photoRepository
+            .Setup(r => r.GetCommentByIdAsync(It.IsAny<Guid>(), default))
+            .ReturnsAsync(createdComment);
+
+        await _sut.AddCommentAsync(owner.Id, photo.Id, new CreateCommentRequest("Muito lindo!"));
+
+        _notificationRepository.Verify(r => r.AddAsync(It.IsAny<Notification>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task AddCommentAsync_ReplyToAnothersComment_NotifiesParentAuthorOnly()
+    {
+        var photoOwner = new User("Ana", "ana@sunset.com", "hashed");
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        var photo = CreatePhoto(photoOwner, location);
+        var parentAuthorId = Guid.NewGuid();
+        var parent = new Comment(parentAuthorId, photo.Id, "Comentario raiz");
+        var replier = new User("Bia", "bia@sunset.com", "hashed");
+
+        _photoRepository.Setup(r => r.GetByIdAsync(photo.Id, default)).ReturnsAsync(photo);
+        _photoRepository.Setup(r => r.GetCommentByIdAsync(parent.Id, default)).ReturnsAsync(parent);
+
+        Comment? added = null;
+        _photoRepository
+            .Setup(r => r.AddCommentAsync(It.IsAny<Comment>(), default))
+            .Callback<Comment, CancellationToken>((c, _) =>
+            {
+                typeof(Comment).GetProperty(nameof(Comment.User))!.SetValue(c, replier);
+                added = c;
+            })
+            .Returns(Task.CompletedTask);
+        _photoRepository
+            .Setup(r => r.GetCommentByIdAsync(It.Is<Guid>(id => id != parent.Id), default))
+            .ReturnsAsync(() => added);
+
+        await _sut.AddCommentAsync(replier.Id, photo.Id, new CreateCommentRequest("Resposta", parent.Id));
+
+        _notificationRepository.Verify(r => r.AddAsync(
+            It.Is<Notification>(n => n.RecipientUserId == parentAuthorId && n.ActorUserId == replier.Id && n.Type == NotificationType.CommentReplied),
+            default), Times.Once);
+        _notificationRepository.Verify(r => r.AddAsync(It.IsAny<Notification>(), default), Times.Once);
     }
 
     [Fact]

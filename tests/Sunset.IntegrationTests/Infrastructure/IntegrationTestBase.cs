@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Sunset.Application.DTOs.Auth;
 using Sunset.Application.DTOs.Locations;
+using Sunset.Application.DTOs.Photos;
 using Sunset.Domain.Enums;
 using Sunset.Infrastructure.Persistence;
 
@@ -40,6 +41,15 @@ public abstract class IntegrationTestBase(SunsetApiFactory factory)
         response.EnsureSuccessStatusCode();
 
         return (await response.Content.ReadFromJsonAsync<LocationResponse>())!;
+    }
+
+    protected static async Task<PhotoResponse> CreatePhotoAsync(HttpClient authenticatedClient, Guid locationId, string? caption = null)
+    {
+        var request = new CreatePhotoRequest(locationId, $"https://sunset-photos-test.s3.amazonaws.com/{Guid.NewGuid():N}.jpg", caption);
+        var response = await authenticatedClient.PostAsJsonAsync("/api/v1/photos", request);
+        response.EnsureSuccessStatusCode();
+
+        return (await response.Content.ReadFromJsonAsync<PhotoResponse>())!;
     }
 
     // Writes the role directly to the database, bypassing the API - there is no endpoint to

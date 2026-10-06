@@ -11,15 +11,6 @@ namespace Sunset.IntegrationTests;
 
 public class ModerationEndpointsTests(SunsetApiFactory factory) : IntegrationTestBase(factory)
 {
-    private static async Task<PhotoResponse> CreatePhotoAsync(HttpClient authenticatedClient, Guid locationId)
-    {
-        var request = new CreatePhotoRequest(locationId, $"https://sunset-photos-test.s3.amazonaws.com/{Guid.NewGuid():N}.jpg", null);
-        var response = await authenticatedClient.PostAsJsonAsync("/api/v1/photos", request);
-        response.EnsureSuccessStatusCode();
-
-        return (await response.Content.ReadFromJsonAsync<PhotoResponse>())!;
-    }
-
     [Fact]
     public async Task ReportPhoto_ThenDuplicateReport_ReturnsConflict()
     {

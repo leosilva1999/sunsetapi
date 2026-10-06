@@ -21,8 +21,52 @@ public class UsersController(
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<PublicUserResponse>> GetById(Guid id, CancellationToken cancellationToken)
     {
-        var response = await userService.GetByIdAsync(id, cancellationToken);
+        var response = await userService.GetByIdAsync(id, currentUserService.UserId, cancellationToken);
         return Ok(response);
+    }
+
+    [Authorize]
+    [HttpPost("{id:guid}/follow")]
+    public async Task<IActionResult> Follow(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedActionException("User is not authenticated.");
+
+        await userService.FollowAsync(userId, id, cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
+    [HttpDelete("{id:guid}/follow")]
+    public async Task<IActionResult> Unfollow(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedActionException("User is not authenticated.");
+
+        await userService.UnfollowAsync(userId, id, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpGet("{id:guid}/followers")]
+    public async Task<ActionResult<CursorPagedResult<PublicUserResponse>>> GetFollowers(
+        Guid id,
+        [FromQuery] string? cursor,
+        [FromQuery] int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var page = await userService.GetFollowersAsync(id, cursor, Math.Clamp(limit, 1, 50), cancellationToken);
+        return Ok(page);
+    }
+
+    [HttpGet("{id:guid}/following")]
+    public async Task<ActionResult<CursorPagedResult<PublicUserResponse>>> GetFollowing(
+        Guid id,
+        [FromQuery] string? cursor,
+        [FromQuery] int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var page = await userService.GetFollowingAsync(id, cursor, Math.Clamp(limit, 1, 50), cancellationToken);
+        return Ok(page);
     }
 
     [Authorize]

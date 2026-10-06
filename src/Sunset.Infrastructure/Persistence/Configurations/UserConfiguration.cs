@@ -41,6 +41,14 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasDefaultValue(UserRole.User);
 
+        builder.Property(u => u.FollowersCount)
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        builder.Property(u => u.FollowingCount)
+            .IsRequired()
+            .HasDefaultValue(0);
+
         builder.HasMany(u => u.Photos)
             .WithOne(p => p.User)
             .HasForeignKey(p => p.UserId)

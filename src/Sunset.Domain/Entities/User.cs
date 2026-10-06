@@ -10,6 +10,8 @@ public class User : BaseEntity
     public string? AvatarUrl { get; private set; }
     public string? Bio { get; private set; }
     public UserRole Role { get; private set; } = UserRole.User;
+    public int FollowersCount { get; private set; }
+    public int FollowingCount { get; private set; }
 
     public ICollection<Photo> Photos { get; private set; } = new List<Photo>();
     public ICollection<Like> Likes { get; private set; } = new List<Like>();
@@ -68,5 +70,21 @@ public class User : BaseEntity
             throw new ArgumentException("PasswordHash is required.", nameof(newPasswordHash));
 
         PasswordHash = newPasswordHash;
+    }
+
+    public void IncrementFollowersCount() => FollowersCount++;
+
+    public void DecrementFollowersCount()
+    {
+        if (FollowersCount > 0)
+            FollowersCount--;
+    }
+
+    public void IncrementFollowingCount() => FollowingCount++;
+
+    public void DecrementFollowingCount()
+    {
+        if (FollowingCount > 0)
+            FollowingCount--;
     }
 }

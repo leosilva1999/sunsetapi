@@ -87,6 +87,14 @@ these are the diffs to check:
   extra lookup — see [Photos](#photos).
 - **New `GET /photos/count`** — total non-deleted photos, backing the "X pôr do sol catalogados"
   stat on the home page — see [Photos](#photos).
+- **New "follow users" feature**: `PublicUserResponse` gains `followersCount`, `followingCount`,
+  `isFollowedByCurrentUser`; new `POST`/`DELETE /users/{id}/follow`,
+  `GET /users/{id}/followers`, `GET /users/{id}/following` — see [Users](#users).
+- **New notifications bell (polling-based)**: liking/commenting on someone else's photo, replying
+  to someone else's comment, or following someone now writes a `Notification` for the recipient.
+  New `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`,
+  `POST /notifications/read-all` — see [Notifications](#notifications). No real-time push (no
+  WebSocket/SignalR) — the frontend bell is expected to poll `unread-count` periodically.
 
 ## Base URL & running locally
 
@@ -182,7 +190,7 @@ error status has `errors: null` and a single message in `title`.
 | 401 | Missing/invalid/expired bearer token, invalid login/refresh/reset-password credentials, or "not the owner" (see gotcha below) |
 | 403 | Authenticated, but your role doesn't allow this (Moderator/Admin-only endpoint) |
 | 404 | Referenced resource (user/location/photo/comment/report) doesn't exist |
-| 409 | Conflict — "email already registered", or "you already reported this" |
+| 409 | Conflict — "email already registered", "you already reported this", or "can't follow yourself" |
 | 502 | An upstream call failed — sunrise-sunset.org (see Locations → sunset), or SMTP for `POST /auth/forgot-password` |
 | 500 | Unhandled server error |
 
@@ -267,11 +275,27 @@ provably the account owner just by having clicked an emailed link.
 ## Users
 
 ### `GET /users/{id}`
-Public (no auth) - `id` is exposed everywhere (photos/comments/ratings), so this must not leak
-`email`. → `{ "id", "name", "avatarUrl", "bio", "createdAt" }`. `bio` is `null` until the user
-sets one. ⚠️ **No `email` field** - that only ever comes back in an authenticated context (see
+Public (no auth, but reads the bearer token if present to resolve `isFollowedByCurrentUser`) -
+`id` is exposed everywhere (photos/comments/ratings), so this must not leak `email`. →
+`{ "id", "name", "avatarUrl", "bio", "followersCount", "followingCount",
+"isFollowedByCurrentUser", "createdAt" }`. `bio` is `null` until the user sets one.
+`isFollowedByCurrentUser` is `false` for an anonymous caller or when the caller follows no one.
+⚠️ **No `email` field** - that only ever comes back in an authenticated context (see
 below), never from this public lookup. Before 2026-09-23 this endpoint also returned `email`;
 if you cached/typed against the old shape, drop `email` from it.
+
+### 🔒 `POST /users/{id}/follow` / 🔒 `DELETE /users/{id}/follow`
+**Idempotent.** Following an already-followed user, or unfollowing one you don't follow, is a
+silent no-op → `204` either way. Following yourself → `409 Conflict`. On a genuine new follow,
+`followersCount`/`followingCount` on both profiles update immediately and the followee gets a
+`NewFollower` notification (see [Notifications](#notifications)).
+
+### `GET /users/{id}/followers?cursor=&limit=` / `GET /users/{id}/following?cursor=&limit=`
+Users who follow `{id}`, and users `{id}` follows, respectively — both paginated, newest-follow-
+first. → `CursorPagedResult<PublicUserResponse>` (same shape as `GET /users/{id}` above).
+⚠️ **`isFollowedByCurrentUser` is always `false` on these two listings**, same caveat as
+`likedByCurrentUser` on `/users/{id}/photos` (see [gotchas](#known-gotchas-for-the-frontend)) —
+not wired up here, only on the single-user `GET /users/{id}` lookup.
 
 ### 🔒 `PATCH /users/me`
 Updates the **authenticated** user's own profile (no `{id}` in the URL — resolved from the
@@ -624,6 +648,52 @@ the type name changed.
 
 ---
 
+## Notifications
+
+All 🔒 (always "my own notifications" — there's no `{userId}` in any of these paths). Written for
+a bell icon in the top-right corner: **polling-based**, no WebSocket/SignalR — poll
+`GET /notifications/unread-count` on an interval (e.g. every 30-60s) and refresh the dropdown
+list (`GET /notifications`) when the count changes or the bell is opened.
+
+Four triggers write a `Notification`, always skipping the case where the actor would be
+notifying themselves (liking/commenting on your own photo, replying to your own comment):
+- Someone follows you → `NewFollower`.
+- Someone likes your photo → `PhotoLiked`.
+- Someone posts a **root** comment on your photo → `PhotoCommented`.
+- Someone **replies** to your comment → `CommentReplied` (notifies the comment's author, not the
+  photo's owner — a reply never generates two notifications, even if you own both the photo and
+  the comment it's replying to).
+
+### 🔒 `GET /notifications?cursor=&limit=`
+Newest-first. → `CursorPagedResult<NotificationResponse>`:
+```json
+{
+  "id": "guid",
+  "type": "NewFollower" | "PhotoLiked" | "PhotoCommented" | "CommentReplied",
+  "actorUserId": "guid", "actorName": "string", "actorAvatarUrl": "string|null",
+  "targetDescription": "string",
+  "readAt": "date|null", "createdAt": "date"
+}
+```
+`targetDescription` is a free-text label, same convention as `ModerationAction` (see
+[Moderation](#moderation)): `"User:{id}"` for `NewFollower`, `"Photo:{id}"` for `PhotoLiked`/
+`PhotoCommented`, `"Comment:{id}"` for `CommentReplied` (the comment that got replied to, not the
+new reply itself). `readAt` is `null` until marked read.
+
+### 🔒 `GET /notifications/unread-count`
+→ `{ "count": 3 }` — what the bell badge shows. Cheap `COUNT(*)`; safe to poll.
+
+### 🔒 `POST /notifications/{id}/read`
+Marks a single notification read → `204`. `401` if you're not its recipient (same "not the
+owner" semantics as photo/comment delete, not a `403`). Idempotent — marking an
+already-read notification read again is still `204`.
+
+### 🔒 `POST /notifications/read-all`
+Marks every one of the caller's unread notifications read → `204`. Use when the bell dropdown is
+opened, if you want "seen" semantics instead of per-item read tracking.
+
+---
+
 ## Known gotchas for the frontend
 
 1. **`401` vs `403` depends on *which* check failed, and they mean different things.** The
@@ -640,6 +710,8 @@ the type name changed.
    values.
 3. `likedByCurrentUser` is only accurate on `/photos` (feed) and `/photos/{id}` — it's hardcoded
    `false` on the two "photos by X" listings (`/users/{id}/photos`, `/locations/{id}/photos`).
+   Same pattern for `isFollowedByCurrentUser`: accurate on `GET /users/{id}`, hardcoded `false` on
+   `GET /users/{id}/followers` and `GET /users/{id}/following`.
 4. Ratings are an **upsert** (`POST /locations/{id}/ratings` again just replaces score *and*
    comment — it's not a partial update) — use `GET /locations/{id}/ratings/me` to check whether
    the current user already rated a location before deciding "update your rating" vs. "rate this"

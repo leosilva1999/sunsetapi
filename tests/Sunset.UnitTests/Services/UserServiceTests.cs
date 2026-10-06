@@ -6,6 +6,7 @@ using Sunset.Application.Interfaces;
 using Sunset.Application.Interfaces.Repositories;
 using Sunset.Application.Services;
 using Sunset.Domain.Entities;
+using Sunset.Domain.Enums;
 
 namespace Sunset.UnitTests.Services;
 
@@ -14,13 +15,21 @@ public class UserServiceTests
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IPhotoRepository> _photoRepository = new();
     private readonly Mock<IRefreshTokenRepository> _refreshTokenRepository = new();
+    private readonly Mock<IFollowRepository> _followRepository = new();
+    private readonly Mock<INotificationRepository> _notificationRepository = new();
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
     private readonly UserService _sut;
 
     public UserServiceTests()
     {
         _passwordHasher.Setup(h => h.Hash(It.IsAny<string>())).Returns("hashed");
-        _sut = new UserService(_userRepository.Object, _photoRepository.Object, _refreshTokenRepository.Object, _passwordHasher.Object);
+        _sut = new UserService(
+            _userRepository.Object,
+            _photoRepository.Object,
+            _refreshTokenRepository.Object,
+            _followRepository.Object,
+            _notificationRepository.Object,
+            _passwordHasher.Object);
     }
 
     [Fact]
@@ -29,10 +38,24 @@ public class UserServiceTests
         var user = new User("Ana", "ana@sunset.com", "hashed");
         _userRepository.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
 
-        var response = await _sut.GetByIdAsync(user.Id);
+        var response = await _sut.GetByIdAsync(user.Id, null);
 
         Assert.Equal(user.Id, response.Id);
         Assert.Equal("Ana", response.Name);
+        Assert.False(response.IsFollowedByCurrentUser);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenCurrentUserFollowsTarget_ReturnsIsFollowedByCurrentUserTrue()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var viewerId = Guid.NewGuid();
+        _userRepository.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+        _followRepository.Setup(r => r.GetAsync(viewerId, user.Id, default)).ReturnsAsync(new Follow(viewerId, user.Id));
+
+        var response = await _sut.GetByIdAsync(user.Id, viewerId);
+
+        Assert.True(response.IsFollowedByCurrentUser);
     }
 
     [Fact]
@@ -40,7 +63,7 @@ public class UserServiceTests
     {
         _userRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((User?)null);
 
-        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetByIdAsync(Guid.NewGuid()));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetByIdAsync(Guid.NewGuid(), null));
     }
 
     [Fact]
@@ -155,6 +178,82 @@ public class UserServiceTests
 
         await Assert.ThrowsAsync<NotFoundException>(() => _sut.DeleteAccountAsync(Guid.NewGuid()));
         _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(It.IsAny<Guid>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task FollowAsync_WithSelf_ThrowsConflictException()
+    {
+        var userId = Guid.NewGuid();
+
+        await Assert.ThrowsAsync<ConflictException>(() => _sut.FollowAsync(userId, userId));
+        _followRepository.Verify(r => r.AddAsync(It.IsAny<Follow>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task FollowAsync_WhenNotAlreadyFollowing_IncrementsCountersAndNotifiesFollowee()
+    {
+        var follower = new User("Ana", "ana@sunset.com", "hashed");
+        var followee = new User("Bia", "bia@sunset.com", "hashed");
+        _userRepository.Setup(r => r.GetByIdAsync(follower.Id, default)).ReturnsAsync(follower);
+        _userRepository.Setup(r => r.GetByIdAsync(followee.Id, default)).ReturnsAsync(followee);
+        _followRepository.Setup(r => r.GetAsync(follower.Id, followee.Id, default)).ReturnsAsync((Follow?)null);
+
+        await _sut.FollowAsync(follower.Id, followee.Id);
+
+        Assert.Equal(1, follower.FollowingCount);
+        Assert.Equal(1, followee.FollowersCount);
+        _followRepository.Verify(r => r.AddAsync(It.IsAny<Follow>(), default), Times.Once);
+        _notificationRepository.Verify(r => r.AddAsync(
+            It.Is<Notification>(n => n.RecipientUserId == followee.Id && n.Type == NotificationType.NewFollower),
+            default), Times.Once);
+    }
+
+    [Fact]
+    public async Task FollowAsync_WhenAlreadyFollowing_IsIdempotentAndDoesNotNotify()
+    {
+        var follower = new User("Ana", "ana@sunset.com", "hashed");
+        var followee = new User("Bia", "bia@sunset.com", "hashed");
+        _userRepository.Setup(r => r.GetByIdAsync(follower.Id, default)).ReturnsAsync(follower);
+        _userRepository.Setup(r => r.GetByIdAsync(followee.Id, default)).ReturnsAsync(followee);
+        _followRepository.Setup(r => r.GetAsync(follower.Id, followee.Id, default)).ReturnsAsync(new Follow(follower.Id, followee.Id));
+
+        await _sut.FollowAsync(follower.Id, followee.Id);
+
+        Assert.Equal(0, follower.FollowingCount);
+        _followRepository.Verify(r => r.AddAsync(It.IsAny<Follow>(), default), Times.Never);
+        _notificationRepository.Verify(r => r.AddAsync(It.IsAny<Notification>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task UnfollowAsync_WhenFollowing_DecrementsCounters()
+    {
+        var follower = new User("Ana", "ana@sunset.com", "hashed");
+        var followee = new User("Bia", "bia@sunset.com", "hashed");
+        follower.IncrementFollowingCount();
+        followee.IncrementFollowersCount();
+        var follow = new Follow(follower.Id, followee.Id);
+        _followRepository.Setup(r => r.GetAsync(follower.Id, followee.Id, default)).ReturnsAsync(follow);
+        _userRepository.Setup(r => r.GetByIdAsync(follower.Id, default)).ReturnsAsync(follower);
+        _userRepository.Setup(r => r.GetByIdAsync(followee.Id, default)).ReturnsAsync(followee);
+
+        await _sut.UnfollowAsync(follower.Id, followee.Id);
+
+        Assert.Equal(0, follower.FollowingCount);
+        Assert.Equal(0, followee.FollowersCount);
+        _followRepository.Verify(r => r.RemoveAsync(follow, default), Times.Once);
+    }
+
+    [Fact]
+    public async Task UnfollowAsync_WhenNotFollowing_IsIdempotent()
+    {
+        var followerId = Guid.NewGuid();
+        var followeeId = Guid.NewGuid();
+        _followRepository.Setup(r => r.GetAsync(followerId, followeeId, default)).ReturnsAsync((Follow?)null);
+
+        await _sut.UnfollowAsync(followerId, followeeId);
+
+        _followRepository.Verify(r => r.RemoveAsync(It.IsAny<Follow>(), default), Times.Never);
+        _userRepository.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), default), Times.Never);
     }
 
     private static void SetNavigation(Photo photo, User user, Location location)
