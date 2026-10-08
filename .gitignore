@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Machine-specific appsettings overrides (e.g. LAN IP for LocalStack URLs during phone testing)
+appsettings.*.local.json
+
 # User-specific files
 *.rsuser
 *.suo

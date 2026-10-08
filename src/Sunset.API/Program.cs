@@ -17,6 +17,14 @@ using Sunset.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Optional, gitignored override for machine-specific dev values (e.g. Storage:ServiceUrl /
+// Storage:PublicBaseUrl pointing at the current LAN IP instead of localhost, so a phone on
+// Expo Go can reach LocalStack) - mirrors the mobile app's .env / .env.example pattern.
+builder.Configuration.AddJsonFile(
+    $"appsettings.{builder.Environment.EnvironmentName}.local.json",
+    optional: true,
+    reloadOnChange: true);
+
 // Add services to the container.
 
 builder.Services.AddApplication();
@@ -147,7 +155,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.UseSwaggerUI(options =>
     {
-        options.SwaggerEndpoint("/openapi/v1.json", "Sunset API v1");
+        options.SwaggerEndpoint("/openapi/v1.json", "Sunsetsss API v1");
         options.RoutePrefix = "swagger";
     });
 
