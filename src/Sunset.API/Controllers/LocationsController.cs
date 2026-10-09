@@ -16,6 +16,7 @@ namespace Sunset.API.Controllers;
 public class LocationsController(
     ILocationService locationService,
     IValidator<CreateLocationRequest> createLocationValidator,
+    IValidator<LocationSearchQuery> searchQueryValidator,
     IValidator<CreateRatingRequest> createRatingValidator,
     ICurrentUserService currentUserService) : ControllerBase
 {
@@ -31,6 +32,7 @@ public class LocationsController(
         CancellationToken cancellationToken = default)
     {
         var query = new LocationSearchQuery(q, lat, lng, radius, cursor, Math.Clamp(limit, 1, 50));
+        await searchQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
         var page = await locationService.SearchAsync(query, cancellationToken);
         return Ok(page);
     }

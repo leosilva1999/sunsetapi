@@ -7,4 +7,5 @@ public sealed record LocationResponse(
     double Longitude,
     string City,
     decimal AvgRating,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    double? DistanceKm = null);

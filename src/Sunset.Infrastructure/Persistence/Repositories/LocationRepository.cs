@@ -13,7 +13,7 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
     public Task<Location?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         context.Locations.FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
 
-    public async Task<CursorPagedResult<Location>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default)
+    public async Task<CursorPagedResult<LocationWithDistance>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default)
     {
         var locations = context.Locations.AsQueryable();
 
@@ -31,17 +31,8 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
                 : locations.Where(l => EF.Functions.Match(new[] { l.Name, l.City }, booleanQuery, MySqlMatchSearchMode.Boolean) > 0);
         }
 
-        if (query.Latitude is { } lat && query.Longitude is { } lng && query.RadiusKm is { } radiusKm)
-        {
-            // Bounding-box approximation (1 degree of latitude ~= 111km); good enough for a coarse
-            // radius filter without pushing trigonometric (Haversine) math down into SQL translation.
-            var latDelta = radiusKm / 111.0;
-            var lngDelta = radiusKm / (111.0 * Math.Max(Math.Cos(lat * Math.PI / 180.0), 0.01));
-
-            locations = locations.Where(l =>
-                l.Latitude >= lat - latDelta && l.Latitude <= lat + latDelta &&
-                l.Longitude >= lng - lngDelta && l.Longitude <= lng + lngDelta);
-        }
+        if (query.IsNearby)
+            return await SearchNearbyAsync(locations, query, cancellationToken);
 
         var decoded = CreatedAtCursor.TryDecode(query.Cursor);
         if (decoded is { } c)
@@ -61,7 +52,62 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
         var page = items.Take(query.Limit).ToList();
         var nextCursor = hasMore ? CreatedAtCursor.Encode(page[^1].CreatedAt, page[^1].Id) : null;
 
-        return new CursorPagedResult<Location>(page, nextCursor, hasMore);
+        return new CursorPagedResult<LocationWithDistance>(
+            page.Select(l => new LocationWithDistance(l, null)).ToList(), nextCursor, hasMore);
+    }
+
+    // "Near me": exact great-circle (Haversine) distance computed in SQL, filtered to the radius and
+    // ordered nearest-first. A bounding box runs first so the (Latitude, Longitude) index can discard
+    // most rows before the trigonometry is evaluated; the Haversine check then trims the box's corners.
+    private static async Task<CursorPagedResult<LocationWithDistance>> SearchNearbyAsync(
+        IQueryable<Location> locations, LocationSearchQuery query, CancellationToken cancellationToken)
+    {
+        const double EarthRadiusKm = 6371.0;
+        const double DegToRad = Math.PI / 180.0;
+
+        var lat = query.Latitude!.Value;
+        var lng = query.Longitude!.Value;
+        var radiusKm = query.EffectiveRadiusKm;
+
+        var latDelta = radiusKm / 111.0;
+        var lngDelta = radiusKm / (111.0 * Math.Max(Math.Cos(lat * DegToRad), 0.01));
+        var latRad = lat * DegToRad;
+        var cosLat = Math.Cos(latRad);
+
+        locations = locations.Where(l =>
+            l.Latitude >= lat - latDelta && l.Latitude <= lat + latDelta &&
+            l.Longitude >= lng - lngDelta && l.Longitude <= lng + lngDelta);
+
+        // Math.Min(1, ...) guards ASIN against floating-point overshoot (ASIN(1.0000000002) is NULL in MySQL).
+        var withDistance = locations.Select(l => new
+        {
+            Location = l,
+            DistanceKm = 2 * EarthRadiusKm * Math.Asin(Math.Min(1.0, Math.Sqrt(
+                Math.Sin((l.Latitude * DegToRad - latRad) / 2) * Math.Sin((l.Latitude * DegToRad - latRad) / 2) +
+                cosLat * Math.Cos(l.Latitude * DegToRad) *
+                Math.Sin((l.Longitude - lng) * DegToRad / 2) * Math.Sin((l.Longitude - lng) * DegToRad / 2))))
+        }).Where(x => x.DistanceKm <= radiusKm);
+
+        var decoded = DistanceCursor.TryDecode(query.Cursor);
+        if (decoded is { } c)
+        {
+            withDistance = withDistance.Where(x =>
+                x.DistanceKm > c.DistanceKm ||
+                (x.DistanceKm == c.DistanceKm && x.Location.Id.CompareTo(c.Id) > 0));
+        }
+
+        var items = await withDistance
+            .OrderBy(x => x.DistanceKm)
+            .ThenBy(x => x.Location.Id)
+            .Take(query.Limit + 1)
+            .ToListAsync(cancellationToken);
+
+        var hasMore = items.Count > query.Limit;
+        var page = items.Take(query.Limit).ToList();
+        var nextCursor = hasMore ? DistanceCursor.Encode(page[^1].DistanceKm, page[^1].Location.Id) : null;
+
+        return new CursorPagedResult<LocationWithDistance>(
+            page.Select(x => new LocationWithDistance(x.Location, x.DistanceKm)).ToList(), nextCursor, hasMore);
     }
 
     // Builds a MySQL boolean-mode fulltext search string (each word required, prefix-matched:

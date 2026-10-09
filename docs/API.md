@@ -96,6 +96,12 @@ these are the diffs to check:
   `POST /notifications/read-all` — see [Notifications](#notifications). No real-time push (no
   WebSocket/SignalR) — the frontend bell is expected to poll `unread-count` periodically.
 
+- **"Perto de mim" (`GET /locations?lat=&lng=&radius=`)** — now a real nearby search: exact
+  (Haversine) distance, results ordered **nearest-first**, and each `LocationResponse` carries a new
+  `distanceKm`. ⚠️ `radius` is now optional (defaults to 50 km, max 200) and `lat`/`lng` are now
+  **validated** (`400` if only one is sent, out of range, or `radius` is ≤0 / >200) — they used to be
+  silently ignored unless all three arrived together. See [Locations](#locations).
+
 ## Base URL & running locally
 
 - All routes are prefixed with **`/api/v1`**.
@@ -370,9 +376,18 @@ the frontend; see rate limit below regardless). All query params optional.
   - **<3 characters**: falls back to a plain `LIKE '%q%'` substring scan (real substring match,
     anywhere in the word) — short queries can't use the index either way, so there's no downside
     to substring semantics there, and it keeps single/double-letter input from returning nothing.
-- `lat`+`lng`+`radius` (km): must be supplied **together** to filter by distance — it's a coarse
-  bounding-box approximation, not exact great-circle distance, so don't expect razor-precise
-  radius edges.
+- **"Near me" mode — `lat`+`lng` (+ optional `radius` in km):** `lat`/`lng` must be sent together
+  (`lat` ∈ [-90,90], `lng` ∈ [-180,180]), otherwise `400`. `radius` defaults to **50** km and must be
+  in (0, 200]. The filter uses the exact great-circle (Haversine) distance — a circle, not a box —
+  and results come back **ordered by distance, nearest first** (not by recency, unlike the plain
+  listing). It combines with `q`: the text filter is applied too, still ordered by distance. A
+  `radius` sent without `lat`/`lng` is a `400`, not silently ignored.
+- In near-me mode every item has `distanceKm` (km, rounded to 2 decimals); outside it, `distanceKm`
+  is `null`. The `nextCursor` of a near-me page is only valid for the same `lat`/`lng`/`radius`/`q`
+  it came from — don't reuse it if the user's position changes, restart from the first page.
+- Getting the coordinates is the frontend's job: `navigator.geolocation.getCurrentPosition` (needs
+  HTTPS or `localhost`, and the user may deny permission — fall back to the normal listing or to a
+  city search). The API never sees or stores the user's position beyond that single request.
 
 → `CursorPagedResult<LocationResponse>`.
 
@@ -388,7 +403,8 @@ rating **within that window** (not the location's all-time `avgRating` field, th
 is still what's returned per location). → plain array of `LocationResponse` (not paginated).
 
 ### `GET /locations/{id}`
-→ `{ "id", "name", "latitude", "longitude", "city", "avgRating", "createdAt" }`. `avgRating` is a
+→ `{ "id", "name", "latitude", "longitude", "city", "avgRating", "createdAt", "distanceKm" }`
+(`distanceKm` is always `null` outside the near-me search above). `avgRating` is a
 decimal (e.g. `4.33`), 0 for a location with no ratings yet. `latitude`/`longitude` are exactly
 what a map embed needs (e.g. Google Maps Embed's `q={latitude},{longitude}`) — always validated
 on creation (-90..90 / -180..180), never missing — see `docs/proposal-location-map-embed.md` for

@@ -35,6 +35,9 @@ public class LocationConfiguration : IEntityTypeConfiguration<Location>
 
         builder.HasIndex(l => l.City);
 
+        // Backs the bounding-box prefilter of the "near me" search.
+        builder.HasIndex(l => new { l.Latitude, l.Longitude });
+
         builder.HasIndex(l => new { l.Name, l.City })
             .IsFullText();
 

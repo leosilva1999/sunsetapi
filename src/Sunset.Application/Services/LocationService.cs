@@ -17,7 +17,7 @@ public class LocationService(
     public async Task<CursorPagedResult<LocationResponse>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default)
     {
         var page = await locationRepository.SearchAsync(query, cancellationToken);
-        var items = page.Items.Select(l => l.ToResponse()).ToList();
+        var items = page.Items.Select(l => l.Location.ToResponse(l.DistanceKm)).ToList();
 
         return new CursorPagedResult<LocationResponse>(items, page.NextCursor, page.HasMore);
     }
