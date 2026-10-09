@@ -1,6 +1,6 @@
-# Sunset API — Reference for frontend integration
+# Sunsetsss API — Reference for frontend integration
 
-API .NET 9 (Clean Architecture) para o Sunset: usuários pesquisam locais com belas visões de
+API .NET 9 (Clean Architecture) para o Sunsetsss: usuários pesquisam locais com belas visões de
 pôr do sol, postam fotos marcando o local, curtem, comentam e avaliam os locais.
 
 This document describes the API **as actually implemented**, for a client (React web app) to

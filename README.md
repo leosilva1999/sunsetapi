@@ -1,6 +1,6 @@
-# Sunset API
+# Sunsetsss API
 
-API .NET para o **Sunset** — plataforma onde usuários pesquisam locais com as mais bonitas
+API .NET para o **Sunsetsss** — plataforma onde usuários pesquisam locais com as mais bonitas
 visões de pôr do sol, postam fotos marcando o local, curtem, comentam e avaliam os locais para
 gerar rankings. Inclui um sistema de moderação completo (papéis, denúncias, exclusão de
 conteúdo, termos de uso e política de privacidade versionados).

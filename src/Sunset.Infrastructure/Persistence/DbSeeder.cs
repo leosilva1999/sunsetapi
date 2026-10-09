@@ -155,7 +155,7 @@ public static class DbSeeder
 
         var terms = new LegalDocument(
             LegalDocumentType.TermsOfService,
-            "Bem-vindo ao Sunset! Ao usar o app, você concorda em postar apenas fotos de sua "
+            "Bem-vindo ao Sunsetsss! Ao usar o app, você concorda em postar apenas fotos de sua "
                 + "autoria, respeitar outros usuários e não publicar conteúdo ofensivo, ilegal ou "
                 + "spam. Conteúdo denunciado pode ser removido por um moderador.",
             version: 1,
@@ -163,7 +163,7 @@ public static class DbSeeder
 
         var privacyPolicy = new LegalDocument(
             LegalDocumentType.PrivacyPolicy,
-            "Coletamos apenas os dados necessários para operar o Sunset: nome, e-mail, fotos e "
+            "Coletamos apenas os dados necessários para operar o Sunsetsss: nome, e-mail, fotos e "
                 + "avaliações que você publica. Você pode excluir sua conta a qualquer momento "
                 + "(anonimização, nos termos da LGPD). Não vendemos seus dados a terceiros.",
             version: 1,

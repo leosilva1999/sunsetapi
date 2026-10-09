@@ -107,12 +107,12 @@ public class AuthService(
         var resetLink = $"{frontendUrlProvider.BaseUrl.TrimEnd('/')}/reset-password?token={Uri.EscapeDataString(rawToken)}";
         var htmlBody = $"""
             <p>Olá, {user.Name}!</p>
-            <p>Recebemos uma solicitação para redefinir sua senha no Sunset. Clique no link abaixo para escolher uma nova senha:</p>
+            <p>Recebemos uma solicitação para redefinir sua senha no Sunsetsss. Clique no link abaixo para escolher uma nova senha:</p>
             <p><a href="{resetLink}">{resetLink}</a></p>
             <p>Esse link expira em 30 minutos. Se você não pediu essa redefinição, pode ignorar este e-mail.</p>
             """;
 
-        await emailSender.SendAsync(user.Email, "Redefinição de senha - Sunset", htmlBody, cancellationToken);
+        await emailSender.SendAsync(user.Email, "Redefinição de senha - Sunsetsss", htmlBody, cancellationToken);
     }
 
     public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
