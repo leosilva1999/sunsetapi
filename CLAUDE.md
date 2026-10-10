@@ -63,7 +63,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/:id/read`, `POST /notifications/read-all`
 
 **Locations**
-- `GET /locations` (busca: `?q=`, `?lat=&lng=&radius=`, paginado)
+- `GET /locations` (busca: `?q=`, `?lat=&lng=&radius=`, paginado; com `lat`+`lng` vira "perto de mim": ordena por distância e devolve `distanceKm`)
 - `GET /locations/:id`
 - `POST /locations` (auth)
 - `GET /locations/:id/photos`
@@ -92,6 +92,13 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - **Upload de imagem**: o cliente sobe o arquivo direto pro storage (S3/R2) via URL pré-assinada; o `POST /photos` recebe só a URL resultante, nunca o binário.
 - **Ranking**: `avg_rating` e `likes_count` são desnormalizados e atualizados no momento da escrita (ou por job), não calculados a cada leitura.
 - **Paginação**: cursor-based nos endpoints de feed (`/photos`, `/locations`), não `?page=`.
+- **Locais próximos ("perto de mim")**: `lat`+`lng` (obrigatórios juntos) ativam o modo; `radius` é opcional
+  (padrão 50 km, máx. 200) e a validação está em `LocationSearchQueryValidator` (400 se incompleto/fora da
+  faixa). A distância é Haversine exata calculada no SQL (`LocationRepository.SearchNearbyAsync`); o
+  bounding box roda antes só como pré-filtro (usa o índice `(Latitude, Longitude)`) e o Haversine tira os
+  cantos. A ordem é por distância crescente, e o cursor é `(distância, id)` (`DistanceCursor`), não o
+  `(CreatedAt, id)` dos demais feeds — por isso só vale para os mesmos `lat`/`lng`/`radius`/`q`. O
+  repositório devolve `LocationWithDistance`; `distanceKm` é `null` fora desse modo.
 - **Auth**: JWT (Bearer token) nos endpoints marcados como "auth". Claim `role` no token
   (`RoleClaimType = "role"` no `Program.cs`, já que `MapInboundClaims = false`) habilita
   `[Authorize(Roles = "Moderator,Admin")]` nos endpoints de moderação.
