@@ -222,4 +222,44 @@ public class LocationsEndpointsTests(SunsetApiFactory factory) : IntegrationTest
 
         Assert.Null(Assert.Single(page!.Items).DistanceKm);
     }
+
+    [Fact]
+    public async Task Search_NearbyWithText_AppliesBothFilters()
+    {
+        var (_, client) = await RegisterAndAuthenticateAsync();
+        var token = Guid.NewGuid().ToString("N");
+        var matchingNear = await CreateNamedLocationAtAsync(client, $"Mirante{token}", 64.01, 130.0);
+        await CreateNamedLocationAtAsync(client, $"Outro{token}", 64.02, 130.0);        // near, but text doesn't match
+        await CreateNamedLocationAtAsync(client, $"Mirante{token}Longe", 65.50, 130.0);  // text matches, but ~167 km away
+
+        var response = await client.GetAsync($"/api/v1/locations?q=Mirante{token}&lat=64&lng=130&radius=50");
+
+        var page = await response.Content.ReadFromJsonAsync<CursorPagedResult<LocationResponse>>();
+        var only = Assert.Single(page!.Items);
+        Assert.Equal(matchingNear.Id, only.Id);
+        Assert.NotNull(only.DistanceKm);
+    }
+
+    [Theory]
+    [InlineData("not-base64!!")]
+    [InlineData("bm90LWEtY3Vyc29y")]                       // valid base64, wrong content
+    [InlineData("MjAyNi0wMS0wMVQwMDowMDowMC4wMDAwMDAwWnwwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDA=")] // a CreatedAt-style cursor
+    public async Task Search_Nearby_WithMalformedOrForeignCursor_ReturnsFirstPageInsteadOfFailing(string cursor)
+    {
+        var (_, client) = await RegisterAndAuthenticateAsync();
+        var location = await CreateLocationAtAsync(client, 66.0, 140.0);
+
+        var response = await client.GetAsync($"/api/v1/locations?lat=66&lng=140&radius=10&cursor={Uri.EscapeDataString(cursor)}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await response.Content.ReadFromJsonAsync<CursorPagedResult<LocationResponse>>();
+        Assert.Contains(page!.Items, l => l.Id == location.Id);
+    }
+
+    private static async Task<LocationResponse> CreateNamedLocationAtAsync(HttpClient client, string name, double lat, double lng)
+    {
+        var response = await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest(name, lat, lng, "Nearby City"));
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<LocationResponse>())!;
+    }
 }

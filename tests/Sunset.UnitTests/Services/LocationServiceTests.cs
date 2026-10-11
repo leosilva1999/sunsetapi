@@ -187,4 +187,51 @@ public class LocationServiceTests
 
         Assert.Equal(expected, response);
     }
+
+    [Fact]
+    public async Task SearchAsync_WithDistances_MapsRoundedDistanceAndKeepsPaging()
+    {
+        var near = new Location("Perto", -27.6, -48.5, "Floripa");
+        var far = new Location("Longe", -28.1, -48.6, "Imbituba");
+        var query = new LocationSearchQuery(null, -27.6, -48.5, 100, null);
+        _locationRepository.Setup(r => r.SearchAsync(query, default)).ReturnsAsync(
+            new CursorPagedResult<LocationWithDistance>(
+                [new LocationWithDistance(near, 0.004), new LocationWithDistance(far, 60.12345)],
+                "next-cursor",
+                true));
+
+        var result = await _sut.SearchAsync(query);
+
+        Assert.Equal(["Perto", "Longe"], result.Items.Select(l => l.Name));
+        Assert.Equal(0.0, result.Items[0].DistanceKm);
+        Assert.Equal(60.12, result.Items[1].DistanceKm);
+        Assert.Equal("next-cursor", result.NextCursor);
+        Assert.True(result.HasMore);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithoutDistances_LeavesDistanceNull()
+    {
+        var query = new LocationSearchQuery("rosa", null, null, null, null);
+        _locationRepository.Setup(r => r.SearchAsync(query, default)).ReturnsAsync(
+            new CursorPagedResult<LocationWithDistance>([new LocationWithDistance(new Location("Rosa", -28.13, -48.62, "Imbituba"), null)], null, false));
+
+        var result = await _sut.SearchAsync(query);
+
+        Assert.Null(Assert.Single(result.Items).DistanceKm);
+        Assert.False(result.HasMore);
+    }
+
+    [Theory]
+    [InlineData(null, null, null, false, 50.0)]
+    [InlineData(-27.6, -48.5, null, true, 50.0)]
+    [InlineData(-27.6, -48.5, 10.0, true, 10.0)]
+    [InlineData(-27.6, null, 10.0, false, 10.0)]
+    public void LocationSearchQuery_NearbyModeAndEffectiveRadius(double? lat, double? lng, double? radius, bool expectedNearby, double expectedRadius)
+    {
+        var query = new LocationSearchQuery(null, lat, lng, radius, null);
+
+        Assert.Equal(expectedNearby, query.IsNearby);
+        Assert.Equal(expectedRadius, query.EffectiveRadiusKm);
+    }
 }
