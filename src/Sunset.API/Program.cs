@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Serilog;
 using Sunset.API.Middlewares;
 using Sunset.API.OpenApi;
 using Sunset.Application;
@@ -16,6 +17,18 @@ using Sunset.Infrastructure.Security;
 using Sunset.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Serilog replaces the default logger but keeps the ILogger<T> abstraction, so existing code is
+// untouched. Sinks and per-namespace levels live in appsettings ("Serilog" section).
+builder.Host.UseSerilog((context, services, loggerConfiguration) => loggerConfiguration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    // Placeholders for lines written outside a request / before authentication; the real values
+    // (pushed via LogContext or the logging scope) are added first and win, since WithProperty
+    // only fills in a property that is still absent.
+    .Enrich.WithProperty("RequestId", "-")
+    .Enrich.WithProperty("UserId", "-"));
 
 // Optional, gitignored override for machine-specific dev values (e.g. Storage:ServiceUrl /
 // Storage:PublicBaseUrl pointing at the current LAN IP instead of localhost, so a phone on
@@ -75,7 +88,9 @@ builder.Services.AddCors(options =>
     options.AddPolicy(FrontendCorsPolicy, policy => policy
         .WithOrigins(corsOrigins)
         .AllowAnyHeader()
-        .AllowAnyMethod());
+        .AllowAnyMethod()
+        // Custom response headers are invisible to browser JS unless exposed explicitly.
+        .WithExposedHeaders(RequestIdMiddleware.HeaderName));
 });
 
 // "Search" policy: protects instant-search-style endpoints (typeahead on every keystroke) from
@@ -142,7 +157,10 @@ builder.Services.AddRateLimiter(options =>
             ? policyTitle
             : rateLimitTitlesByPolicy[SearchRateLimitPolicy];
 
-        var payload = JsonSerializer.Serialize(new { title, errors = (object?)null });
+        context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("RateLimiter")
+            .LogWarning("Rate limit hit on policy {RateLimitPolicy} from {ClientIp}", policyName, context.HttpContext.Connection.RemoteIpAddress);
+
+        var payload = JsonSerializer.Serialize(new { title, errors = (object?)null, requestId = context.HttpContext.TraceIdentifier });
         await context.HttpContext.Response.WriteAsync(payload, cancellationToken);
     };
 });
@@ -159,19 +177,41 @@ if (app.Environment.IsDevelopment())
         options.RoutePrefix = "swagger";
     });
 
-    using var seedScope = app.Services.CreateScope();
-    var seedProvider = seedScope.ServiceProvider;
-    await DbSeeder.SeedAsync(
-        seedProvider.GetRequiredService<SunsetDbContext>(),
-        seedProvider.GetRequiredService<IPasswordHasher>(),
-        seedProvider.GetRequiredService<ILogger<Program>>());
+    var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        using var seedScope = app.Services.CreateScope();
+        var seedProvider = seedScope.ServiceProvider;
+        await DbSeeder.SeedAsync(
+            seedProvider.GetRequiredService<SunsetDbContext>(),
+            seedProvider.GetRequiredService<IPasswordHasher>(),
+            seedProvider.GetRequiredService<ILogger<Program>>());
 
-    await LocalStackBucketInitializer.EnsureBucketReadyAsync(
-        seedProvider.GetRequiredService<IAmazonS3>(),
-        seedProvider.GetRequiredService<IOptions<StorageOptions>>().Value,
-        seedProvider.GetRequiredService<ILogger<Program>>());
+        await LocalStackBucketInitializer.EnsureBucketReadyAsync(
+            seedProvider.GetRequiredService<IAmazonS3>(),
+            seedProvider.GetRequiredService<IOptions<StorageOptions>>().Value,
+            seedProvider.GetRequiredService<ILogger<Program>>());
+    }
+    catch (Exception exception)
+    {
+        // Without this the failure only reaches stderr as a bare unhandled exception (e.g. when
+        // LocalStack is unreachable because the machine's LAN IP changed) and never the log file.
+        startupLogger.LogCritical(exception, "Development startup initialization failed (database seed / LocalStack bucket)");
+        throw;
+    }
 }
 
+app.UseMiddleware<RequestIdMiddleware>();
+app.UseSerilogRequestLogging(options =>
+{
+    // One summary line per request (method, route, status, duration). UserId is read when the
+    // request completes, i.e. after authentication has populated the principal.
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        if (httpContext.User.FindFirst("sub")?.Value is { } userId)
+            diagnosticContext.Set("UserId", userId);
+    };
+});
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseHttpsRedirection();

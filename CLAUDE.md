@@ -99,6 +99,16 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   cantos. A ordem é por distância crescente, e o cursor é `(distância, id)` (`DistanceCursor`), não o
   `(CreatedAt, id)` dos demais feeds — por isso só vale para os mesmos `lat`/`lng`/`radius`/`q`. O
   repositório devolve `LocationWithDistance`; `distanceKm` é `null` fora desse modo.
+- **Logs (Serilog)**: troca o provider, mas o código segue usando `ILogger<T>`; sinks e níveis por namespace
+  ficam na seção `Serilog` do `appsettings` (arquivos em `logs/`, gitignored). `RequestIdMiddleware` usa o
+  `TraceIdentifier` como `RequestId`: vai em toda linha de log da requisição, no header `X-Request-Id` de
+  toda resposta e no campo `requestId` do corpo de erro (`{ title, errors, requestId }`). Id enviado pelo
+  cliente é ignorado de propósito. `UseSerilogRequestLogging` escreve uma linha por requisição (com `UserId`
+  do claim `sub`). Erros de negócio passam por `ExceptionHandlingMiddleware`: 5xx/502 em Error com stack,
+  401 em Warning, 400/404/409 em Information sem stack. **Nunca logar** senha, tokens (acesso/refresh/reset),
+  corpo de requisição nem e-mail do destinatário; validação loga só os nomes dos campos. `Application`
+  continua sem logger (só `Domain` como dependência) — log de falha de dependência externa fica na
+  `Infrastructure` (ex: `SmtpEmailSender`, `SunsetTimeService`).
 - **Auth**: JWT (Bearer token) nos endpoints marcados como "auth". Claim `role` no token
   (`RoleClaimType = "role"` no `Program.cs`, já que `MapInboundClaims = false`) habilita
   `[Authorize(Roles = "Moderator,Admin")]` nos endpoints de moderação.
@@ -128,6 +138,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - .NET 9 (net9.0 — apenas o SDK 9 está instalado neste ambiente; migrar para net8.0 LTS é uma troca de `TargetFramework` quando o SDK 8 estiver disponível)
 - Entity Framework Core + MySQL (Pomelo.EntityFrameworkCore.MySql)
 - FluentValidation para os validators em `Application/Validators`
+- Serilog (`Serilog.AspNetCore`) para logs estruturados — console + arquivo `logs/sunset-.log` (rotação diária)
 - MailKit para envio de e-mail via SMTP (Mailpit em dev/testes)
 - xUnit para os testes
 

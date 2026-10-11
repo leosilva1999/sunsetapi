@@ -1,5 +1,6 @@
 using MailKit.Net.Smtp;
 using MailKit.Security;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using Sunset.Application.Exceptions;
@@ -7,7 +8,7 @@ using Sunset.Application.Interfaces;
 
 namespace Sunset.Infrastructure.Email;
 
-public class SmtpEmailSender(IOptions<SmtpOptions> options) : IEmailSender
+public class SmtpEmailSender(IOptions<SmtpOptions> options, ILogger<SmtpEmailSender> logger) : IEmailSender
 {
     public async Task SendAsync(string to, string subject, string htmlBody, CancellationToken cancellationToken = default)
     {
@@ -35,7 +36,10 @@ public class SmtpEmailSender(IOptions<SmtpOptions> options) : IEmailSender
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new ExternalServiceException($"Failed to send email via SMTP: {ex.Message}");
+            // The recipient address is deliberately left out of the log (personal data); the
+            // request's RequestId already ties this line to the failing call.
+            logger.LogError(ex, "SMTP send failed via {SmtpHost}:{SmtpPort} (subject: {Subject})", smtp.Host, smtp.Port, subject);
+            throw new ExternalServiceException($"Failed to send email via SMTP: {ex.Message}", ex);
         }
     }
 }

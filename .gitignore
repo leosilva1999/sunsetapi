@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Serilog rolling log files
+logs/
+
 # Machine-specific appsettings overrides (e.g. LAN IP for LocalStack URLs during phone testing)
 appsettings.*.local.json
 

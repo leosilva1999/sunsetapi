@@ -102,6 +102,13 @@ these are the diffs to check:
   **validated** (`400` if only one is sent, out of range, or `radius` is ≤0 / >200) — they used to be
   silently ignored unless all three arrived together. See [Locations](#locations).
 
+- **Error responses now carry a `requestId`** ⚠️ — every `{ "title", "errors" }` error body (and the
+  `429` one) gains a third field, `"requestId"`, and **every** response (success or error, including
+  the empty-bodied `401`/`403`) carries the same value in an `X-Request-Id` header. It's the key to
+  the server-side logs, so show it (or put it in a "copy details" action) on unexpected-error
+  screens and include it when reporting a bug. Additive: clients that ignore unknown fields keep
+  working; strict/typed clients need the new field. See [Error format](#error-format).
+
 ## Base URL & running locally
 
 - All routes are prefixed with **`/api/v1`**.
@@ -184,8 +191,15 @@ array, capped by `?limit=` (default 20, same 1–50 clamp).
 Non-2xx responses are:
 
 ```json
-{ "title": "human-readable message", "errors": { "FieldName": ["message"] } | null }
+{ "title": "human-readable message", "errors": { "FieldName": ["message"] } | null, "requestId": "0HNP7OBIF010S:00000001" }
 ```
+
+`requestId` is an opaque id for the request (do not parse it); the exact same value is in the
+`X-Request-Id` response header of **every** response, which is the only place it appears when the
+body is empty (`401` from a missing/invalid token, `403`). The browser exposes that header to
+JavaScript (`Access-Control-Expose-Headers`). Sending your own `X-Request-Id` has no effect - the
+server always generates it. The server writes it on every log line of the request, so quoting it
+is enough to find what happened.
 
 `errors` is populated (grouped by field name) only for `400` validation failures; every other
 error status has `errors: null` and a single message in `title`.
