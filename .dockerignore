@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/logs/
+.git/
+.github/
+.vs/
+.claude/
+tests/
+docs/
+*.md
+docker-compose.yml
+**/appsettings.*.local.json
+**/.env*
