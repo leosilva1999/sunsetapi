@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Sunset.Application.Interfaces;
 using Sunset.Application.Interfaces.Repositories;
 using Sunset.Infrastructure.Email;
+using Sunset.Infrastructure.Health;
 using Sunset.Infrastructure.ExternalServices;
 using Sunset.Infrastructure.Persistence;
 using Sunset.Infrastructure.Persistence.Repositories;
@@ -22,6 +23,9 @@ public static class DependencyInjection
 
         services.AddDbContext<SunsetDbContext>(options =>
             options.UseNpgsql(connectionString));
+
+        services.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
 
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<GoogleAuthOptions>(configuration.GetSection(GoogleAuthOptions.SectionName));

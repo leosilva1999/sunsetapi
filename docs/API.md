@@ -235,6 +235,18 @@ Missing the role → `403`, not `401` (see [Error format](#error-format)).
 
 ---
 
+## Health
+
+Public, no auth, outside the `/api/v1` prefix. Meant for load balancers / uptime monitors.
+
+- `GET /health` — **liveness**: `200` as long as the process is up; touches no dependency.
+- `GET /health/ready` — **readiness**: also checks the database; `200` when healthy, `503` when the
+  database is unreachable. Note: with a serverless database (Neon) the first call after idle can take
+  a few seconds while it wakes up.
+
+Body (no error details are exposed): `{ "status": "Healthy|Unhealthy", "totalDurationMs": 12,
+"checks": [{ "name": "database", "status": "Healthy", "durationMs": 10 }] }`
+
 ## Auth
 
 ### `POST /auth/register`

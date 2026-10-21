@@ -51,6 +51,9 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 
 ## Endpoints (prefixo `/api/v1`)
 
+**Health** (público, fora do `/api/v1`)
+- `GET /health` (liveness), `GET /health/ready` (readiness: checa o banco; 503 se indisponível)
+
 **Auth**
 - `POST /auth/register`, `POST /auth/login`, `POST /auth/google`, `POST /auth/refresh`, `POST /auth/logout`
 - `POST /auth/forgot-password`, `POST /auth/reset-password` (recuperação de senha por e-mail, rate limited)
