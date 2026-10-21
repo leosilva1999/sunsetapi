@@ -136,7 +136,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 ## Stack
 
 - .NET 9 (net9.0 — apenas o SDK 9 está instalado neste ambiente; migrar para net8.0 LTS é uma troca de `TargetFramework` quando o SDK 8 estiver disponível)
-- Entity Framework Core + MySQL (Pomelo.EntityFrameworkCore.MySql)
+- Entity Framework Core + PostgreSQL (Npgsql.EntityFrameworkCore.PostgreSQL)
 - FluentValidation para os validators em `Application/Validators`
 - Serilog (`Serilog.AspNetCore`) para logs estruturados — console + arquivo `logs/sunset-.log` (rotação diária)
 - MailKit para envio de e-mail via SMTP (Mailpit em dev/testes)
@@ -154,8 +154,8 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - Testes (todos): `dotnet test`
 - Testes (um projeto): `dotnet test tests/Sunset.UnitTests`
 - Testes de integração: `dotnet test tests/Sunset.IntegrationTests` — **exige Docker Desktop rodando**
-  (sobe um MySQL 8 real via Testcontainers; necessário porque a busca de locations usa FULLTEXT do
-  MySQL, sem equivalente em InMemory/SQLite). Um único container é compartilhado por toda a suíte
+  (sobe um PostgreSQL 16 real via Testcontainers; necessário porque a busca de locations usa
+  `tsvector`/GIN e o "perto de mim" calcula Haversine no SQL, sem equivalente em InMemory/SQLite). Um único container é compartilhado por toda a suíte
   (`SunsetApiFactory` + `IntegrationTestCollection`); isolamento entre testes vem de dados com nomes
   únicos por teste, não de reset de banco.
 - Rodar a API: `dotnet run --project src/Sunset.API`

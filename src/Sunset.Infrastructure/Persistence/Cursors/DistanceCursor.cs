@@ -6,7 +6,7 @@ namespace Sunset.Infrastructure.Persistence.Cursors;
 internal static class DistanceCursor
 {
     // "R" round-trips the double exactly, so the next page's `distance > cursor` comparison sees the
-    // same value MySQL computed for the last row of the previous page.
+    // same value the database computed for the last row of the previous page.
     public static string Encode(double distanceKm, Guid id) =>
         Convert.ToBase64String(Encoding.UTF8.GetBytes($"{distanceKm.ToString("R", CultureInfo.InvariantCulture)}|{id}"));
 

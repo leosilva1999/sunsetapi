@@ -19,7 +19,7 @@ internal static class CreatedAtCursor
             if (parts.Length != 2)
                 return null;
 
-            var createdAt = DateTime.Parse(parts[0], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+            var createdAt = DateTime.Parse(parts[0], CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
             var id = Guid.Parse(parts[1]);
             return (createdAt, id);
         }

@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using NpgsqlTypes;
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Locations;
 using Sunset.Application.Interfaces.Repositories;
 using Sunset.Domain.Entities;
 using Sunset.Domain.Enums;
+using Sunset.Infrastructure.Persistence.Configurations;
 using Sunset.Infrastructure.Persistence.Cursors;
 
 namespace Sunset.Infrastructure.Persistence.Repositories;
@@ -21,14 +23,12 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
         {
             var term = query.Q.Trim();
 
-            // MySQL's default innodb_ft_min_token_size is 3, so FULLTEXT can't match anything
-            // shorter - fall back to LIKE for short terms. That's also exactly where a LIKE
-            // '%term%' scan is cheap (it only gets expensive once matches get more selective,
-            // which is the 3+ character case the FULLTEXT index exists for).
-            var booleanQuery = BuildBooleanModeQuery(term);
-            locations = booleanQuery is null
-                ? locations.Where(l => EF.Functions.Like(l.Name, $"%{term}%") || EF.Functions.Like(l.City, $"%{term}%"))
-                : locations.Where(l => EF.Functions.Match(new[] { l.Name, l.City }, booleanQuery, MySqlMatchSearchMode.Boolean) > 0);
+            // Terms under 3 characters aren't worth a full-text lookup (and would match nearly
+            // everything as a prefix) - fall back to a substring ILIKE, which is cheap there.
+            var tsQuery = BuildPrefixTsQuery(term);
+            locations = tsQuery is null
+                ? locations.Where(l => EF.Functions.ILike(l.Name, $"%{term}%") || EF.Functions.ILike(l.City, $"%{term}%"))
+                : locations.Where(l => EF.Property<NpgsqlTsVector>(l, LocationConfiguration.LocationSearchVector).Matches(EF.Functions.ToTsQuery("simple", tsQuery)));
         }
 
         if (query.IsNearby)
@@ -110,13 +110,12 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
             page.Select(x => new LocationWithDistance(x.Location, x.DistanceKm)).ToList(), nextCursor, hasMore);
     }
 
-    // Builds a MySQL boolean-mode fulltext search string (each word required, prefix-matched:
-    // "+word*"), or null when the term can't productively use the FULLTEXT index (too short, or
-    // made up entirely of words below MySQL's minimum indexed token length) - callers should fall
-    // back to a LIKE scan in that case. Strips boolean-mode operator characters (+-<>()~*"@) from
-    // each word since we're the ones adding the operators; letting user input through unescaped
-    // would let a search term change the query's meaning (e.g. a leading "-" excludes a term).
-    private static string? BuildBooleanModeQuery(string term)
+    // Builds a to_tsquery string (each word required, prefix-matched: "word:*" joined by "&"), or
+    // null when the term is too short to be worth a full-text lookup - callers should fall back to
+    // an ILIKE scan in that case. Keeps only letters/digits of each word since we're the ones adding
+    // the operators; letting user input through unescaped would let a search term change the
+    // query's meaning (and make to_tsquery throw a syntax error).
+    private static string? BuildPrefixTsQuery(string term)
     {
         if (term.Length < 3)
             return null;
@@ -125,10 +124,10 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Select(word => new string(word.Where(char.IsLetterOrDigit).ToArray()))
             .Where(word => word.Length >= 3)
-            .Select(word => $"+{word}*")
+            .Select(word => $"{word}:*")
             .ToList();
 
-        return words.Count == 0 ? null : string.Join(' ', words);
+        return words.Count == 0 ? null : string.Join(" & ", words);
     }
 
     public async Task AddAsync(Location location, CancellationToken cancellationToken = default)
@@ -143,7 +142,7 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
         {
             RankingPeriod.Week => DateTime.UtcNow.AddDays(-7),
             RankingPeriod.Month => DateTime.UtcNow.AddMonths(-1),
-            _ => DateTime.MinValue
+            _ => DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
 
         var ranked = await context.Ratings

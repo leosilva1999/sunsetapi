@@ -379,15 +379,16 @@ not wired up for this listing (only `/photos` feed and `/photos/{id}` resolve it
 Search/browse — safe to call on every keystroke for a live/instant-search box (still debounce on
 the frontend; see rate limit below regardless). All query params optional.
 
-- `q` search behavior **depends on term length**, because it's backed by a MySQL FULLTEXT index
-  (`Name`, `City`) which can't index anything below MySQL's default minimum token size:
-  - **≥3 characters**: FULLTEXT boolean-mode search, **per-word prefix match** — each word in `q`
+- `q` search behavior **depends on term length**, because the ≥3-character path is backed by a
+  PostgreSQL full-text index (`tsvector` + GIN over `Name`, `City`, `simple` config — no stemming):
+  - **≥3 characters**: full-text search, **per-word prefix match** — each word in `q`
     must match the *start* of a word in `Name` or `City`. `"jeric"` matches "**Jeric**oacoara";
     `"praia rosa"` matches "**Praia** do **Rosa**" (multi-word is AND, order-independent). ⚠️
     **This is not a substring match** — `"osa"` will *not* match "Rosa" (only a match starting
     with "osa" would), unlike a naive `LIKE '%osa%'`. Punctuation/symbols in `q` are stripped
     before searching (so `q` is safe to pass through as-is, no need to sanitize client-side).
-  - **<3 characters**: falls back to a plain `LIKE '%q%'` substring scan (real substring match,
+    Matching is case-insensitive but **accent-sensitive** (`"conceicao"` won't match "Conceição").
+  - **<3 characters**: falls back to a plain case-insensitive `ILIKE '%q%'` substring scan (real substring match,
     anywhere in the word) — short queries can't use the index either way, so there's no downside
     to substring semantics there, and it keeps single/double-letter input from returning nothing.
 - **"Near me" mode — `lat`+`lng` (+ optional `radius` in km):** `lat`/`lng` must be sent together

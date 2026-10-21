@@ -14,7 +14,7 @@ public interface IUserRepository
     // q opcional - sem ele, lista todo mundo mais recente primeiro (útil pra promover o
     // primeiro Admin/Moderator num ambiente sem um pra começar). Com q, casa contra
     // Name OU Email (LIKE '%q%', mesma semântica de substring do fallback <3 chars da
-    // busca de locations - não tem índice FULLTEXT aqui, a tabela de usuários não deve
+    // busca de locations - não tem índice de full-text aqui, a tabela de usuários não deve
     // crescer a ponto de precisar).
     Task<CursorPagedResult<User>> SearchAsync(string? query, string? cursor, int limit, CancellationToken cancellationToken = default);
 }

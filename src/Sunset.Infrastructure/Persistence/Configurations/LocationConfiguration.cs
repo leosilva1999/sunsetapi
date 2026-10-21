@@ -1,11 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using NpgsqlTypes;
 using Sunset.Domain.Entities;
 
 namespace Sunset.Infrastructure.Persistence.Configurations;
 
 public class LocationConfiguration : IEntityTypeConfiguration<Location>
 {
+    public const string LocationSearchVector = "SearchVector";
+
     public void Configure(EntityTypeBuilder<Location> builder)
     {
         builder.ToTable("locations");
@@ -38,8 +41,17 @@ public class LocationConfiguration : IEntityTypeConfiguration<Location>
         // Backs the bounding-box prefilter of the "near me" search.
         builder.HasIndex(l => new { l.Latitude, l.Longitude });
 
-        builder.HasIndex(l => new { l.Name, l.City })
-            .IsFullText();
+        // Backs the text search on Name/City: a generated tsvector column + GIN index
+        // (per-word prefix match, see LocationRepository). "simple" = no stemming/stop words,
+        // since names are proper nouns in mixed languages.
+        // Shadow property so the Domain entity stays free of Npgsql types.
+        builder.Property<NpgsqlTsVector>(LocationSearchVector)
+            .HasColumnType("tsvector")
+            .HasComputedColumnSql(
+                "to_tsvector('simple', coalesce(\"Name\", '') || ' ' || coalesce(\"City\", ''))", stored: true);
+
+        builder.HasIndex(LocationSearchVector)
+            .HasMethod("GIN");
 
         builder.HasMany(l => l.Photos)
             .WithOne(p => p.Location)

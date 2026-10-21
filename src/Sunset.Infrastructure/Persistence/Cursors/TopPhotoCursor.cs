@@ -20,7 +20,7 @@ internal static class TopPhotoCursor
                 return null;
 
             var likesCount = int.Parse(parts[0], CultureInfo.InvariantCulture);
-            var createdAt = DateTime.Parse(parts[1], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+            var createdAt = DateTime.Parse(parts[1], CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
             var id = Guid.Parse(parts[2]);
             return (likesCount, createdAt, id);
         }

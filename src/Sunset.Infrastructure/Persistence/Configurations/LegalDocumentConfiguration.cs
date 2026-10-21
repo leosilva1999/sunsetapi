@@ -14,7 +14,7 @@ public class LegalDocumentConfiguration : IEntityTypeConfiguration<LegalDocument
 
         builder.Property(t => t.Content)
             .IsRequired()
-            .HasColumnType("mediumtext");
+            .HasColumnType("text");
 
         builder.Property(t => t.CreatedAt)
             .IsRequired();

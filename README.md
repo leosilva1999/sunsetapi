@@ -8,13 +8,13 @@ conteúdo, termos de uso e política de privacidade versionados).
 ## Stack
 
 - **.NET 9** (ASP.NET Core Web API)
-- **Entity Framework Core** + **MySQL** (via [Pomelo.EntityFrameworkCore.MySql](https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql))
+- **Entity Framework Core** + **PostgreSQL** (via [Npgsql.EntityFrameworkCore.PostgreSQL](https://github.com/npgsql/efcore.pg))
 - **FluentValidation** para validação de requests
 - **JWT** (Bearer token) para autenticação
 - **S3** (ou compatível) para armazenamento de imagens, via upload direto com URL pré-assinada — emulado localmente com **LocalStack**
 - **MailKit** para envio de e-mail via SMTP (redefinição de senha) — emulado localmente com **Mailpit**
-- **xUnit** + **Moq** para testes unitários, **Testcontainers** para testes de integração contra um MySQL real
-- **Docker** (LocalStack + Mailpit em dev, MySQL descartável nos testes de integração)
+- **xUnit** + **Moq** para testes unitários, **Testcontainers** para testes de integração contra um PostgreSQL real
+- **Docker** (LocalStack + Mailpit em dev, PostgreSQL descartável nos testes de integração)
 
 ## Arquitetura
 
@@ -31,7 +31,7 @@ Sunset.sln
 │   └── Sunset.Infrastructure/       # EF Core, Repositories, Storage (S3), JWT
 └── tests/
     ├── Sunset.UnitTests/            # Services, com dependências mockadas (Moq)
-    └── Sunset.IntegrationTests/     # API + MySQL real via Testcontainers
+    └── Sunset.IntegrationTests/     # API + PostgreSQL real via Testcontainers
 ```
 
 Mais detalhes de convenções de código e decisões de design em [`CLAUDE.md`](CLAUDE.md).
@@ -55,11 +55,11 @@ Referência completa de endpoints, formatos de request/response e comportamentos
 ## Pré-requisitos
 
 - [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
-- MySQL 8 rodando localmente (ou acessível via connection string)
+- PostgreSQL 14+ rodando localmente (ou acessível via connection string, ex: Neon)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) — necessário para:
   - **LocalStack**, que emula o S3 em desenvolvimento (upload de fotos/avatares)
   - **Mailpit**, que captura os e-mails enviados em desenvolvimento (redefinição de senha) sem precisar de um servidor SMTP real
-  - **Testcontainers**, que sobe um MySQL descartável para os testes de integração
+  - **Testcontainers**, que sobe um PostgreSQL descartável para os testes de integração
 
 ## Como rodar localmente
 
@@ -70,13 +70,13 @@ Referência completa de endpoints, formatos de request/response e comportamentos
    dotnet restore
    ```
 
-2. Configure a connection string do MySQL e o segredo do JWT. `appsettings.Development.json`
-   já traz valores padrão (`Server=localhost;...;User=root;Password=root;`); se o seu MySQL
-   local usar outra senha, sobrescreva via `dotnet user-secrets` (não versionado) em vez de
-   editar o arquivo:
+2. Configure a connection string do PostgreSQL e o segredo do JWT. `appsettings.Development.json`
+   já traz valores padrão (`Host=localhost;...;Username=postgres;Password=postgres`); para outro
+   banco/senha (ex: Neon, que exige `SSL Mode=Require`), sobrescreva via `dotnet user-secrets` ou
+   `appsettings.Development.local.json` (ambos não versionados) em vez de editar o arquivo:
    ```bash
    cd src/Sunset.API
-   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost;Port=3306;Database=sunset;User=root;Password=<sua-senha>;"
+   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=sunset;Username=postgres;Password=<sua-senha>"
    ```
 
 3. Aplique as migrações do banco:
@@ -120,12 +120,13 @@ dotnet test
 # Só os unitários (rápidos, sem dependências externas)
 dotnet test tests/Sunset.UnitTests
 
-# Só os de integração (exige Docker Desktop rodando — sobe um MySQL real via Testcontainers)
+# Só os de integração (exige Docker Desktop rodando — sobe um PostgreSQL real via Testcontainers)
 dotnet test tests/Sunset.IntegrationTests
 ```
 
-Os testes de integração usam um MySQL real (não in-memory) porque a busca de locais depende de
-um índice FULLTEXT do MySQL, sem equivalente em bancos em memória.
+Os testes de integração usam um PostgreSQL real (não in-memory) porque a busca de locais depende de
+um índice GIN de full-text (`tsvector`) e o filtro "perto de mim" calcula Haversine no SQL — nada
+disso tem equivalente em bancos em memória.
 
 ## Comandos úteis
 
