@@ -10,4 +10,5 @@ public sealed record UserResponse(
     string? AvatarUrl,
     string? Bio,
     [property: JsonConverter(typeof(JsonStringEnumConverter))] UserRole Role,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    bool HasPassword = true);

@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Photos;
 using Sunset.Application.DTOs.Users;
@@ -15,6 +16,7 @@ public class UsersController(
     IUserService userService,
     IAvatarStorageService avatarStorageService,
     IValidator<UpdateProfileRequest> updateProfileValidator,
+    IValidator<ChangePasswordRequest> changePasswordValidator,
     IValidator<CreateAvatarUploadUrlRequest> createAvatarUploadUrlValidator,
     ICurrentUserService currentUserService) : ControllerBase
 {
@@ -93,6 +95,20 @@ public class UsersController(
 
         var response = await userService.UpdateProfileAsync(userId, request, cancellationToken);
         return Ok(response);
+    }
+
+    [Authorize]
+    [EnableRateLimiting("ChangePassword")]
+    [HttpPut("me/password")]
+    public async Task<IActionResult> ChangeMyPassword(ChangePasswordRequest request, CancellationToken cancellationToken)
+    {
+        await changePasswordValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedActionException("User is not authenticated.");
+
+        await userService.ChangePasswordAsync(userId, request, cancellationToken);
+        return NoContent();
     }
 
     [Authorize]

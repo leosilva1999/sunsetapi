@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Sunset.Application.Common;
 using Sunset.Application.DTOs.Auth;
 using Sunset.Application.DTOs.Users;
 using Sunset.Application.Exceptions;
@@ -57,7 +58,7 @@ public class AuthService(
         if (user is null)
         {
             var unusablePasswordHash = passwordHasher.Hash(Guid.NewGuid().ToString());
-            user = new User(googleUser.Name, googleUser.Email, unusablePasswordHash);
+            user = new User(googleUser.Name, googleUser.Email, unusablePasswordHash, hasPassword: false);
             await userRepository.AddAsync(user, cancellationToken);
         }
 
@@ -143,9 +144,5 @@ public class AuthService(
         return new AuthResponse(accessToken, refreshToken, accessTokenExpiresAt, user.ToResponse());
     }
 
-    private static string Hash(string value)
-    {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
-        return Convert.ToHexString(bytes);
-    }
+    private static string Hash(string value) => TokenHasher.Hash(value);
 }

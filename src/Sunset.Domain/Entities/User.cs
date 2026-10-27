@@ -7,6 +7,12 @@ public class User : BaseEntity
     public string Name { get; private set; } = null!;
     public string Email { get; private set; } = null!;
     public string PasswordHash { get; private set; } = null!;
+
+    // False for accounts created through Google sign-in: PasswordHash is still required by the
+    // entity, but holds a random hash nobody knows, so "change password" must not be offered
+    // (there is no current password to check). Flips to true once a password is set through
+    // the reset flow.
+    public bool HasPassword { get; private set; } = true;
     public string? AvatarUrl { get; private set; }
     public string? Bio { get; private set; }
     public UserRole Role { get; private set; } = UserRole.User;
@@ -21,7 +27,7 @@ public class User : BaseEntity
 
     private User() { }
 
-    public User(string name, string email, string passwordHash, string? avatarUrl = null)
+    public User(string name, string email, string passwordHash, string? avatarUrl = null, bool hasPassword = true)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Name is required.", nameof(name));
@@ -33,6 +39,7 @@ public class User : BaseEntity
         Name = name;
         Email = email;
         PasswordHash = passwordHash;
+        HasPassword = hasPassword;
         AvatarUrl = avatarUrl;
     }
 
@@ -58,6 +65,7 @@ public class User : BaseEntity
         Name = "Usuário excluído";
         Email = placeholderEmail;
         PasswordHash = unusablePasswordHash;
+        HasPassword = false;
         AvatarUrl = null;
         Bio = null;
     }
@@ -70,6 +78,7 @@ public class User : BaseEntity
             throw new ArgumentException("PasswordHash is required.", nameof(newPasswordHash));
 
         PasswordHash = newPasswordHash;
+        HasPassword = true;
     }
 
     public void IncrementFollowersCount() => FollowersCount++;

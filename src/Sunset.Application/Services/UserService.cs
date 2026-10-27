@@ -1,3 +1,5 @@
+using FluentValidation;
+using FluentValidation.Results;
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Photos;
 using Sunset.Application.DTOs.Users;
@@ -15,7 +17,8 @@ public class UserService(
     IRefreshTokenRepository refreshTokenRepository,
     IFollowRepository followRepository,
     INotificationRepository notificationRepository,
-    IPasswordHasher passwordHasher) : IUserService
+    IPasswordHasher passwordHasher,
+    IEmailSender emailSender) : IUserService
 {
     public async Task<PublicUserResponse> GetByIdAsync(Guid id, Guid? currentUserId, CancellationToken cancellationToken = default)
     {
@@ -50,6 +53,58 @@ public class UserService(
         var items = page.Items.Select(p => p.ToResponse()).ToList();
 
         return new CursorPagedResult<PhotoResponse>(items, page.NextCursor, page.HasMore);
+    }
+
+    public async Task ChangePasswordAsync(Guid userId, ChangePasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await userRepository.GetByIdAsync(userId, cancellationToken)
+            ?? throw new NotFoundException("User not found.");
+
+        if (!user.HasPassword)
+            throw new ConflictException("This account has no password (it signs in with Google). Use \"forgot password\" to set one.");
+
+        // Validation errors (400), not 401: a wrong current password is a form mistake, and a 401
+        // would make clients treat it as an expired session and try to refresh/sign out.
+        if (!passwordHasher.Verify(request.CurrentPassword, user.PasswordHash))
+            throw new ValidationException([new ValidationFailure(nameof(request.CurrentPassword), "Current password is incorrect.")]);
+
+        if (passwordHasher.Verify(request.NewPassword, user.PasswordHash))
+            throw new ValidationException([new ValidationFailure(nameof(request.NewPassword), "New password must be different from the current password.")]);
+
+        user.ChangePassword(passwordHasher.Hash(request.NewPassword));
+        await userRepository.SaveChangesAsync(cancellationToken);
+
+        // Signs out every other device. The caller's own session survives only if they sent a
+        // refresh token that is theirs and still active; otherwise everything is revoked.
+        var keepTokenHash = await GetOwnActiveTokenHashAsync(userId, request.RefreshToken, cancellationToken);
+        if (keepTokenHash is null)
+            await refreshTokenRepository.RevokeAllForUserAsync(userId, cancellationToken);
+        else
+            await refreshTokenRepository.RevokeAllForUserExceptAsync(userId, keepTokenHash, cancellationToken);
+
+        // The password is already changed at this point: an SMTP outage must not turn that into
+        // an error response (the failure is logged by the sender itself).
+        try
+        {
+            await emailSender.SendAsync(user.Email, "Sua senha foi alterada - Sunsetsss", $"""
+                <p>Olá, {user.Name}!</p>
+                <p>A senha da sua conta no Sunsetsss foi alterada e os outros dispositivos foram desconectados.</p>
+                <p>Se não foi você, redefina sua senha imediatamente pela opção "Esqueci minha senha" na tela de login.</p>
+                """, cancellationToken);
+        }
+        catch (ExternalServiceException)
+        {
+        }
+    }
+
+    private async Task<string?> GetOwnActiveTokenHashAsync(Guid userId, string? refreshToken, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+            return null;
+
+        var tokenHash = TokenHasher.Hash(refreshToken);
+        var stored = await refreshTokenRepository.GetByTokenHashAsync(tokenHash, cancellationToken);
+        return stored is { IsActive: true } && stored.UserId == userId ? tokenHash : null;
     }
 
     public async Task DeleteAccountAsync(Guid userId, CancellationToken cancellationToken = default)

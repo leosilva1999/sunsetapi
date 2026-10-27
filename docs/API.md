@@ -12,6 +12,9 @@ paraphrased.
 New since this doc was first handed over — if you already built against the earlier contract,
 these are the diffs to check:
 
+- **New `PUT /users/me/password`** (change password) and **`UserResponse.hasPassword`** (`boolean`) —
+  see [Users](#users). `hasPassword` is `false` for accounts created through Google sign-in: hide
+  the "Change password" entry for them.
 - **`UserResponse.bio`** (`string | null`, ≤160 chars) — see [Users](#users).
 - **`PATCH /users/me` is now a true partial update** (JSON Merge Patch semantics: omitted field =
   unchanged, `null` = clear, value = replace) — it used to require re-sending all three fields.
@@ -272,7 +275,7 @@ Register, login and google return:
   "accessToken": "eyJ...",
   "refreshToken": "NeX9jEIO...",
   "expiresAt": "2026-09-04T18:23:24.59Z",
-  "user": { "id": "guid", "name": "string", "email": "string", "avatarUrl": "string|null", "bio": "string|null", "role": "User", "createdAt": "date" }
+  "user": { "id": "guid", "name": "string", "email": "string", "avatarUrl": "string|null", "bio": "string|null", "role": "User", "createdAt": "date", "hasPassword": true }
 }
 ```
 
@@ -355,6 +358,32 @@ into our own storage bucket** (i.e. start with the same base URL `POST
 set `avatarUrl` is: call `POST /users/me/avatar-upload-url`, `PUT` the image there, then send the
 `avatarUrl` you got back here verbatim · `bio`, if present and non-null, ≤160 chars.
 → updated `UserResponse`.
+
+### 🔒 `PUT /users/me/password`
+Changes the **authenticated** user's own password. Body:
+`{ "currentPassword": string, "newPassword": string, "refreshToken"?: string }` → `204`.
+
+- `newPassword` must be ≥8 characters (same rule as register/reset) and different from the
+  current one.
+- **Sessions:** every refresh token of the user is revoked **except** the one sent in
+  `refreshToken` (send the caller's current one so this device stays signed in). If it is
+  omitted — or isn't an active token of this user — **all** sessions are revoked, this device's
+  included, and the app must send the user back to the login screen. Already-issued access
+  tokens stay valid until they expire (≤15 min).
+- A notice email ("sua senha foi alterada") goes to the account address; a failure to send it
+  does not fail the request.
+- Errors (all with the usual `{ title, errors, requestId }` body):
+  - `400` with `errors.CurrentPassword` — the current password is wrong. ⚠️ This is a `400`, not
+    a `401`, on purpose: don't treat it as an expired session (no refresh/sign-out) — show it
+    inline on the field.
+  - `400` with `errors.NewPassword` — too short, or equal to the current password.
+  - `409` — the account has no password (`hasPassword: false`, i.e. Google sign-in). They can
+    set one through `POST /auth/forgot-password`, after which `hasPassword` becomes `true`.
+  - `401` — missing/invalid access token · `429` — rate limited (5 attempts per 15 min per IP).
+
+**UI suggestion:** put "Alterar senha" in the profile screen's kebab (⋮) menu rather than in the
+edit-profile form — it opens a small modal/screen with current / new / confirm fields (the
+confirmation field is client-side only). Hide the entry when `user.hasPassword` is `false`.
 
 ### 🔒 `POST /users/me/avatar-upload-url`
 Same pre-signed-upload pattern as `POST /photos/upload-url` (see [Photos](#photos)), just for

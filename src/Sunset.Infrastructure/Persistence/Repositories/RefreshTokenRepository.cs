@@ -29,6 +29,18 @@ public class RefreshTokenRepository(SunsetDbContext context) : IRefreshTokenRepo
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task RevokeAllForUserExceptAsync(Guid userId, string keepTokenHash, CancellationToken cancellationToken = default)
+    {
+        var activeTokens = await context.RefreshTokens
+            .Where(rt => rt.UserId == userId && rt.RevokedAt == null && rt.TokenHash != keepTokenHash)
+            .ToListAsync(cancellationToken);
+
+        foreach (var token in activeTokens)
+            token.Revoke();
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
     public Task SaveChangesAsync(CancellationToken cancellationToken = default) =>
         context.SaveChangesAsync(cancellationToken);
 }

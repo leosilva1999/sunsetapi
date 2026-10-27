@@ -1,3 +1,4 @@
+using FluentValidation;
 using Moq;
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Users;
@@ -18,6 +19,7 @@ public class UserServiceTests
     private readonly Mock<IFollowRepository> _followRepository = new();
     private readonly Mock<INotificationRepository> _notificationRepository = new();
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
+    private readonly Mock<IEmailSender> _emailSender = new();
     private readonly UserService _sut;
 
     public UserServiceTests()
@@ -29,7 +31,8 @@ public class UserServiceTests
             _refreshTokenRepository.Object,
             _followRepository.Object,
             _notificationRepository.Object,
-            _passwordHasher.Object);
+            _passwordHasher.Object,
+            _emailSender.Object);
     }
 
     [Fact]
@@ -152,6 +155,127 @@ public class UserServiceTests
         Assert.Single(page.Items);
         Assert.Equal(photo.Id, page.Items[0].Id);
         Assert.False(page.HasMore);
+    }
+
+    private User UserWithPassword()
+    {
+        var user = new User("Ana", "ana@sunset.com", "old-hash");
+        _userRepository.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+        _passwordHasher.Setup(h => h.Verify("old-password", "old-hash")).Returns(true);
+        return user;
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_WithWrongCurrentPassword_ThrowsValidationErrorOnCurrentPassword()
+    {
+        var user = UserWithPassword();
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            _sut.ChangePasswordAsync(user.Id, new ChangePasswordRequest("not-it", "new-password")));
+
+        Assert.Equal("CurrentPassword", Assert.Single(exception.Errors).PropertyName);
+        Assert.Equal("old-hash", user.PasswordHash);
+        _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Never);
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(It.IsAny<Guid>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_WithNewPasswordEqualToCurrent_ThrowsValidationErrorOnNewPassword()
+    {
+        var user = UserWithPassword();
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            _sut.ChangePasswordAsync(user.Id, new ChangePasswordRequest("old-password", "old-password")));
+
+        Assert.Equal("NewPassword", Assert.Single(exception.Errors).PropertyName);
+        _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Never);
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_WithAccountThatHasNoPassword_ThrowsConflictException()
+    {
+        var user = new User("Ana", "ana@sunset.com", "random-hash", hasPassword: false);
+        _userRepository.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            _sut.ChangePasswordAsync(user.Id, new ChangePasswordRequest("anything", "new-password")));
+
+        Assert.False(user.HasPassword);
+        _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Never);
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_WithUnknownUser_ThrowsNotFoundException()
+    {
+        _userRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((User?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _sut.ChangePasswordAsync(Guid.NewGuid(), new ChangePasswordRequest("old-password", "new-password")));
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_WithOwnRefreshToken_KeepsThatSessionAndRevokesTheOthers()
+    {
+        var user = UserWithPassword();
+        var keepHash = TokenHasher.Hash("current-refresh-token");
+        _refreshTokenRepository.Setup(r => r.GetByTokenHashAsync(keepHash, default))
+            .ReturnsAsync(new RefreshToken(user.Id, keepHash, DateTime.UtcNow.AddDays(1)));
+
+        await _sut.ChangePasswordAsync(user.Id, new ChangePasswordRequest("old-password", "new-password", "current-refresh-token"));
+
+        Assert.Equal("hashed", user.PasswordHash);
+        _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserExceptAsync(user.Id, keepHash, default), Times.Once);
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(It.IsAny<Guid>(), default), Times.Never);
+        _emailSender.Verify(e => e.SendAsync("ana@sunset.com", It.IsAny<string>(), It.IsAny<string>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_WithoutRefreshToken_RevokesEverySession()
+    {
+        var user = UserWithPassword();
+
+        await _sut.ChangePasswordAsync(user.Id, new ChangePasswordRequest("old-password", "new-password"));
+
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(user.Id, default), Times.Once);
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserExceptAsync(It.IsAny<Guid>(), It.IsAny<string>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_WithAnotherUsersRefreshToken_DoesNotKeepIt()
+    {
+        var user = UserWithPassword();
+        var othersHash = TokenHasher.Hash("someone-elses-token");
+        _refreshTokenRepository.Setup(r => r.GetByTokenHashAsync(othersHash, default))
+            .ReturnsAsync(new RefreshToken(Guid.NewGuid(), othersHash, DateTime.UtcNow.AddDays(1)));
+
+        await _sut.ChangePasswordAsync(user.Id, new ChangePasswordRequest("old-password", "new-password", "someone-elses-token"));
+
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(user.Id, default), Times.Once);
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserExceptAsync(It.IsAny<Guid>(), It.IsAny<string>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_WhenEmailSendingFails_StillSucceeds()
+    {
+        var user = UserWithPassword();
+        _emailSender.Setup(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), default))
+            .ThrowsAsync(new ExternalServiceException("smtp down"));
+
+        await _sut.ChangePasswordAsync(user.Id, new ChangePasswordRequest("old-password", "new-password"));
+
+        Assert.Equal("hashed", user.PasswordHash);
+        _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
+    }
+
+    [Fact]
+    public void User_ChangePassword_OnAccountWithoutPassword_SetsHasPassword()
+    {
+        var user = new User("Ana", "ana@sunset.com", "random-hash", hasPassword: false);
+
+        user.ChangePassword("real-hash");
+
+        Assert.True(user.HasPassword);
     }
 
     [Fact]

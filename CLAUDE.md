@@ -60,6 +60,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 
 **Users**
 - `GET /users/:id`, `PATCH /users/me` (auth), `GET /users/:id/photos`
+- `PUT /users/me/password` (auth — troca de senha; revoga os outros dispositivos, rate limited)
 - `POST /users/:id/follow` / `DELETE /users/:id/follow` (auth), `GET /users/:id/followers`, `GET /users/:id/following`
 
 **Notifications** (auth, sempre "minhas")
@@ -128,6 +129,12 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   (ex: `AuthService`), a interface só transporta `to/subject/htmlBody`. Em dev/testes, roda contra
   o Mailpit (Docker, sem credencial) em vez de um SMTP real — ver `docker-compose.yml` e
   `FakeEmailSender` nos testes de integração.
+- **Troca de senha (logado)**: `PUT /users/me/password` exige a senha atual e responde senha errada com
+  **400** (`errors.CurrentPassword`), nunca 401 — um 401 faria o cliente achar que a sessão expirou. Revoga
+  todos os refresh tokens menos o enviado em `refreshToken` (se válido e do próprio usuário). `User.HasPassword`
+  é `false` nas contas criadas pelo Google (o hash é aleatório e desconhecido): a troca devolve 409 e o
+  `hasPassword` do `UserResponse` deixa o frontend esconder a opção; passa a `true` quando a senha é definida
+  pelo fluxo de redefinição. O e-mail de aviso não derruba a operação se o SMTP falhar.
 - **Redefinição de senha**: mesmo padrão de `RefreshToken` (token opaco, hash SHA-256 salvo,
   nunca o token puro). `forgot-password` sempre retorna 204 mesmo pra e-mail inexistente (evita
   enumeração de contas). `reset-password` revoga todos os refresh tokens do usuário ao suceder.

@@ -107,11 +107,15 @@ const string ReportsRateLimitPolicy = "Reports";
 // (even for unknown addresses, since the endpoint always returns 204) - without this, the
 // endpoint itself would be a free tool for spamming/harassing an arbitrary email address.
 const string PasswordResetRateLimitPolicy = "PasswordReset";
+// "ChangePassword" policy: the endpoint verifies the current password, so without a cap a stolen
+// access token could be used to brute-force it.
+const string ChangePasswordRateLimitPolicy = "ChangePassword";
 var rateLimitTitlesByPolicy = new Dictionary<string, string>
 {
     [SearchRateLimitPolicy] = "Too many search requests. Please slow down.",
     [ReportsRateLimitPolicy] = "Too many reports. Please slow down.",
     [PasswordResetRateLimitPolicy] = "Too many password reset requests. Please slow down.",
+    [ChangePasswordRateLimitPolicy] = "Too many password change attempts. Please try again later.",
 };
 builder.Services.AddRateLimiter(options =>
 {
@@ -144,6 +148,17 @@ builder.Services.AddRateLimiter(options =>
         factory: _ => new SlidingWindowRateLimiterOptions
         {
             PermitLimit = passwordResetPermitLimit,
+            Window = TimeSpan.FromMinutes(15),
+            SegmentsPerWindow = 3,
+            QueueLimit = 0,
+        }));
+
+    var changePasswordPermitLimit = builder.Environment.IsEnvironment("Testing") ? int.MaxValue : 5;
+    options.AddPolicy(ChangePasswordRateLimitPolicy, httpContext => RateLimitPartition.GetSlidingWindowLimiter(
+        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = changePasswordPermitLimit,
             Window = TimeSpan.FromMinutes(15),
             SegmentsPerWindow = 3,
             QueueLimit = 0,
