@@ -1,0 +1,43 @@
+# Production deployment on a single VPS (the dev docker-compose.yml is for local LocalStack/Mailpit only).
+#
+#   cp .env.production.example .env.production   # fill in the values, never commit it
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# The database (Neon/PostgreSQL), photo storage (S3/R2) and SMTP are external services, so this
+# stack holds no state: nothing here needs a volume or a backup. Migrations are NOT applied on
+# startup - run `dotnet ef database update` against the production database before deploying.
+services:
+  api:
+    build: .
+    image: sunsetapi:prod
+    container_name: sunset-api
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      PORT: "8080"
+    ports:
+      # Bound to localhost: put a reverse proxy (Caddy/nginx) with TLS in front of it.
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      # The aspnet image has no curl/wget; bash's /dev/tcp is enough to hit the liveness route.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health HTTP/1.0\r\n\r\n' >&3 && head -n1 <&3 | grep -q ' 200 '"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # json-file keeps container stdout forever by default, which is the classic way a VPS disk
+    # fills up. Cap it: at most 3 x 10 MB.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Serilog also writes ./logs (capped at 10 x 20 MB); keep it off the image layer so a
+    # recreate starts clean, and bound it so it can never exceed the limit below.
+    tmpfs:
+      - /app/logs:size=256m,uid=1654,gid=1654
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    read_only: true

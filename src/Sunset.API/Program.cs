@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using Serilog.Events;
 using Sunset.API.Health;
 using Sunset.API.Middlewares;
 using Sunset.API.OpenApi;
@@ -213,6 +214,14 @@ app.UseSerilogRequestLogging(options =>
         if (httpContext.User.FindFirst("sub")?.Value is { } userId)
             diagnosticContext.Set("UserId", userId);
     };
+
+    // Uptime/orchestrator probes hit /health every few seconds; logging each one would bury the
+    // real traffic and grow the log for nothing. They drop to Verbose (below the Information
+    // minimum) unless they actually fail.
+    options.GetLevel = (httpContext, _, exception) =>
+        exception is not null || httpContext.Response.StatusCode >= 500 ? LogEventLevel.Error
+        : httpContext.Request.Path.StartsWithSegments("/health") ? LogEventLevel.Verbose
+        : LogEventLevel.Information;
 });
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
