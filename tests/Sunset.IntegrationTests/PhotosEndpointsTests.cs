@@ -66,7 +66,7 @@ public class PhotosEndpointsTests(SunsetApiFactory factory) : IntegrationTestBas
 
         var response = await client.PostAsJsonAsync(
             "/api/v1/photos",
-            new CreatePhotoRequest(Guid.NewGuid(), "https://example.com/photo.jpg", null));
+            new CreatePhotoRequest(Guid.NewGuid(), "http://localhost:4566/sunset-photos-test/photos/u/photo.jpg", null));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }

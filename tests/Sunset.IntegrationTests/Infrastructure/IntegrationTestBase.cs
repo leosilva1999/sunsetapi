@@ -45,7 +45,7 @@ public abstract class IntegrationTestBase(SunsetApiFactory factory)
 
     protected static async Task<PhotoResponse> CreatePhotoAsync(HttpClient authenticatedClient, Guid locationId, string? caption = null)
     {
-        var request = new CreatePhotoRequest(locationId, $"https://sunset-photos-test.s3.amazonaws.com/{Guid.NewGuid():N}.jpg", caption);
+        var request = new CreatePhotoRequest(locationId, $"http://localhost:4566/sunset-photos-test/photos/{Guid.NewGuid():N}/{Guid.NewGuid():N}.jpg", caption);
         var response = await authenticatedClient.PostAsJsonAsync("/api/v1/photos", request);
         response.EnsureSuccessStatusCode();
 

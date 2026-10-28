@@ -16,4 +16,10 @@ public class S3PhotoStorageService(IAmazonS3 s3Client, IOptions<StorageOptions> 
 
         return new PhotoUploadUrlResponse(uploadUrl, imageUrl);
     }
+
+    public bool IsValidPhotoUrl(string url)
+    {
+        var prefix = $"{options.Value.PublicBaseUrl.TrimEnd('/')}/photos/";
+        return url.StartsWith(prefix, StringComparison.Ordinal);
+    }
 }
