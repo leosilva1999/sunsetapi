@@ -23,7 +23,7 @@ public class SmtpEmailSender(IOptions<SmtpOptions> options, ILogger<SmtpEmailSen
         try
         {
             using var client = new SmtpClient();
-            await client.ConnectAsync(smtp.Host, smtp.Port, smtp.UseStartTls ? SecureSocketOptions.StartTls : SecureSocketOptions.None, cancellationToken);
+            await client.ConnectAsync(smtp.Host, smtp.Port, GetSecureSocketOptions(smtp), cancellationToken);
 
             // Mailpit (dev) accepts unauthenticated connections - only authenticate when
             // credentials are actually configured, same guard S3's client creation uses for
@@ -42,4 +42,12 @@ public class SmtpEmailSender(IOptions<SmtpOptions> options, ILogger<SmtpEmailSen
             throw new ExternalServiceException($"Failed to send email via SMTP: {ex.Message}", ex);
         }
     }
+
+    // Port 465 is "implicit TLS" (SMTPS: TLS from the first byte, e.g. Hostinger) - STARTTLS
+    // there hangs waiting for a plain-text greeting that never comes. Every other port keeps
+    // the UseStartTls switch (587 = STARTTLS, Mailpit in dev = none).
+    internal static SecureSocketOptions GetSecureSocketOptions(SmtpOptions smtp) =>
+        smtp.Port == 465 ? SecureSocketOptions.SslOnConnect
+        : smtp.UseStartTls ? SecureSocketOptions.StartTls
+        : SecureSocketOptions.None;
 }
