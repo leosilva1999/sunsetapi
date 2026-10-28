@@ -2,6 +2,7 @@ using Amazon.S3;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Sunset.Application.Interfaces;
 using Sunset.Application.Interfaces.Repositories;
 using Sunset.Infrastructure.Email;
@@ -30,6 +31,7 @@ public static class DependencyInjection
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<GoogleAuthOptions>(configuration.GetSection(GoogleAuthOptions.SectionName));
         services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.SectionName));
+        services.Configure<HostingerMailOptions>(configuration.GetSection(HostingerMailOptions.SectionName));
         services.Configure<FrontendOptions>(configuration.GetSection(FrontendOptions.SectionName));
 
         services.AddHttpContextAccessor();
@@ -50,7 +52,21 @@ public static class DependencyInjection
         services.AddScoped<IGoogleIdTokenVerifier, GoogleIdTokenVerifier>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IFrontendUrlProvider, FrontendUrlProvider>();
-        services.AddScoped<IEmailSender, SmtpEmailSender>();
+
+        // Email:Provider = Smtp (default; Mailpit in dev) | HostingerApi (HTTPS, for hosts that block SMTP ports)
+        if (string.Equals(configuration["Email:Provider"], "HostingerApi", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddHttpClient<IEmailSender, HostingerMailApiEmailSender>((sp, client) =>
+            {
+                client.BaseAddress = new Uri(sp.GetRequiredService<IOptions<HostingerMailOptions>>().Value.BaseUrl);
+                client.Timeout = TimeSpan.FromSeconds(15);
+            });
+        }
+        else
+        {
+            services.AddScoped<IEmailSender, SmtpEmailSender>();
+        }
+
 
         services.AddHttpClient<ISunsetTimeService, SunsetTimeService>(client =>
         {
