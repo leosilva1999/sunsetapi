@@ -135,6 +135,12 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   é `false` nas contas criadas pelo Google (o hash é aleatório e desconhecido): a troca devolve 409 e o
   `hasPassword` do `UserResponse` deixa o frontend esconder a opção; passa a `true` quando a senha é definida
   pelo fluxo de redefinição. O e-mail de aviso não derruba a operação se o SMTP falhar.
+- **Validação de configuração no startup**: `StartupConfigurationValidator` (chamado no início do `Program.cs`)
+  derruba o boot com **uma** mensagem listando tudo que está errado, em vez de virar 500 opaco depois. Em
+  todos os ambientes: `Jwt:Secret` precisa ser Base64 e ter ≥32 bytes. Só em `Production`: connection string,
+  `Frontend:BaseUrl`, `Storage:*` (com chaves AWS quando não há `ServiceUrl`/LocalStack) e o provedor de
+  e-mail escolhido (`Email:Provider` = `HostingerApi` exige `Hostinger:Mail:ApiKey`/`MailboxResourceId`;
+  senão exige `Smtp:Host`/`FromAddress`). Variável nova obrigatória em produção entra aqui.
 - **Redefinição de senha**: mesmo padrão de `RefreshToken` (token opaco, hash SHA-256 salvo,
   nunca o token puro). `forgot-password` sempre retorna 204 mesmo pra e-mail inexistente (evita
   enumeração de contas). `reset-password` revoga todos os refresh tokens do usuário ao suceder.

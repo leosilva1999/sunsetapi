@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Events;
+using Sunset.API;
 using Sunset.API.Health;
 using Sunset.API.Middlewares;
 using Sunset.API.OpenApi;
@@ -52,13 +53,12 @@ builder.Services.AddOpenApi(options =>
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
 });
 
-var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
-    ?? throw new InvalidOperationException("Jwt configuration section not found.");
+// Fails fast with every misconfiguration listed at once (JWT secret size, storage keys, email
+// provider...) - see StartupConfigurationValidator. In Development the JWT secret comes from
+// appsettings.Development.json; elsewhere via user-secrets or the Jwt__Secret environment variable.
+StartupConfigurationValidator.ValidateOrThrow(builder.Configuration, builder.Environment.IsProduction());
 
-if (string.IsNullOrWhiteSpace(jwtOptions.Secret))
-    throw new InvalidOperationException(
-        "Jwt:Secret is not configured. In Development it comes from appsettings.Development.json; " +
-        "in other environments, set it via 'dotnet user-secrets set \"Jwt:Secret\" \"<value>\"' or the Jwt__Secret environment variable.");
+var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()!;
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
