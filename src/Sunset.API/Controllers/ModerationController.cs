@@ -21,6 +21,7 @@ public class ModerationController(
     IValidator<BanUserRequest> banUserValidator,
     IValidator<AnonymizeUserRequest> anonymizeUserValidator,
     IValidator<UpdateLocationCoordinatesRequest> updateCoordinatesValidator,
+    IValidator<MergeLocationsRequest> mergeLocationsValidator,
     ICurrentUserService currentUserService) : ControllerBase
 {
     [HttpGet("reports")]
@@ -72,6 +73,14 @@ public class ModerationController(
     {
         var locations = await moderationService.GetDeletedLocationsAsync(Math.Clamp(limit, 1, 100), cancellationToken);
         return Ok(locations);
+    }
+
+    [HttpPost("locations/{id:guid}/merge")]
+    public async Task<ActionResult<LocationResponse>> MergeLocations(Guid id, MergeLocationsRequest request, CancellationToken cancellationToken)
+    {
+        await mergeLocationsValidator.ValidateAndThrowAsync(request, cancellationToken);
+        var response = await moderationService.MergeLocationsAsync(RequireUserId(), id, request, cancellationToken);
+        return Ok(response);
     }
 
     [HttpPatch("locations/{id:guid}/coordinates")]

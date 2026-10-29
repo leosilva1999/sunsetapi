@@ -87,6 +87,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 
 **Moderation** (moderador/admin)
 - `DELETE /moderation/locations/:id` (soft delete + esconde as fotos), `POST .../restore`, `GET /moderation/locations/deleted`, `PATCH /moderation/locations/:id/coordinates` (moderador/admin)
+- `POST /moderation/locations/:id/merge` (mescla duplicata no local `targetId`: move fotos e avaliações, apaga a duplicata)
 - `POST /locations/:id/reports`, `POST /users/:id/reports` (auth, rate limited — denúncia de local e de usuário; motivo `IncorrectInfo` p/ dados errados)
 - `POST /moderation/users/:id/anonymize` (admin only — apaga os dados da conta; `hideContent` esconde fotos e comentários)
 - `POST /moderation/users/:id/ban` / `DELETE /moderation/users/:id/ban` (banir/desbanir; moderador só bane `User`, admin bane também moderador)
@@ -152,6 +153,11 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   removida. Curtidas/comentários/avaliações não são tocados. `PATCH /moderation/locations/:id/coordinates`
   corrige o pino (auditado com valor antigo → novo); o botão "editar localização" no mapa é do frontend,
   só para `Moderator`/`Admin`.
+- **Mesclar locais**: `POST /moderation/locations/:id/merge` `{ targetId }` — a URL é a duplicata. Fotos (inclusive
+  as já escondidas) vão para o alvo por `UPDATE` em lote; avaliações também, **exceto** as de quem já avaliou
+  o alvo (par `(user, location)` é único: vale a do alvo, a outra fica no local removido); `AvgRating` do alvo é
+  recalculado. A duplicata sofre soft delete **por último** (um erro no meio pode ser repetido: os passos
+  anteriores viram no-op). Restaurar a duplicata depois devolve um local vazio — não desfaz a mescla.
 - **Denúncias de local e usuário**: `Report.TargetType` ganha `Location` e `User` (mesma tabela e fila
   `GET /moderation/reports`; `TargetId` segue sem FK). Alvo inexistente/apagado/anonimizado → 404; denunciar a
   si mesmo → 409. Resolver a denúncia **não age sobre o alvo**: o moderador usa banir/anonimizar/apagar local

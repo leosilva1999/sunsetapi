@@ -162,6 +162,36 @@ public class ModerationService(
             .ToList();
     }
 
+    public async Task<LocationResponse> MergeLocationsAsync(Guid moderatorId, Guid sourceLocationId, MergeLocationsRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request.TargetId == sourceLocationId)
+            throw new ConflictException("A location cannot be merged into itself.");
+
+        // The soft-delete filter makes an already-deleted location a 404 on either side.
+        var source = await locationRepository.GetByIdAsync(sourceLocationId, cancellationToken)
+            ?? throw new NotFoundException("Location not found.");
+        var target = await locationRepository.GetByIdAsync(request.TargetId, cancellationToken)
+            ?? throw new NotFoundException("Target location not found.");
+
+        // Ordered so that a failure half-way can simply be retried: the source is only removed
+        // at the very end, and each earlier step is a no-op the second time around.
+        var photosMoved = await photoRepository.MoveAllToLocationAsync(sourceLocationId, target.Id, cancellationToken);
+        var ratingsMoved = await locationRepository.MoveRatingsAsync(sourceLocationId, target.Id, cancellationToken);
+
+        target.RecalculateAvgRating(await locationRepository.GetAverageRatingAsync(target.Id, cancellationToken));
+
+        var now = DateTime.UtcNow;
+        source.SoftDelete(moderatorId, new DateTime(now.Ticks - now.Ticks % 10, DateTimeKind.Utc));
+        await locationRepository.SaveChangesAsync(cancellationToken);
+
+        await moderationActionRepository.AddAsync(
+            new ModerationAction(moderatorId, ModerationActionType.LocationMerged, $"Location:{sourceLocationId}",
+                $"{source.Name} ({source.City}) merged into {target.Name} ({target.City}) [{target.Id}]; {photosMoved} photo(s) and {ratingsMoved} rating(s) moved"),
+            cancellationToken);
+
+        return target.ToResponse();
+    }
+
     public async Task<LocationResponse> UpdateLocationCoordinatesAsync(Guid moderatorId, Guid locationId, UpdateLocationCoordinatesRequest request, CancellationToken cancellationToken = default)
     {
         var location = await locationRepository.GetByIdAsync(locationId, cancellationToken)

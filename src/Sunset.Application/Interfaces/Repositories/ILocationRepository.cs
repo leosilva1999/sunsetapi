@@ -13,6 +13,10 @@ public interface ILocationRepository
     Task<Location?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Location>> GetDeletedAsync(int limit, CancellationToken cancellationToken = default);
 
+    // Moves the source's ratings to the target, skipping users who already rated the target (the
+    // (user, location) pair is unique) - those stay on the source. Returns how many moved.
+    Task<int> MoveRatingsAsync(Guid sourceLocationId, Guid targetLocationId, CancellationToken cancellationToken = default);
+
     Task<CursorPagedResult<LocationWithDistance>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default);
     Task AddAsync(Location location, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Location>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default);

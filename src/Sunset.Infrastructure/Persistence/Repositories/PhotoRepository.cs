@@ -127,6 +127,11 @@ public class PhotoRepository(SunsetDbContext context) : IPhotoRepository
     public async Task<IReadOnlyList<Comment>> GetCommentsByUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
         await context.Comments.Where(c => c.UserId == userId).ToListAsync(cancellationToken);
 
+    public Task<int> MoveAllToLocationAsync(Guid sourceLocationId, Guid targetLocationId, CancellationToken cancellationToken = default) =>
+        context.Photos.IgnoreQueryFilters()
+            .Where(p => p.LocationId == sourceLocationId)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.LocationId, targetLocationId), cancellationToken);
+
     public Task<Like?> GetLikeAsync(Guid userId, Guid photoId, CancellationToken cancellationToken = default) =>
         context.Likes.FirstOrDefaultAsync(l => l.UserId == userId && l.PhotoId == photoId, cancellationToken);
 

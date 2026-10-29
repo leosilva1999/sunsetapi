@@ -36,6 +36,8 @@ these are the diffs to check:
   (same body, rate limit and one-report-per-target rule as photos/comments), `ReportTargetType` gains
   `Location` and `User`, and `ReportReason` gains `IncorrectInfo` (e.g. wrong map pin) — see
   [Moderation](#moderation).
+- **New `POST /moderation/locations/{id}/merge`** — merges a duplicate location into another — see
+  [Moderation](#moderation).
 - **CORS** is now configured (was previously missing/blocking) — see [CORS](#cors).
 - **Ratings now carry a comment and have their own endpoints**: `RatingResponse` (score + comment
   + author), `GET /locations/{id}/ratings` (list), `GET /locations/{id}/ratings/me`, and
@@ -711,6 +713,25 @@ Removes a user's account on behalf of moderation → `204`. Body: `{ "reason": s
 - Rules: Admin only (a Moderator gets `403`); the target can't be an Admin or yourself (`403`); a
   Moderator target is allowed; unknown user `404`; already removed `409`; empty/oversized `reason` `400`.
 - Audited as `UserAnonymized` with the reason and, if hidden, how many photos/comments.
+
+### 🔒🛡️ `POST /moderation/locations/{id}/merge` (Moderator or Admin)
+Merges a **duplicate** into the location that stays. Body: `{ "targetId": guid }` — the location in the
+URL is the duplicate (it is removed), `targetId` is the one that keeps living → the updated target
+`LocationResponse`.
+
+- All photos of the duplicate (hidden ones too, keeping their moderation state) are moved to the target.
+- Its ratings move to the target, except those of users who **already rated the target** (one rating per user and location):
+  the target's rating wins and the duplicate's stays behind on the removed location. The target's `avgRating` is recomputed.
+- The duplicate is then soft-deleted (disappears from search/ranking/`GET`, listed under
+  `GET /moderation/locations/deleted`). **Not reversible by restore**: restoring it gives back an empty location,
+  the photos stay on the target.
+- `409` if `targetId` is the location itself; `404` if either is unknown or already deleted; `400` for a
+  missing `targetId`; `403` for a regular user. Audited as `LocationMerged` (with how many photos/ratings moved).
+- Likes and comments travel with their photos. Reports about the duplicate are left as they are.
+
+**UI suggestion:** in the moderation view of a location, a "Merge into…" action that picks the target
+by searching locations (`GET /locations?q=`), asks for confirmation ("N photos will move to X; this can't be undone")
+and calls the endpoint.
 
 ### 🔒🛡️ `PATCH /moderation/locations/{id}/coordinates` (Moderator or Admin)
 Corrects a location's map pin. Body: `{ "latitude": number (-90..90), "longitude": number (-180..180) }`

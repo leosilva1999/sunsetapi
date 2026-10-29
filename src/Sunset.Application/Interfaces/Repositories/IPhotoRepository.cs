@@ -29,6 +29,10 @@ public interface IPhotoRepository
     Task<int> SoftDeleteAllByUserAsync(Guid userId, Guid deletedByUserId, DateTime deletedAt, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Comment>> GetCommentsByUserAsync(Guid userId, CancellationToken cancellationToken = default);
 
+    // Re-points every photo of a location (hidden ones included, so they keep their moderation
+    // state) at another one. Returns the row count.
+    Task<int> MoveAllToLocationAsync(Guid sourceLocationId, Guid targetLocationId, CancellationToken cancellationToken = default);
+
     Task<Like?> GetLikeAsync(Guid userId, Guid photoId, CancellationToken cancellationToken = default);
     Task AddLikeAsync(Like like, CancellationToken cancellationToken = default);
     Task RemoveLikeAsync(Like like, CancellationToken cancellationToken = default);

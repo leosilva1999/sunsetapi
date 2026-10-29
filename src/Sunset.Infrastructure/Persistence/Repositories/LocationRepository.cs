@@ -25,6 +25,12 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
             .Take(limit)
             .ToListAsync(cancellationToken);
 
+    public Task<int> MoveRatingsAsync(Guid sourceLocationId, Guid targetLocationId, CancellationToken cancellationToken = default) =>
+        context.Ratings
+            .Where(r => r.LocationId == sourceLocationId &&
+                        !context.Ratings.Any(t => t.LocationId == targetLocationId && t.UserId == r.UserId))
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.LocationId, targetLocationId), cancellationToken);
+
     public async Task<CursorPagedResult<LocationWithDistance>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default)
     {
         var locations = context.Locations.AsQueryable();

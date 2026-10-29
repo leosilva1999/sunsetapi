@@ -542,4 +542,54 @@ public class ModerationServiceTests
         await Assert.ThrowsAsync<NotFoundException>(() =>
             _sut.CreateReportAsync(reporter.Id, ReportTargetType.User, Guid.NewGuid(), new CreateReportRequest(ReportReason.Spam)));
     }
+
+    [Fact]
+    public async Task MergeLocationsAsync_MovesPhotosAndRatingsRecalculatesAndRemovesSource()
+    {
+        var moderatorId = Guid.NewGuid();
+        var source = new Location("Praia Rosa", -28.1, -48.6, "Imbituba");
+        var target = new Location("Praia do Rosa", -28.12, -48.64, "Imbituba");
+        _locationRepository.Setup(r => r.GetByIdAsync(source.Id, default)).ReturnsAsync(source);
+        _locationRepository.Setup(r => r.GetByIdAsync(target.Id, default)).ReturnsAsync(target);
+        _photoRepository.Setup(r => r.MoveAllToLocationAsync(source.Id, target.Id, default)).ReturnsAsync(4);
+        _locationRepository.Setup(r => r.MoveRatingsAsync(source.Id, target.Id, default)).ReturnsAsync(2);
+        _locationRepository.Setup(r => r.GetAverageRatingAsync(target.Id, default)).ReturnsAsync(4.25m);
+
+        var response = await _sut.MergeLocationsAsync(moderatorId, source.Id, new MergeLocationsRequest(target.Id));
+
+        Assert.Equal(target.Id, response.Id);
+        Assert.Equal(4.25m, response.AvgRating);
+        Assert.NotNull(source.DeletedAt);
+        Assert.Equal(moderatorId, source.DeletedByUserId);
+        Assert.Null(target.DeletedAt);
+        _locationRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
+        _moderationActionRepository.Verify(
+            r => r.AddAsync(It.Is<ModerationAction>(a => a.ActionType == ModerationActionType.LocationMerged && a.Notes!.Contains("4 photo(s) and 2 rating(s)")), default),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task MergeLocationsAsync_IntoItself_ThrowsConflictException()
+    {
+        var id = Guid.NewGuid();
+
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            _sut.MergeLocationsAsync(Guid.NewGuid(), id, new MergeLocationsRequest(id)));
+    }
+
+    [Fact]
+    public async Task MergeLocationsAsync_WithUnknownSourceOrTarget_ThrowsNotFoundAndMovesNothing()
+    {
+        var source = new Location("Praia Rosa", -28.1, -48.6, "Imbituba");
+        _locationRepository.Setup(r => r.GetByIdAsync(source.Id, default)).ReturnsAsync(source);
+        _locationRepository.Setup(r => r.GetByIdAsync(It.Is<Guid>(g => g != source.Id), default)).ReturnsAsync((Location?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _sut.MergeLocationsAsync(Guid.NewGuid(), source.Id, new MergeLocationsRequest(Guid.NewGuid())));
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _sut.MergeLocationsAsync(Guid.NewGuid(), Guid.NewGuid(), new MergeLocationsRequest(source.Id)));
+
+        _photoRepository.Verify(r => r.MoveAllToLocationAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), default), Times.Never);
+        Assert.Null(source.DeletedAt);
+    }
 }
