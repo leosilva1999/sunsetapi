@@ -170,6 +170,19 @@ Authorization: Bearer <accessToken>
 - There is no endpoint to fetch "my" user by a special alias — decode the JWT's `sub` claim
   (the user id) or keep the `user` object returned by register/login/refresh, and call
   `GET /users/{id}` when you need fresh profile data.
+- <a id="banned-accounts"></a>**Banned accounts.** A moderator can ban a user (see [Moderation](#moderation)).
+  The ban takes effect **at once**, not when the access token expires: the user's refresh tokens are
+  revoked and the access token they hold is rejected on the next request with a plain `401`. The
+  client therefore ends up on the login screen, where `POST /auth/login` (and `/auth/google`) answers
+  `403` instead of the usual `401`:
+  ```json
+  { "title": "This account is banned.", "errors": { "reason": ["Spam repetido"], "bannedUntil": ["2026-11-05T12:00:00.0000000Z"] }, "requestId": "..." }
+  ```
+  `errors.reason` is the moderator's message; `errors.bannedUntil` is only present for a temporary ban
+  (a permanent ban has no such key). A wrong password still gets the ordinary `401`, so a `403` is only
+  ever shown to someone who proved they own the account. A temporary ban lifts itself at `bannedUntil`.
+  A user removed through [anonymize](#moderation) is also (permanently) banned, but cannot sign in
+  anyway because the e-mail and password were erased.
 - Endpoints not marked **🔒 auth** still read a bearer token if one is sent (e.g. to compute
   `likedByCurrentUser` on photos), but work fine anonymously too.
 
@@ -225,18 +238,21 @@ error status has `errors: null` and a single message in `title`.
 | Status | Meaning |
 |---|---|
 | 400 | Request failed FluentValidation rules (see `errors` for per-field messages) |
-| 401 | Missing/invalid/expired bearer token, invalid login/refresh/reset-password credentials, or "not the owner" (see gotcha below) |
-| 403 | Authenticated, but your role doesn't allow this (Moderator/Admin-only endpoint) |
-| 404 | Referenced resource (user/location/photo/comment/report) doesn't exist |
-| 409 | Conflict — "email already registered", "you already reported this", or "can't follow yourself" |
+| 401 | Missing/invalid/expired bearer token, invalid login/refresh/reset-password credentials, "not the owner" (see gotcha below), or a **banned** account's still-unexpired access token (see [Banned accounts](#banned-accounts)) |
+| 403 | Authenticated, but not allowed: the role is missing for a Moderator/Admin-only endpoint, **or** the API's own rule said no — a **banned account logging in**, or a moderation action on someone it can't touch (yourself, an Admin, a Moderator when you aren't an Admin). See the caveat below for the body |
+| 404 | Referenced resource (user/location/photo/comment/report) doesn't exist — or was soft-deleted (a deleted location/photo/comment, an anonymized user as a report target) |
+| 409 | Conflict — "email already registered", "you already reported this", "can't follow yourself", "can't report yourself", "location not deleted" (restore), "can't merge a location into itself", "user already deleted" (anonymize) |
 | 502 | An upstream call failed — sunrise-sunset.org (see Locations → sunset), or SMTP for `POST /auth/forgot-password` |
 | 500 | Unhandled server error |
 
 Model-binding failures (e.g. malformed GUID in the URL, malformed `?date=`) short-circuit to a
 `400` with ASP.NET Core's default `ProblemDetails` shape instead — don't rely on the `title`
-field being present in that specific case. **`403` responses have the same caveat** — they come
-from ASP.NET Core's authorization middleware before this API's code ever runs, so the body is
-whatever ASP.NET Core's default is (typically empty), not `{ title, errors }`.
+field being present in that specific case. **A `403` has two possible bodies**:
+- a **role** failure comes from ASP.NET Core's authorization middleware before this API's code ever
+  runs, so the body is whatever ASP.NET Core's default is (typically empty), not `{ title, errors }`;
+- the API's **own** `403` (banned login, "you cannot act on yourself", "admins cannot be banned or
+  removed", "only an Admin can act on a Moderator") uses the normal `{ title, errors, requestId }`
+  shape. So read `title` only if the body is non-empty, and always fall back to the status code.
 
 ### Auth requirement legend
 
@@ -273,7 +289,9 @@ Validation: `name` required ≤100 chars · `email` required, valid format, ≤2
 `password` required, ≥8 chars.
 
 ### `POST /auth/login`
-Body: `{ "email": string, "password": string }`
+Body: `{ "email": string, "password": string }`. `401` for bad credentials; `403` for a banned account
+(see [Banned accounts](#banned-accounts)) — the same `403` applies to `POST /auth/google`.
+`POST /auth/refresh` answers a plain `401` for a banned user (the ban revoked their refresh tokens).
 
 ### `POST /auth/google`
 Body: `{ "idToken": string }` — an ID token from Google Identity Services (frontend), verified
@@ -290,7 +308,7 @@ Register, login and google return:
   "accessToken": "eyJ...",
   "refreshToken": "NeX9jEIO...",
   "expiresAt": "2026-09-04T18:23:24.59Z",
-  "user": { "id": "guid", "name": "string", "email": "string", "avatarUrl": "string|null", "bio": "string|null", "role": "User", "createdAt": "date", "hasPassword": true }
+  "user": { "id": "guid", "name": "string", "email": "string", "avatarUrl": "string|null", "bio": "string|null", "role": "User", "createdAt": "date", "hasPassword": true, "isBanned": false, "bannedUntil": null }
 }
 ```
 
@@ -652,13 +670,46 @@ Roles (`UserResponse.role`): `User` (default), `Moderator`, `Admin`. Both come b
 moderator UI off of that, no need to decode the JWT yourself. Every Moderator/Admin-only endpoint
 below is 🛡️-marked; missing the role → `403`, not `401` (see [Error format](#error-format)).
 
+### Moderation at a glance
+
+Everything a moderator can do, who may do it, and whether it can be undone. Details for each
+endpoint follow in this section.
+
+| Action | Endpoint | Who | Reversible? |
+|---|---|---|---|
+| Delete a photo / comment | `DELETE /photos/{id}` · `DELETE /comments/{id}` | Author, Moderator, Admin | No (soft delete, no restore endpoint) |
+| Report photo / comment / location / user | `POST /photos|comments|locations|users/{id}/reports` | Any logged-in user | — |
+| Work the report queue | `GET /moderation/reports` · `PATCH /moderation/reports/{id}` | Moderator, Admin | Closing a report doesn't touch the target |
+| **Ban** a user (permanent or until a date) | `POST /moderation/users/{id}/ban` | Moderator (users only), Admin (users and Moderators) | **Yes** — `DELETE .../ban` |
+| **Unban** | `DELETE /moderation/users/{id}/ban` | same as ban | — |
+| **Remove** a user's account (erase personal data, optionally hide their content) | `POST /moderation/users/{id}/anonymize` | **Admin only** | **No** |
+| **Delete** a location (its photos are hidden with it) | `DELETE /moderation/locations/{id}` | Moderator, Admin | **Yes** — `POST .../restore` |
+| List deleted locations (to restore) | `GET /moderation/locations/deleted` | Moderator, Admin | — |
+| **Fix a location's map pin** | `PATCH /moderation/locations/{id}/coordinates` | Moderator, Admin | Edit it again (the old value is in the audit log) |
+| **Merge** a duplicate location into another | `POST /moderation/locations/{id}/merge` | Moderator, Admin | **No** (restoring the duplicate gives an empty location) |
+| Promote / demote a user | `PATCH /moderation/users/{id}/role` | Admin | Yes |
+| Find users (to act on them) | `GET /moderation/users?q=` | Admin | — |
+| Edit Terms / Privacy | `PUT /terms` · `PUT /privacy` | Admin | New version, old ones kept |
+| Read the audit log | `GET /moderation/actions` | Moderator, Admin | — |
+
+Rules that apply to every action **on a user** (ban, unban, anonymize): you can't act on yourself,
+**nobody can act on an Admin**, and a **Moderator can only be acted on by an Admin** → otherwise `403`.
+Every action in the table that changes something is written to the audit log.
+
+**Typical flow for a moderation screen:** list `GET /moderation/reports` → open the target (photo,
+comment, location or user — the report only carries `targetType` + `targetId`, so fetch the target to
+show its name) → act on it (delete / ban / fix / merge / anonymize) → close the report with
+`PATCH /moderation/reports/{id}`.
+
 ⚠️ **There is no endpoint to create the first Admin.** `PATCH /moderation/users/{id}/role`
 requires an existing Admin caller, so bootstrapping one has to happen outside the API — in
 Development this is `DbSeeder` (see below); in any other environment, a direct database write
 (`UPDATE users SET Role = 2 WHERE Email = '...'` — `0` = User, `1` = Moderator, `2` = Admin).
 
 ### 🔒🐌 `POST /photos/{id}/reports` / 🔒🐌 `POST /comments/{id}/reports`
-Body: `{ "reason": "Spam" | "Inappropriate" | "Harassment" | "Other", "details"?: string }`.
+Body: `{ "reason": "Spam" | "Inappropriate" | "Harassment" | "Other" | "IncorrectInfo", "details"?: string }`
+(`IncorrectInfo` is meant for locations — "the pin/name is wrong"; see the location/user variant below).
+The same shape and rules apply to `POST /locations/{id}/reports` and `POST /users/{id}/reports`.
 `details` ≤500 chars. Rate limited: 10 requests/60s per IP (tighter than search — filing a report
 is a deliberate, infrequent action, this exists only to stop flooding). One report per
 (reporter, target) pair — reporting the same photo/comment again → `409`. Target must exist (not
@@ -667,7 +718,7 @@ already deleted) → `404` otherwise.
 ```json
 {
   "id": "guid", "reporterId": "guid", "reporterName": "string",
-  "targetType": "Photo", "targetId": "guid", "reason": "Spam", "details": "string|null",
+  "targetType": "Photo" | "Comment" | "Location" | "User", "targetId": "guid", "reason": "Spam", "details": "string|null",
   "status": "Pending", "createdAt": "date", "resolvedByUserId": "guid|null", "resolvedAt": "date|null"
 }
 ```
@@ -783,7 +834,7 @@ Exists so an Admin can *find* the user they want to promote/demote via the endpo
 there's no other way to discover a user's id (no public search/listing endpoint). `q` optional,
 matched against `Name` OR `Email` as a plain substring (`LIKE '%q%'`, no FULLTEXT index here,
 unlike `/locations`); omit it to list users newest-first. → `CursorPagedResult<UserResponse>`
-(includes `email`, same reasoning as the role-change response above — this is already gated to
+(includes `email`, and `isBanned` / `bannedUntil` so the screen can show the ban state and offer "Unban", same reasoning as the role-change response above — this is already gated to
 Admin only). Admin-only rather than Moderator-too like the rest of `/moderation/*`, since its only
 consumer is the Admin-only role-change flow.
 
@@ -795,17 +846,27 @@ document, changing a role) — newest-first. →
 {
   "id": "guid", "moderatorId": "guid", "moderatorName": "string",
   "actionType": "PhotoDeleted" | "CommentDeleted" | "ReportResolved" | "ReportDismissed" |
-    "LegalDocumentUpdated" | "UserRoleChanged",
+    "LegalDocumentUpdated" | "UserRoleChanged" | "UserBanned" | "UserUnbanned" | "UserAnonymized" |
+    "LocationDeleted" | "LocationRestored" | "LocationCoordinatesChanged" | "LocationMerged",
   "targetDescription": "string", "notes": "string|null", "createdAt": "date"
 }
 ```
 `targetDescription` is a free-text label the writing code chose for itself, **not a typed
-reference** — it's `"Photo:{id}"` / `"Comment:{id}"` / `"User:{id}"` / `"Report:{id}"` /
+reference** — it's `"Photo:{id}"` / `"Comment:{id}"` / `"User:{id}"` / `"Location:{id}"` / `"Report:{id}"` /
 `"{documentType}:v{version}"` depending on `actionType`, so parse it by convention if you want to
 link back to the thing (`Report:{id}` doesn't have a good link target since it's the *report* id,
 not what the report was about — you'd need to have that report's own record, which this doesn't
-carry). `notes` is only ever populated for `UserRoleChanged` (`"New role: {role}"`), `null`
-otherwise.
+carry). `notes` is a human-readable free-text summary, not something to parse:
+
+| `actionType` | `notes` |
+|---|---|
+| `UserRoleChanged` | `New role: {role}` |
+| `UserBanned` | `Permanent. Reason: …` or `Until {ISO date}. Reason: …` |
+| `UserAnonymized` | `Reason: …; content kept` or `Reason: …; hidden N photo(s) and M comment(s)` |
+| `LocationDeleted` / `LocationRestored` | `{name} ({city}); N photo(s) hidden` / `… restored` |
+| `LocationCoordinatesChanged` | `(oldLat, oldLng) -> (newLat, newLng)` |
+| `LocationMerged` | `{duplicate} merged into {target} [{target id}]; N photo(s) and M rating(s) moved` |
+| the others (`UserUnbanned`, report/photo/comment/legal actions) | `null` |
 
 ### `GET /terms` / `GET /privacy`
 Public, no auth. Both share the same shape and versioning mechanism (see below) — the only
@@ -904,3 +965,20 @@ opened, if you want "seen" semantics instead of per-item read tracking.
    root comments, not on replies themselves — there's no server-side flattening to fall back on.
 7. Deleting a root comment silently takes its replies with it (see `DELETE /comments/{id}`
    above) — confirm with the user before deleting a root comment when `repliesCount > 0`.
+8. **A `401` on a call that used to work can mean "banned", not "expired".** The refresh will also fail
+   (the ban revoked every refresh token), so the usual "refresh, then retry, else go to login" flow
+   lands on the login screen — which is where `POST /auth/login` returns the `403` with
+   `errors.reason` / `errors.bannedUntil`. Handle that `403` there and show the message instead of
+   "wrong password".
+9. **`403` bodies differ** (empty for a missing role, `{ title, errors, requestId }` for the API's own
+   rules) — branch on the status code, and read `title` only when a body is present.
+10. **Soft-deleted things disappear everywhere, as `404`:** a deleted location is gone from search,
+    ranking, `GET /locations/{id}`, and **its photos are gone from the feed and from their authors'
+    profiles** until it is restored. A merged-away duplicate looks the same, but restoring it does not
+    bring its photos back (they live on the target now). Don't cache a location id past a `404`.
+11. **Destructive moderation actions need a confirmation step in the UI:** *anonymize* (irreversible)
+    and *merge* (restoring doesn't undo it) in particular. The audit log can answer "who did that",
+    but it cannot undo either.
+12. **Moderators can fix the map pin** (`PATCH /moderation/locations/{id}/coordinates`) — show the
+    "Edit location" control only when `user.role` is `Moderator` or `Admin`; the server enforces it
+    anyway (`403`). The same endpoint's effect is immediate for `distanceKm` and the sunset time.
