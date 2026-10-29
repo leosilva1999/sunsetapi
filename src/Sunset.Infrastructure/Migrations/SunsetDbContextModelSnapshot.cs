@@ -97,6 +97,35 @@ namespace Sunset.Infrastructure.Migrations
                     b.ToTable("follows", (string)null);
                 });
 
+            modelBuilder.Entity("Sunset.Domain.Entities.LegalAcceptance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DocumentType")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "DocumentType", "Version")
+                        .IsUnique();
+
+                    b.ToTable("legal_acceptances", (string)null);
+                });
+
             modelBuilder.Entity("Sunset.Domain.Entities.LegalDocument", b =>
                 {
                     b.Property<Guid>("Id")
@@ -595,6 +624,15 @@ namespace Sunset.Infrastructure.Migrations
                     b.Navigation("Follower");
 
                     b.Navigation("Following");
+                });
+
+            modelBuilder.Entity("Sunset.Domain.Entities.LegalAcceptance", b =>
+                {
+                    b.HasOne("Sunset.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Sunset.Domain.Entities.LegalDocument", b =>

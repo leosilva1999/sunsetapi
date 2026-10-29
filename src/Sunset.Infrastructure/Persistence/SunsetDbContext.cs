@@ -18,6 +18,7 @@ public class SunsetDbContext(DbContextOptions<SunsetDbContext> options) : DbCont
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Follow> Follows => Set<Follow>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<LegalAcceptance> LegalAcceptances => Set<LegalAcceptance>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

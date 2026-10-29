@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Sunset.Application.Common;
+using Sunset.Application.DTOs.Legal;
 using Sunset.Application.DTOs.Moderation;
 using Sunset.Application.DTOs.Photos;
 using Sunset.Application.DTOs.Users;
@@ -21,6 +22,8 @@ public class UsersController(
     IValidator<ChangePasswordRequest> changePasswordValidator,
     IValidator<CreateAvatarUploadUrlRequest> createAvatarUploadUrlValidator,
     IValidator<CreateReportRequest> createReportValidator,
+    IValidator<AcceptLegalDocumentsRequest> acceptLegalDocumentsValidator,
+    ILegalAcceptanceService legalAcceptanceService,
     IModerationService moderationService,
     ICurrentUserService currentUserService) : ControllerBase
 {
@@ -149,5 +152,27 @@ public class UsersController(
 
         var response = await moderationService.CreateReportAsync(userId, ReportTargetType.User, id, request, cancellationToken);
         return Ok(response);
+    }
+
+    [Authorize]
+    [HttpGet("me/legal-acceptances")]
+    public async Task<ActionResult<LegalAcceptanceStatusResponse>> GetMyLegalAcceptances(CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedActionException("User is not authenticated.");
+
+        return Ok(await legalAcceptanceService.GetStatusAsync(userId, cancellationToken));
+    }
+
+    [Authorize]
+    [HttpPost("me/legal-acceptances")]
+    public async Task<ActionResult<LegalAcceptanceStatusResponse>> AcceptLegalDocuments(AcceptLegalDocumentsRequest request, CancellationToken cancellationToken)
+    {
+        await acceptLegalDocumentsValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedActionException("User is not authenticated.");
+
+        return Ok(await legalAcceptanceService.AcceptAsync(userId, request, cancellationToken));
     }
 }

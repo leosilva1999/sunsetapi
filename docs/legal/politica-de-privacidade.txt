@@ -29,6 +29,7 @@ Canal geral de privacidade: sunsetsss.app@outlook.com.
 2.2. Dados gerados pelo uso do serviço
 - Notificações recebidas (curtidas, comentários, novos seguidores) e seu estado de leitura.
 - Sessões: códigos (tokens) de sessão que mantêm você conectado, armazenados de forma protegida (somente em hash) no servidor, com data de criação e validade.
+- Registro de aceite: qual versão dos Termos de Uso e da Política de Privacidade você aceitou, e quando (data e hora) e em que momento (cadastro ou novo aceite).
 - Registros de moderação relacionados a você: denúncias, medidas aplicadas (como remoção de conteúdo, suspensão, banimento ou remoção de conta), motivo e quem aplicou.
 
 2.3. Dados coletados automaticamente
@@ -51,6 +52,7 @@ Não solicitamos dados pessoais sensíveis (como origem racial, saúde, religiã
 
 - Criar e manter sua conta, autenticar seu acesso e prestar o serviço (publicar, avaliar, curtir, comentar, seguir, ranking, notificações): execução de contrato ou de procedimentos preliminares a pedido do titular (art. 7º, V).
 - Enviar e-mails e avisos necessários ao serviço (redefinição e alteração de senha, avisos de suspensão ou remoção de conta, mudanças nestes documentos): execução de contrato (art. 7º, V) e legítimo interesse (art. 7º, IX).
+- Registrar o aceite dos Termos de Uso e desta Política (versão, data e hora), para comprovar o que foi aceito: execução de contrato (art. 7º, V), legítimo interesse (art. 7º, IX) e exercício regular de direitos (art. 7º, VI).
 - Segurança, prevenção a fraudes e abusos, limitação de tentativas, investigação de incidentes e manutenção de logs: legítimo interesse (art. 7º, IX) e cumprimento de obrigação legal (art. 7º, II), quanto aos registros de acesso exigidos pelo Marco Civil da Internet.
 - Moderação (análise de denúncias, remoção de conteúdo, suspensão, banimento, remoção de conta, prevenção de reincidência) e registro dessas ações para auditoria: legítimo interesse (art. 7º, IX), execução de contrato (art. 7º, V) e exercício regular de direitos em processo judicial, administrativo ou arbitral (art. 7º, VI).
 - Funcionalidade "perto de mim": consentimento (art. 7º, I), dado pelo seu navegador ou aparelho e revogável a qualquer momento.
@@ -107,6 +109,7 @@ Não solicitamos dados pessoais sensíveis (como origem racial, saúde, religiã
 - Sessões (refresh token): até 30 dias, ou até o encerramento da sessão; links de redefinição de senha: 30 minutos e uso único.
 - Registros de acesso a aplicação (IP, data e hora): no mínimo 6 meses, conforme o art. 15 do Marco Civil da Internet, e pelo prazo adicional necessário para segurança e defesa de direitos [prazo máximo a definir pelo jurídico].
 - Demais logs técnicos de aplicação: [PRAZO A DEFINIR, por exemplo 30 a 90 dias].
+- Registros de aceite dos Termos e da Política: mantidos mesmo após a exclusão da conta, vinculados apenas a um identificador interno, por [PRAZO A DEFINIR], como prova do que foi aceito.
 - Registros de moderação e de denúncias: [PRAZO A DEFINIR, por exemplo 5 anos], para segurança, auditoria e defesa de direitos.
 - Dados de contas banidas (e-mail e motivo): enquanto necessários para prevenir reincidência e proteger outros usuários [prazo a definir].
 - Cópias de segurança: mantidas pelos prestadores por períodos limitados; os dados eliminados saem delas conforme o ciclo de retenção deles.

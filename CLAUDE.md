@@ -162,6 +162,13 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   `GET /moderation/reports`; `TargetId` segue sem FK). Alvo inexistente/apagado/anonimizado → 404; denunciar a
   si mesmo → 409. Resolver a denúncia **não age sobre o alvo**: o moderador usa banir/anonimizar/apagar local
   e depois fecha a denúncia. `ReportReason.IncorrectInfo` existe para "pino/nome errado" em locais.
+- **Aceite dos Termos/Política**: tabela `legal_acceptances` (usuário, tipo do documento, versão, quando = `CreatedAt`,
+  origem `Registration`/`Reacceptance`), append-only e mantida mesmo após anonimização (é a prova do que foi aceito).
+  `LegalAcceptanceService`: `register`/`google` aceitam `termsVersion`/`privacyVersion` opcionais (versão que não é
+  a atual → 400 antes de criar a conta); toda resposta de auth traz `legalAcceptance` (`pending` quando existe versão
+  publicada que o usuário não aceitou); `GET`/`POST /users/me/legal-acceptances`. **Não bloqueia endpoints** — é o
+  cliente que mostra a tela de aceite; clientes antigos seguem funcionando (a conta só fica *pending*). Documento
+  nunca publicado nunca é pendência.
 - **Remoção de EXIF/GPS**: o cliente sobe a imagem direto no S3 (URL pré-assinada), então o servidor limpa **depois**,
   em `POST /photos` e no `PATCH /users/me` com avatar novo (`IUploadedImageSanitizer`): baixa o objeto pela URL pública
   (o IAM continua só com `s3:PutObject`), `ImageMetadataStripper` (Application, sem dependências) remove EXIF/XMP/IPTC/

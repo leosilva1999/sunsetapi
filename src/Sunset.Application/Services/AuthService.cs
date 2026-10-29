@@ -7,6 +7,7 @@ using Sunset.Application.Exceptions;
 using Sunset.Application.Interfaces;
 using Sunset.Application.Interfaces.Repositories;
 using Sunset.Domain.Entities;
+using Sunset.Domain.Enums;
 
 namespace Sunset.Application.Services;
 
@@ -18,7 +19,8 @@ public class AuthService(
     ITokenService tokenService,
     IGoogleIdTokenVerifier googleIdTokenVerifier,
     IEmailSender emailSender,
-    IFrontendUrlProvider frontendUrlProvider) : IAuthService
+    IFrontendUrlProvider frontendUrlProvider,
+    ILegalAcceptanceService legalAcceptanceService) : IAuthService
 {
     private static readonly TimeSpan PasswordResetTokenLifetime = TimeSpan.FromMinutes(30);
 
@@ -27,10 +29,14 @@ public class AuthService(
         if (await userRepository.ExistsByEmailAsync(request.Email, cancellationToken))
             throw new ConflictException("Email is already registered.");
 
+        // Before creating anything: a stale version means the client showed an outdated text.
+        await legalAcceptanceService.EnsureCurrentAsync(request.TermsVersion, request.PrivacyVersion, cancellationToken);
+
         var passwordHash = passwordHasher.Hash(request.Password);
         var user = new User(request.Name, request.Email, passwordHash);
 
         await userRepository.AddAsync(user, cancellationToken);
+        await legalAcceptanceService.RecordAsync(user.Id, request.TermsVersion, request.PrivacyVersion, LegalAcceptanceSource.Registration, cancellationToken);
 
         return await IssueTokensAsync(user, cancellationToken);
     }
@@ -58,7 +64,10 @@ public class AuthService(
         // por senha ou por um login Google anterior), só autentica como ela. Senão, cria uma
         // conta nova com uma senha aleatória inutilizável (mesmo padrão de UserService.Anonymize),
         // já que PasswordHash é obrigatório na entidade mas essa conta nunca terá senha própria.
+        await legalAcceptanceService.EnsureCurrentAsync(request.TermsVersion, request.PrivacyVersion, cancellationToken);
+
         var user = await userRepository.GetByEmailAsync(googleUser.Email, cancellationToken);
+        var isNewAccount = user is null;
         if (user is null)
         {
             var unusablePasswordHash = passwordHasher.Hash(Guid.NewGuid().ToString());
@@ -67,6 +76,10 @@ public class AuthService(
         }
 
         EnsureNotBanned(user);
+
+        // Accepting on the sign-up screen counts as registration; on an existing account it is a re-acceptance.
+        await legalAcceptanceService.RecordAsync(user.Id, request.TermsVersion, request.PrivacyVersion,
+            isNewAccount ? LegalAcceptanceSource.Registration : LegalAcceptanceSource.Reacceptance, cancellationToken);
 
         return await IssueTokensAsync(user, cancellationToken);
     }
@@ -161,7 +174,9 @@ public class AuthService(
         var refreshTokenEntity = new RefreshToken(user.Id, Hash(refreshToken), refreshTokenExpiresAt);
         await refreshTokenRepository.AddAsync(refreshTokenEntity, cancellationToken);
 
-        return new AuthResponse(accessToken, refreshToken, accessTokenExpiresAt, user.ToResponse());
+        var legalAcceptance = await legalAcceptanceService.GetStatusAsync(user.Id, cancellationToken);
+
+        return new AuthResponse(accessToken, refreshToken, accessTokenExpiresAt, user.ToResponse(), legalAcceptance);
     }
 
     private static string Hash(string value) => TokenHasher.Hash(value);

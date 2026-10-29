@@ -37,7 +37,7 @@ do negócio ou de conferência jurídica está marcado com `[COLCHETES]` no text
 
 | Tema | Situação hoje | Sugestão |
 |---|---|---|
-| Aceite dos termos | O sistema **não registra** quem aceitou qual versão. | Guardar versão e data de aceite por usuário; exigir novo aceite quando a versão mudar. |
+| Aceite dos termos | **Implementado**: a API registra versão e data do aceite por usuário e informa `pending` quando sai versão nova. Não bloqueia o uso por si só — quem exige é o frontend. | Validar o prazo de guarda desses registros e se o aceite deve bloquear o uso até ser dado. |
 | Metadados EXIF das fotos | Não são removidos; a imagem é pública por URL. | Remover EXIF (principalmente GPS) no upload/ou no cliente. |
 | Portabilidade / exportação | Não há endpoint de exportação de dados. | Atender por e-mail por ora; avaliar rota `GET /users/me/export`. |
 | Exclusão de conta | Conteúdo não é ocultado por padrão (só pela moderação). | Oferecer opção "excluir também meu conteúdo" no autoatendimento. |

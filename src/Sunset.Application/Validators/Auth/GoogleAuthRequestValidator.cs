@@ -9,5 +9,8 @@ public class GoogleAuthRequestValidator : AbstractValidator<GoogleAuthRequest>
     {
         RuleFor(x => x.IdToken)
             .NotEmpty();
+
+        RuleFor(x => x.TermsVersion).GreaterThanOrEqualTo(1).When(x => x.TermsVersion.HasValue);
+        RuleFor(x => x.PrivacyVersion).GreaterThanOrEqualTo(1).When(x => x.PrivacyVersion.HasValue);
     }
 }

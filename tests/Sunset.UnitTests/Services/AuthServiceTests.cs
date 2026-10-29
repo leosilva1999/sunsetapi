@@ -18,6 +18,7 @@ public class AuthServiceTests
     private readonly Mock<IGoogleIdTokenVerifier> _googleIdTokenVerifier = new();
     private readonly Mock<IEmailSender> _emailSender = new();
     private readonly Mock<IFrontendUrlProvider> _frontendUrlProvider = new();
+    private readonly Mock<ILegalAcceptanceService> _legalAcceptanceService = new();
     private readonly AuthService _sut;
 
     public AuthServiceTests()
@@ -32,7 +33,8 @@ public class AuthServiceTests
             _tokenService.Object,
             _googleIdTokenVerifier.Object,
             _emailSender.Object,
-            _frontendUrlProvider.Object);
+            _frontendUrlProvider.Object,
+            _legalAcceptanceService.Object);
 
         _tokenService
             .Setup(t => t.GenerateAccessToken(It.IsAny<User>()))
@@ -364,5 +366,55 @@ public class AuthServiceTests
         var response = await _sut.LoginAsync(new LoginRequest("ana@sunset.com", "password123"));
 
         Assert.Equal("access-token", response.AccessToken);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_WithVersions_ValidatesBeforeCreatingAndRecordsAcceptance()
+    {
+        _userRepository.Setup(r => r.ExistsByEmailAsync("ana@sunset.com", default)).ReturnsAsync(false);
+        _passwordHasher.Setup(h => h.Hash("password123")).Returns("hashed");
+        var order = new List<string>();
+        _legalAcceptanceService.Setup(s => s.EnsureCurrentAsync(2, 3, default)).Callback(() => order.Add("validate")).Returns(Task.CompletedTask);
+        _userRepository.Setup(r => r.AddAsync(It.IsAny<User>(), default)).Callback(() => order.Add("create")).Returns(Task.CompletedTask);
+        _legalAcceptanceService
+            .Setup(s => s.RecordAsync(It.IsAny<Guid>(), 2, 3, Sunset.Domain.Enums.LegalAcceptanceSource.Registration, default))
+            .Callback(() => order.Add("record")).Returns(Task.CompletedTask);
+
+        await _sut.RegisterAsync(new RegisterRequest("Ana", "ana@sunset.com", "password123", 2, 3));
+
+        Assert.Equal(["validate", "create", "record"], order);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_WithStaleVersion_FailsAndCreatesNoUser()
+    {
+        _userRepository.Setup(r => r.ExistsByEmailAsync("ana@sunset.com", default)).ReturnsAsync(false);
+        _legalAcceptanceService
+            .Setup(s => s.EnsureCurrentAsync(1, null, default))
+            .ThrowsAsync(new FluentValidation.ValidationException("stale"));
+
+        await Assert.ThrowsAsync<FluentValidation.ValidationException>(() =>
+            _sut.RegisterAsync(new RegisterRequest("Ana", "ana@sunset.com", "password123", 1)));
+
+        _userRepository.Verify(r => r.AddAsync(It.IsAny<User>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task LoginAsync_ReturnsTheLegalAcceptanceStatus()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        _userRepository.Setup(r => r.GetByEmailAsync("ana@sunset.com", default)).ReturnsAsync(user);
+        _passwordHasher.Setup(h => h.Verify("password123", "hashed")).Returns(true);
+        var status = new Sunset.Application.DTOs.Legal.LegalAcceptanceStatusResponse(
+            new Sunset.Application.DTOs.Legal.LegalDocumentAcceptance(2, 1, DateTime.UtcNow, true),
+            new Sunset.Application.DTOs.Legal.LegalDocumentAcceptance(2, 2, DateTime.UtcNow, false),
+            true);
+        _legalAcceptanceService.Setup(s => s.GetStatusAsync(user.Id, default)).ReturnsAsync(status);
+
+        var response = await _sut.LoginAsync(new LoginRequest("ana@sunset.com", "password123"));
+
+        Assert.True(response.LegalAcceptance!.Pending);
+        Assert.True(response.LegalAcceptance.Terms.Pending);
+        Assert.False(response.LegalAcceptance.Privacy.Pending);
     }
 }

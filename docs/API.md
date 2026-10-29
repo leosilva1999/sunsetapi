@@ -41,6 +41,10 @@ these are the diffs to check:
 - **Photo metadata (EXIF/GPS) is stripped server-side**: `POST /photos` and `PATCH /users/me`
   (avatar) now clean the uploaded file before accepting it, and reject anything that isn't a real
   JPEG/PNG (≤15 MB) with `400` — see [Photos](#photos).
+- **Acceptance of the Terms / Privacy Policy is recorded**: `POST /auth/register` and `POST /auth/google` take
+  optional `termsVersion` / `privacyVersion`; every auth response carries a `legalAcceptance` object saying
+  whether the user still has something to accept; new `GET` / `POST /users/me/legal-acceptances` — see
+  [Terms of Use and Privacy Policy](#terms-of-use-and-privacy-policy).
 - **CORS** is now configured (was previously missing/blocking) — see [CORS](#cors).
 - **Ratings now carry a comment and have their own endpoints**: `RatingResponse` (score + comment
   + author), `GET /locations/{id}/ratings` (list), `GET /locations/{id}/ratings/me`, and
@@ -882,6 +886,41 @@ carry). `notes` is a human-readable free-text summary, not something to parse:
 | `LocationCoordinatesChanged` | `(oldLat, oldLng) -> (newLat, newLng)` |
 | `LocationMerged` | `{duplicate} merged into {target} [{target id}]; N photo(s) and M rating(s) moved` |
 | the others (`UserUnbanned`, report/photo/comment/legal actions) | `null` |
+
+### <a id="terms-of-use-and-privacy-policy"></a>Terms and Privacy acceptance
+
+The API records **which version** of the Terms of Use and of the Privacy Policy each user accepted and when
+(an append-only trail, kept even if the account is later removed). It does **not** block anything by itself:
+the client is expected to show the texts and ask for acceptance.
+
+**Signing up.** Show the current texts (`GET /terms`, `GET /privacy` → each has a `version`) with an
+"I have read and accept" checkbox, and send the versions you showed:
+`POST /auth/register` `{ name, email, password, "termsVersion": 2, "privacyVersion": 2 }` and the same two
+optional fields on `POST /auth/google` `{ idToken, termsVersion, privacyVersion }`. If a version you send is no longer
+the current one (a new text was published meanwhile) → `400` with `errors.TermsVersion` / `errors.PrivacyVersion`
+("…current: N"): reload the texts and ask again; no account is created. Omitting the fields still works (old clients) —
+the account is then simply *pending*.
+
+**Every auth response** (`register`, `login`, `google`, `refresh`) now includes:
+```json
+"legalAcceptance": {
+  "terms":   { "currentVersion": 3, "acceptedVersion": 2, "acceptedAt": "date|null", "pending": true },
+  "privacy": { "currentVersion": 2, "acceptedVersion": 2, "acceptedAt": "date",       "pending": false },
+  "pending": true
+}
+```
+`pending` is true when a published version exists that the user has not accepted (never accepted, or a newer
+one was published). **When `legalAcceptance.pending` is true, show the acceptance screen** (also right after Google
+sign-in of a new account that didn't send versions, and for accounts created before this feature).
+A document that was never published has `currentVersion: null` and is never pending.
+
+### 🔒 `GET /users/me/legal-acceptances`
+→ the same `legalAcceptance` object, fresh (use it to re-check, e.g. on app start).
+
+### 🔒 `POST /users/me/legal-acceptances`
+Body: `{ "termsVersion": int, "privacyVersion": int }` — the versions the user was shown; both must be the **current**
+ones (`400` with `errors.TermsVersion` / `errors.PrivacyVersion` otherwise — reload and ask again). Records the
+acceptance → the updated `legalAcceptance` object. Idempotent (accepting the same versions twice is fine).
 
 ### `GET /terms` / `GET /privacy`
 Public, no auth. Both share the same shape and versioning mechanism (see below) — the only
