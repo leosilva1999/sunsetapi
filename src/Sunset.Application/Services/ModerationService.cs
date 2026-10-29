@@ -1,4 +1,5 @@
 using Sunset.Application.Common;
+using Sunset.Application.DTOs.Locations;
 using Sunset.Application.DTOs.Moderation;
 using Sunset.Application.DTOs.Users;
 using Sunset.Application.Exceptions;
@@ -17,7 +18,8 @@ public class ModerationService(
     IPhotoRepository photoRepository,
     IRefreshTokenRepository refreshTokenRepository,
     IEmailSender emailSender,
-    IBanStatusService banStatusService) : IModerationService
+    IBanStatusService banStatusService,
+    ILocationRepository locationRepository) : IModerationService
 {
     public async Task<ReportResponse> CreateReportAsync(Guid reporterId, ReportTargetType targetType, Guid targetId, CreateReportRequest request, CancellationToken cancellationToken = default)
     {
@@ -100,6 +102,69 @@ public class ModerationService(
             cancellationToken);
 
         return user.ToResponse();
+    }
+
+    public async Task DeleteLocationAsync(Guid moderatorId, Guid locationId, CancellationToken cancellationToken = default)
+    {
+        // The query filter already hides an already-deleted location, so this is a 404 for it too.
+        var location = await locationRepository.GetByIdAsync(locationId, cancellationToken)
+            ?? throw new NotFoundException("Location not found.");
+
+        // Truncated to microseconds (Postgres precision): the photos are stamped with this exact
+        // value and restore matches on equality, so it must survive a round trip through the DB.
+        var now = DateTime.UtcNow;
+        var deletedAt = new DateTime(now.Ticks - now.Ticks % 10, DateTimeKind.Utc);
+
+        location.SoftDelete(moderatorId, deletedAt);
+        await locationRepository.SaveChangesAsync(cancellationToken);
+        var photosHidden = await photoRepository.SoftDeleteAllByLocationAsync(locationId, moderatorId, deletedAt, cancellationToken);
+
+        await moderationActionRepository.AddAsync(
+            new ModerationAction(moderatorId, ModerationActionType.LocationDeleted, $"Location:{locationId}",
+                $"{location.Name} ({location.City}); {photosHidden} photo(s) hidden"),
+            cancellationToken);
+    }
+
+    public async Task RestoreLocationAsync(Guid moderatorId, Guid locationId, CancellationToken cancellationToken = default)
+    {
+        var location = await locationRepository.GetByIdIncludingDeletedAsync(locationId, cancellationToken)
+            ?? throw new NotFoundException("Location not found.");
+        if (location.DeletedAt is not { } deletedAt)
+            throw new ConflictException("Location is not deleted.");
+
+        location.Restore();
+        await locationRepository.SaveChangesAsync(cancellationToken);
+        var photosRestored = await photoRepository.RestoreAllByLocationAsync(locationId, deletedAt, cancellationToken);
+
+        await moderationActionRepository.AddAsync(
+            new ModerationAction(moderatorId, ModerationActionType.LocationRestored, $"Location:{locationId}",
+                $"{location.Name} ({location.City}); {photosRestored} photo(s) restored"),
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<DeletedLocationResponse>> GetDeletedLocationsAsync(int limit, CancellationToken cancellationToken = default)
+    {
+        var locations = await locationRepository.GetDeletedAsync(limit, cancellationToken);
+        return locations
+            .Select(l => new DeletedLocationResponse(l.Id, l.Name, l.City, l.Latitude, l.Longitude, l.DeletedAt!.Value, l.DeletedByUserId))
+            .ToList();
+    }
+
+    public async Task<LocationResponse> UpdateLocationCoordinatesAsync(Guid moderatorId, Guid locationId, UpdateLocationCoordinatesRequest request, CancellationToken cancellationToken = default)
+    {
+        var location = await locationRepository.GetByIdAsync(locationId, cancellationToken)
+            ?? throw new NotFoundException("Location not found.");
+
+        var (oldLat, oldLng) = (location.Latitude, location.Longitude);
+        location.ChangeCoordinates(request.Latitude, request.Longitude);
+        await locationRepository.SaveChangesAsync(cancellationToken);
+
+        await moderationActionRepository.AddAsync(
+            new ModerationAction(moderatorId, ModerationActionType.LocationCoordinatesChanged, $"Location:{locationId}",
+                FormattableString.Invariant($"({oldLat}, {oldLng}) -> ({request.Latitude}, {request.Longitude})")),
+            cancellationToken);
+
+        return location.ToResponse();
     }
 
     public async Task BanUserAsync(Guid moderatorId, Guid targetUserId, BanUserRequest request, CancellationToken cancellationToken = default)

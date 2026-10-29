@@ -17,6 +17,12 @@ public interface IPhotoRepository
     // this just persists that change, it doesn't remove the row.
     Task SoftDeleteAsync(Photo photo, CancellationToken cancellationToken = default);
 
+    // Bulk soft delete / restore of a whole location's photos in one statement. Restore only
+    // brings back photos hidden at exactly `deletedAt` (the location's own deletion instant), so
+    // a photo a moderator removed on its own earlier stays removed. Both return the row count.
+    Task<int> SoftDeleteAllByLocationAsync(Guid locationId, Guid deletedByUserId, DateTime deletedAt, CancellationToken cancellationToken = default);
+    Task<int> RestoreAllByLocationAsync(Guid locationId, DateTime deletedAt, CancellationToken cancellationToken = default);
+
     Task<Like?> GetLikeAsync(Guid userId, Guid photoId, CancellationToken cancellationToken = default);
     Task AddLikeAsync(Like like, CancellationToken cancellationToken = default);
     Task RemoveLikeAsync(Like like, CancellationToken cancellationToken = default);

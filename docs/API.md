@@ -26,6 +26,10 @@ these are the diffs to check:
 - **User banning (Moderator/Admin)**: new `POST` / `DELETE /moderation/users/{id}/ban`; a banned
   account gets `403` on login (with `errors.reason` / `errors.bannedUntil`) and its sessions end
   immediately. `UserResponse` gains `isBanned` / `bannedUntil` — see [Moderation](#moderation).
+- **Location moderation (Moderator/Admin)**: new `DELETE /moderation/locations/{id}` (hides the
+  location **and its photos**), `POST .../restore`, `GET /moderation/locations/deleted` and
+  `PATCH /moderation/locations/{id}/coordinates` (fix a wrong map pin) — see
+  [Moderation](#moderation).
 - **CORS** is now configured (was previously missing/blocking) — see [CORS](#cors).
 - **Ratings now carry a comment and have their own endpoints**: `RatingResponse` (score + comment
   + author), `GET /locations/{id}/ratings` (list), `GET /locations/{id}/ratings/me`, and
@@ -675,6 +679,31 @@ caller — see [Photos](#photos)). → updated `ReportResponse`.
 Body: `{ "role": "User" | "Moderator" | "Admin" }`. No safeguard against demoting/promoting
 yourself or the last remaining Admin — the API trusts the caller. → updated `UserResponse`
 (includes `email`, unlike the public `GET /users/{id}`).
+
+### 🔒🛡️ `PATCH /moderation/locations/{id}/coordinates` (Moderator or Admin)
+Corrects a location's map pin. Body: `{ "latitude": number (-90..90), "longitude": number (-180..180) }`
+→ the updated `LocationResponse`. `404` for an unknown/deleted location, `400` for out-of-range values,
+`403` for a regular user. It is written to the audit log (`LocationCoordinatesChanged`, with the old and new
+pair). Distances (`distanceKm`, "near me" search) and the sunset time use the new coordinates immediately.
+
+**UI suggestion:** on the location's map, show an "Edit location" button only when
+`user.role` is `Moderator` or `Admin`; clicking it makes the pin draggable (or lets the moderator
+click a new spot / type the coordinates) with Save / Cancel, and Save calls the endpoint above. The
+button is just a convenience: the server enforces the role, a regular user always gets `403`.
+
+### 🔒🛡️ `DELETE /moderation/locations/{id}` · `POST /moderation/locations/{id}/restore` (Moderator or Admin)
+Soft delete / undo → `204`.
+
+- **Delete** hides the location everywhere (`GET /locations`, ranking, search, `GET /locations/{id}` → `404`)
+  **and every photo of it** (they disappear from the feed and from their authors' profiles). Likes,
+  comments and ratings are kept, so a restore is lossless. Unknown or already-deleted → `404`.
+- **Restore** brings back the location and **only the photos hidden by that same delete**: a photo a
+  moderator had removed on its own earlier stays removed. `409` if the location isn't deleted.
+- Both are audited (`LocationDeleted` / `LocationRestored`, with the number of photos affected).
+
+### 🔒🛡️ `GET /moderation/locations/deleted?limit=` (Moderator or Admin)
+The restore list: most recently deleted first, up to `limit` (default 50, max 100; not cursor-paginated —
+deleted locations are rare). → `[{ id, name, city, latitude, longitude, deletedAt, deletedByUserId }]`.
 
 ### 🔒🛡️ `POST /moderation/users/{id}/ban` · `DELETE /moderation/users/{id}/ban` (Moderator or Admin)
 Bans / unbans a user → `204`. Body of the ban: `{ "reason": string (≤500, required), "until"?: ISO-8601 UTC

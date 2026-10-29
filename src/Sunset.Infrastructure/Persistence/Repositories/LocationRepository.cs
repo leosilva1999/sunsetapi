@@ -15,6 +15,16 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
     public Task<Location?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         context.Locations.FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
 
+    public Task<Location?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) =>
+        context.Locations.IgnoreQueryFilters().FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<Location>> GetDeletedAsync(int limit, CancellationToken cancellationToken = default) =>
+        await context.Locations.IgnoreQueryFilters()
+            .Where(l => l.DeletedAt != null)
+            .OrderByDescending(l => l.DeletedAt)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
     public async Task<CursorPagedResult<LocationWithDistance>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default)
     {
         var locations = context.Locations.AsQueryable();

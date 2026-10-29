@@ -8,6 +8,11 @@ namespace Sunset.Application.Interfaces.Repositories;
 public interface ILocationRepository
 {
     Task<Location?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    // Both bypass the soft-delete query filter: the moderation restore flow needs to see hidden rows.
+    Task<Location?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Location>> GetDeletedAsync(int limit, CancellationToken cancellationToken = default);
+
     Task<CursorPagedResult<LocationWithDistance>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default);
     Task AddAsync(Location location, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Location>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default);

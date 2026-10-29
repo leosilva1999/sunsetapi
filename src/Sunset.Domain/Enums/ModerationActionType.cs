@@ -9,5 +9,8 @@ public enum ModerationActionType
     LegalDocumentUpdated,
     UserRoleChanged,
     UserBanned,
-    UserUnbanned
+    UserUnbanned,
+    LocationDeleted,
+    LocationRestored,
+    LocationCoordinatesChanged
 }

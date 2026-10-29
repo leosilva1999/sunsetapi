@@ -101,6 +101,22 @@ public class PhotoRepository(SunsetDbContext context) : IPhotoRepository
     public Task SoftDeleteAsync(Photo photo, CancellationToken cancellationToken = default) =>
         context.SaveChangesAsync(cancellationToken);
 
+    public Task<int> SoftDeleteAllByLocationAsync(Guid locationId, Guid deletedByUserId, DateTime deletedAt, CancellationToken cancellationToken = default) =>
+        // The Photo query filter (DeletedAt == null) applies, so photos already removed
+        // individually keep their own DeletedAt and are not re-stamped.
+        context.Photos
+            .Where(p => p.LocationId == locationId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(p => p.DeletedAt, deletedAt)
+                .SetProperty(p => p.DeletedByUserId, deletedByUserId), cancellationToken);
+
+    public Task<int> RestoreAllByLocationAsync(Guid locationId, DateTime deletedAt, CancellationToken cancellationToken = default) =>
+        context.Photos.IgnoreQueryFilters()
+            .Where(p => p.LocationId == locationId && p.DeletedAt == deletedAt)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(p => p.DeletedAt, (DateTime?)null)
+                .SetProperty(p => p.DeletedByUserId, (Guid?)null), cancellationToken);
+
     public Task<Like?> GetLikeAsync(Guid userId, Guid photoId, CancellationToken cancellationToken = default) =>
         context.Likes.FirstOrDefaultAsync(l => l.UserId == userId && l.PhotoId == photoId, cancellationToken);
 

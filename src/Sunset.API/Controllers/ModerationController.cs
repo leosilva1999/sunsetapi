@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sunset.Application.Common;
+using Sunset.Application.DTOs.Locations;
 using Sunset.Application.DTOs.Moderation;
 using Sunset.Application.DTOs.Users;
 using Sunset.Application.Exceptions;
@@ -18,6 +19,7 @@ public class ModerationController(
     IValidator<ResolveReportRequest> resolveReportValidator,
     IValidator<ChangeUserRoleRequest> changeUserRoleValidator,
     IValidator<BanUserRequest> banUserValidator,
+    IValidator<UpdateLocationCoordinatesRequest> updateCoordinatesValidator,
     ICurrentUserService currentUserService) : ControllerBase
 {
     [HttpGet("reports")]
@@ -45,6 +47,37 @@ public class ModerationController(
     {
         await changeUserRoleValidator.ValidateAndThrowAsync(request, cancellationToken);
         var response = await moderationService.ChangeUserRoleAsync(RequireUserId(), id, request, cancellationToken);
+        return Ok(response);
+    }
+
+    [HttpDelete("locations/{id:guid}")]
+    public async Task<IActionResult> DeleteLocation(Guid id, CancellationToken cancellationToken)
+    {
+        await moderationService.DeleteLocationAsync(RequireUserId(), id, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("locations/{id:guid}/restore")]
+    public async Task<IActionResult> RestoreLocation(Guid id, CancellationToken cancellationToken)
+    {
+        await moderationService.RestoreLocationAsync(RequireUserId(), id, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpGet("locations/deleted")]
+    public async Task<ActionResult<IReadOnlyList<DeletedLocationResponse>>> GetDeletedLocations(
+        [FromQuery] int limit = 50,
+        CancellationToken cancellationToken = default)
+    {
+        var locations = await moderationService.GetDeletedLocationsAsync(Math.Clamp(limit, 1, 100), cancellationToken);
+        return Ok(locations);
+    }
+
+    [HttpPatch("locations/{id:guid}/coordinates")]
+    public async Task<ActionResult<LocationResponse>> UpdateLocationCoordinates(Guid id, UpdateLocationCoordinatesRequest request, CancellationToken cancellationToken)
+    {
+        await updateCoordinatesValidator.ValidateAndThrowAsync(request, cancellationToken);
+        var response = await moderationService.UpdateLocationCoordinatesAsync(RequireUserId(), id, request, cancellationToken);
         return Ok(response);
     }
 

@@ -86,6 +86,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - `DELETE /comments/:id` (auth, autor ou moderador/admin — soft delete)
 
 **Moderation** (moderador/admin)
+- `DELETE /moderation/locations/:id` (soft delete + esconde as fotos), `POST .../restore`, `GET /moderation/locations/deleted`, `PATCH /moderation/locations/:id/coordinates` (moderador/admin)
 - `POST /moderation/users/:id/ban` / `DELETE /moderation/users/:id/ban` (banir/desbanir; moderador só bane `User`, admin bane também moderador)
 - `GET /moderation/reports` (`?status=Pending|Resolved|Dismissed`, paginado)
 - `PATCH /moderation/reports/:id` (resolver/dispensar)
@@ -142,6 +143,13 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   `Frontend:BaseUrl`, `Storage:*` (com chaves AWS quando não há `ServiceUrl`/LocalStack) e o provedor de
   e-mail escolhido (`Email:Provider` = `HostingerApi` exige `Hostinger:Mail:ApiKey`/`MailboxResourceId`;
   senão exige `Smtp:Host`/`FromAddress`). Variável nova obrigatória em produção entra aqui.
+- **Exclusão de locais (moderação)**: soft delete (`Location.DeletedAt/DeletedByUserId` + `HasQueryFilter`, mesmo
+  padrão de `Photo`/`Comment`). Apagar um local esconde também as fotos dele com **o mesmo `DeletedAt`**
+  (`UPDATE` em lote; o instante é truncado a microssegundos para sobreviver ao round-trip do Postgres) e o
+  `restore` só traz de volta fotos com esse instante exato — foto removida antes, isoladamente, continua
+  removida. Curtidas/comentários/avaliações não são tocados. `PATCH /moderation/locations/:id/coordinates`
+  corrige o pino (auditado com valor antigo → novo); o botão "editar localização" no mapa é do frontend,
+  só para `Moderator`/`Admin`.
 - **Banimento de usuário**: `User.BannedAt/BannedUntil/BanReason/BannedByUserId` (sem `BannedUntil` = permanente;
   ban temporário expira sozinho, `IsBanned(now)` compara com o relógio). `ModerationService.BanUserAsync` revoga
   todos os refresh tokens, grava `ModerationAction` (`UserBanned`/`UserUnbanned`) e avisa por e-mail (falha de e-mail

@@ -28,6 +28,7 @@ public class SunsetDbContext(DbContextOptions<SunsetDbContext> options) : DbCont
         // those repository methods.
         modelBuilder.Entity<Photo>().HasQueryFilter(p => p.DeletedAt == null);
         modelBuilder.Entity<Comment>().HasQueryFilter(c => c.DeletedAt == null);
+        modelBuilder.Entity<Location>().HasQueryFilter(l => l.DeletedAt == null);
 
         base.OnModelCreating(modelBuilder);
     }

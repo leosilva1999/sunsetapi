@@ -19,6 +19,7 @@ public class ModerationServiceTests
     private readonly Mock<IRefreshTokenRepository> _refreshTokenRepository = new();
     private readonly Mock<IEmailSender> _emailSender = new();
     private readonly Mock<IBanStatusService> _banStatusService = new();
+    private readonly Mock<ILocationRepository> _locationRepository = new();
     private readonly ModerationService _sut;
 
     public ModerationServiceTests()
@@ -31,7 +32,8 @@ public class ModerationServiceTests
             _photoRepository.Object,
             _refreshTokenRepository.Object,
             _emailSender.Object,
-            _banStatusService.Object);
+            _banStatusService.Object,
+            _locationRepository.Object);
     }
 
     private static Report CreateReport(Guid reporterId, User reporter, ReportTargetType targetType, Guid targetId, ReportReason reason = ReportReason.Spam)
@@ -297,5 +299,93 @@ public class ModerationServiceTests
         _moderationActionRepository.Verify(
             r => r.AddAsync(It.Is<ModerationAction>(a => a.ActionType == ModerationActionType.UserUnbanned), default),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteLocationAsync_HidesLocationAndPhotosWithSameInstantAndLogs()
+    {
+        var moderatorId = Guid.NewGuid();
+        var location = new Location("Praia do Rosa", -28.1, -48.6, "Imbituba");
+        _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
+        DateTime? photosStamp = null;
+        _photoRepository
+            .Setup(r => r.SoftDeleteAllByLocationAsync(location.Id, moderatorId, It.IsAny<DateTime>(), default))
+            .Callback<Guid, Guid, DateTime, CancellationToken>((_, _, at, _) => photosStamp = at)
+            .ReturnsAsync(3);
+
+        await _sut.DeleteLocationAsync(moderatorId, location.Id);
+
+        Assert.NotNull(location.DeletedAt);
+        Assert.Equal(moderatorId, location.DeletedByUserId);
+        Assert.Equal(location.DeletedAt, photosStamp);
+        Assert.Equal(0, location.DeletedAt!.Value.Ticks % 10);
+        _locationRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
+        _moderationActionRepository.Verify(
+            r => r.AddAsync(It.Is<ModerationAction>(a => a.ActionType == ModerationActionType.LocationDeleted && a.Notes!.Contains("3 photo")), default),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteLocationAsync_WithUnknownLocation_ThrowsNotFoundException()
+    {
+        _locationRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Location?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.DeleteLocationAsync(Guid.NewGuid(), Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task RestoreLocationAsync_RestoresLocationAndOnlyItsCascadedPhotos()
+    {
+        var moderatorId = Guid.NewGuid();
+        var location = new Location("Praia do Rosa", -28.1, -48.6, "Imbituba");
+        var deletedAt = new DateTime(2026, 10, 29, 12, 0, 0, DateTimeKind.Utc);
+        location.SoftDelete(moderatorId, deletedAt);
+        _locationRepository.Setup(r => r.GetByIdIncludingDeletedAsync(location.Id, default)).ReturnsAsync(location);
+        _photoRepository.Setup(r => r.RestoreAllByLocationAsync(location.Id, deletedAt, default)).ReturnsAsync(2);
+
+        await _sut.RestoreLocationAsync(moderatorId, location.Id);
+
+        Assert.Null(location.DeletedAt);
+        _photoRepository.Verify(r => r.RestoreAllByLocationAsync(location.Id, deletedAt, default), Times.Once);
+        _moderationActionRepository.Verify(
+            r => r.AddAsync(It.Is<ModerationAction>(a => a.ActionType == ModerationActionType.LocationRestored), default),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task RestoreLocationAsync_WhenNotDeleted_ThrowsConflictException()
+    {
+        var location = new Location("Praia do Rosa", -28.1, -48.6, "Imbituba");
+        _locationRepository.Setup(r => r.GetByIdIncludingDeletedAsync(location.Id, default)).ReturnsAsync(location);
+
+        await Assert.ThrowsAsync<ConflictException>(() => _sut.RestoreLocationAsync(Guid.NewGuid(), location.Id));
+    }
+
+    [Fact]
+    public async Task UpdateLocationCoordinatesAsync_ChangesPinAndLogsOldAndNewValues()
+    {
+        var moderatorId = Guid.NewGuid();
+        var location = new Location("Praia do Rosa", -28.1, -48.6, "Imbituba");
+        _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
+
+        var response = await _sut.UpdateLocationCoordinatesAsync(moderatorId, location.Id, new UpdateLocationCoordinatesRequest(-28.2, -48.7));
+
+        Assert.Equal(-28.2, response.Latitude);
+        Assert.Equal(-48.7, location.Longitude);
+        _locationRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
+        _moderationActionRepository.Verify(
+            r => r.AddAsync(It.Is<ModerationAction>(a =>
+                a.ActionType == ModerationActionType.LocationCoordinatesChanged &&
+                a.Notes == "(-28.1, -48.6) -> (-28.2, -48.7)"), default),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateLocationCoordinatesAsync_WithUnknownLocation_ThrowsNotFoundException()
+    {
+        _locationRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Location?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _sut.UpdateLocationCoordinatesAsync(Guid.NewGuid(), Guid.NewGuid(), new UpdateLocationCoordinatesRequest(0, 0)));
     }
 }
