@@ -2,6 +2,7 @@ using Moq;
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Photos;
 using Sunset.Application.Exceptions;
+using Sunset.Application.Interfaces;
 using Sunset.Application.Interfaces.Repositories;
 using Sunset.Application.Services;
 using Sunset.Domain.Entities;
@@ -15,11 +16,13 @@ public class PhotoServiceTests
     private readonly Mock<ILocationRepository> _locationRepository = new();
     private readonly Mock<IModerationActionRepository> _moderationActionRepository = new();
     private readonly Mock<INotificationRepository> _notificationRepository = new();
+    private readonly Mock<IUploadedImageSanitizer> _imageSanitizer = new();
     private readonly PhotoService _sut;
 
     public PhotoServiceTests()
     {
-        _sut = new PhotoService(_photoRepository.Object, _locationRepository.Object, _moderationActionRepository.Object, _notificationRepository.Object);
+        _imageSanitizer.Setup(s => s.SanitizeAsync(It.IsAny<string>(), default)).ReturnsAsync(true);
+        _sut = new PhotoService(_photoRepository.Object, _locationRepository.Object, _moderationActionRepository.Object, _notificationRepository.Object, _imageSanitizer.Object);
     }
 
     private static Photo CreatePhoto(User user, Location location, Guid? userId = null)
@@ -436,5 +439,42 @@ public class PhotoServiceTests
             Assert.NotNull(reply.DeletedAt);
             _photoRepository.Verify(r => r.SoftDeleteCommentAsync(reply, default), Times.Once);
         }
+    }
+
+    [Fact]
+    public async Task CreateAsync_SanitizesTheUploadedImage_BeforeSavingThePhoto()
+    {
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
+        var order = new List<string>();
+        _imageSanitizer
+            .Setup(s => s.SanitizeAsync("https://cdn.sunset.dev/photos/u/p.jpg", default))
+            .Callback(() => order.Add("sanitize"))
+            .ReturnsAsync(true);
+        _photoRepository
+            .Setup(r => r.AddAsync(It.IsAny<Photo>(), default))
+            .Callback(() => order.Add("save"))
+            .Returns(Task.CompletedTask);
+        _photoRepository
+            .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default))
+            .ReturnsAsync((Guid id, CancellationToken _) => CreatePhoto(new User("Ana", "ana@sunset.com", "hashed"), location));
+
+        await _sut.CreateAsync(Guid.NewGuid(), new CreatePhotoRequest(location.Id, "https://cdn.sunset.dev/photos/u/p.jpg", null));
+
+        Assert.Equal(["sanitize", "save"], order);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenImageIsNotAValidUpload_ThrowsValidationAndSavesNothing()
+    {
+        var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
+        _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
+        _imageSanitizer.Setup(s => s.SanitizeAsync(It.IsAny<string>(), default)).ReturnsAsync(false);
+
+        var ex = await Assert.ThrowsAsync<FluentValidation.ValidationException>(() =>
+            _sut.CreateAsync(Guid.NewGuid(), new CreatePhotoRequest(location.Id, "https://cdn.sunset.dev/photos/u/bad.jpg", null)));
+
+        Assert.Contains(ex.Errors, e => e.PropertyName == "ImageUrl");
+        _photoRepository.Verify(r => r.AddAsync(It.IsAny<Photo>(), default), Times.Never);
     }
 }

@@ -38,6 +38,9 @@ these are the diffs to check:
   [Moderation](#moderation).
 - **New `POST /moderation/locations/{id}/merge`** — merges a duplicate location into another — see
   [Moderation](#moderation).
+- **Photo metadata (EXIF/GPS) is stripped server-side**: `POST /photos` and `PATCH /users/me`
+  (avatar) now clean the uploaded file before accepting it, and reject anything that isn't a real
+  JPEG/PNG (≤15 MB) with `400` — see [Photos](#photos).
 - **CORS** is now configured (was previously missing/blocking) — see [CORS](#cors).
 - **Ratings now carry a comment and have their own endpoints**: `RatingResponse` (score + comment
   + author), `GET /locations/{id}/ratings` (list), `GET /locations/{id}/ratings/me`, and
@@ -594,6 +597,18 @@ minutes. Once the `PUT` succeeds, `imageUrl` is the permanent URL to send to `PO
 (i.e. outside our bucket), same rule as the avatar.
 In dev this is LocalStack (`docker compose up` from the repo root); see [Local dev
 seed data](#local-dev-seed-data)'s neighboring setup notes in `CLAUDE.md` for the bucket details.
+
+> **Privacy — EXIF/GPS is removed for you.** The browser uploads straight to storage, so the file first lands
+> as-is; **`POST /photos`** (and `PATCH /users/me` when it sets a new `avatarUrl`) then downloads it,
+> strips every piece of metadata (EXIF incl. GPS, XMP, IPTC, comments, timestamps, trailing data) **without
+> re-encoding** — pixels and quality are untouched — and overwrites the same object. The only thing kept is
+> the JPEG *orientation* flag, so portrait photos don't turn sideways. Consequences for the client:
+> - Nothing to do on the client; client-side stripping is optional and welcome (the raw file is
+>   reachable by its unguessable URL between the upload and the `POST`).
+> - The `POST` takes a bit longer (a download + upload of the file).
+> - A key that was never uploaded, a file over **15 MB**, or something that isn't a well-formed
+>   **JPEG/PNG** → `400` with `errors.ImageUrl` (`errors.AvatarUrl` for the avatar). Storage unreachable → `502`.
+> - So always `PUT` the file to `uploadUrl` **before** calling `POST /photos`, as before.
 
 ### 🔒 `POST /photos`
 Body: `{ "locationId": "guid", "imageUrl": string, "caption": string | null }`.

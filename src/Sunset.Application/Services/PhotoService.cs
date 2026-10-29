@@ -1,3 +1,5 @@
+using FluentValidation;
+using FluentValidation.Results;
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Photos;
 using Sunset.Application.Exceptions;
@@ -12,7 +14,8 @@ public class PhotoService(
     IPhotoRepository photoRepository,
     ILocationRepository locationRepository,
     IModerationActionRepository moderationActionRepository,
-    INotificationRepository notificationRepository) : IPhotoService
+    INotificationRepository notificationRepository,
+    IUploadedImageSanitizer imageSanitizer) : IPhotoService
 {
     public async Task<CursorPagedResult<PhotoResponse>> GetFeedAsync(PhotoSortOption sort, string? cursor, int limit, Guid? currentUserId, CancellationToken cancellationToken = default)
     {
@@ -39,6 +42,10 @@ public class PhotoService(
     {
         if (await locationRepository.GetByIdAsync(request.LocationId, cancellationToken) is null)
             throw new NotFoundException("Location not found.");
+
+        // Strips EXIF/GPS from the already-uploaded file before it becomes visible to anyone.
+        if (!await imageSanitizer.SanitizeAsync(request.ImageUrl, cancellationToken))
+            throw new ValidationException([new ValidationFailure(nameof(request.ImageUrl), "ImageUrl must be an uploaded JPEG or PNG image (up to 15 MB).")]);
 
         var photo = new Photo(userId, request.LocationId, request.ImageUrl, request.Caption);
         await photoRepository.AddAsync(photo, cancellationToken);

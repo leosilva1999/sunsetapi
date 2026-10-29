@@ -20,11 +20,14 @@ public class UserServiceTests
     private readonly Mock<INotificationRepository> _notificationRepository = new();
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
     private readonly Mock<IEmailSender> _emailSender = new();
+    private readonly Mock<IUploadedImageSanitizer> _imageSanitizer = new();
     private readonly UserService _sut;
 
     public UserServiceTests()
     {
         _passwordHasher.Setup(h => h.Hash(It.IsAny<string>())).Returns("hashed");
+        _imageSanitizer.Setup(s => s.SanitizeAsync(It.IsAny<string>(), default)).ReturnsAsync(true);
+
         _sut = new UserService(
             _userRepository.Object,
             _photoRepository.Object,
@@ -32,7 +35,8 @@ public class UserServiceTests
             _followRepository.Object,
             _notificationRepository.Object,
             _passwordHasher.Object,
-            _emailSender.Object);
+            _emailSender.Object,
+            _imageSanitizer.Object);
     }
 
     [Fact]
@@ -384,5 +388,44 @@ public class UserServiceTests
     {
         typeof(Photo).GetProperty(nameof(Photo.User))!.SetValue(photo, user);
         typeof(Photo).GetProperty(nameof(Photo.Location))!.SetValue(photo, location);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_WithNewAvatar_SanitizesItBeforeSaving()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        _userRepository.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+        var request = new UpdateProfileRequest(Optional<string>.Unset, Optional<string?>.Of("https://cdn.sunset.dev/avatars/a.jpg"), Optional<string?>.Unset);
+
+        await _sut.UpdateProfileAsync(user.Id, request);
+
+        _imageSanitizer.Verify(s => s.SanitizeAsync("https://cdn.sunset.dev/avatars/a.jpg", default), Times.Once);
+        _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_WhenAvatarIsNotAValidImage_ThrowsValidationAndDoesNotSave()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        _userRepository.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+        _imageSanitizer.Setup(s => s.SanitizeAsync(It.IsAny<string>(), default)).ReturnsAsync(false);
+        var request = new UpdateProfileRequest(Optional<string>.Unset, Optional<string?>.Of("https://cdn.sunset.dev/avatars/bad.jpg"), Optional<string?>.Unset);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => _sut.UpdateProfileAsync(user.Id, request));
+
+        Assert.Contains(ex.Errors, e => e.PropertyName == "AvatarUrl");
+        _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_WithUnchangedOrClearedAvatar_DoesNotSanitize()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed", "https://cdn.sunset.dev/avatars/same.jpg");
+        _userRepository.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+
+        await _sut.UpdateProfileAsync(user.Id, new UpdateProfileRequest(Optional<string>.Unset, Optional<string?>.Of("https://cdn.sunset.dev/avatars/same.jpg"), Optional<string?>.Unset));
+        await _sut.UpdateProfileAsync(user.Id, new UpdateProfileRequest(Optional<string>.Unset, Optional<string?>.Of(null), Optional<string?>.Unset));
+
+        _imageSanitizer.Verify(s => s.SanitizeAsync(It.IsAny<string>(), default), Times.Never);
     }
 }

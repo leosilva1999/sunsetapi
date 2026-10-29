@@ -162,6 +162,14 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   `GET /moderation/reports`; `TargetId` segue sem FK). Alvo inexistente/apagado/anonimizado → 404; denunciar a
   si mesmo → 409. Resolver a denúncia **não age sobre o alvo**: o moderador usa banir/anonimizar/apagar local
   e depois fecha a denúncia. `ReportReason.IncorrectInfo` existe para "pino/nome errado" em locais.
+- **Remoção de EXIF/GPS**: o cliente sobe a imagem direto no S3 (URL pré-assinada), então o servidor limpa **depois**,
+  em `POST /photos` e no `PATCH /users/me` com avatar novo (`IUploadedImageSanitizer`): baixa o objeto pela URL pública
+  (o IAM continua só com `s3:PutObject`), `ImageMetadataStripper` (Application, sem dependências) remove EXIF/XMP/IPTC/
+  comentários/tIME/dados após o fim **sem recodificar** (qualidade intacta) e regrava no mesmo key. A única coisa mantida
+  é o flag de orientação JPEG, reescrito num EXIF mínimo (senão fotos em retrato giram). Também valida que é JPEG/PNG de
+  verdade (≤15 MB) → 400 `ImageUrl`/`AvatarUrl`. Nos testes de integração o sanitizador é trocado por um fake
+  (`AlwaysCleanImageSanitizer`), porque as URLs de teste não existem. Fotos enviadas antes dessa mudança continuam com EXIF
+  até um backfill.
 - **Termos de Uso e Política de Privacidade**: a versão 2 de cada (minuta completa, LGPD) está publicada na API e os
   textos-fonte ficam em `docs/legal/` (`termos-de-uso.txt`, `politica-de-privacidade.txt`), junto de
   `pontos-para-revisao-juridica.md` (campos `[...]` a preencher, decisões e lacunas técnicas). Aguardam revisão

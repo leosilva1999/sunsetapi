@@ -18,7 +18,8 @@ public class UserService(
     IFollowRepository followRepository,
     INotificationRepository notificationRepository,
     IPasswordHasher passwordHasher,
-    IEmailSender emailSender) : IUserService
+    IEmailSender emailSender,
+    IUploadedImageSanitizer imageSanitizer) : IUserService
 {
     public async Task<PublicUserResponse> GetByIdAsync(Guid id, Guid? currentUserId, CancellationToken cancellationToken = default)
     {
@@ -37,6 +38,11 @@ public class UserService(
         var name = request.Name.IsSet ? request.Name.Value! : user.Name;
         var avatarUrl = request.AvatarUrl.IsSet ? request.AvatarUrl.Value : user.AvatarUrl;
         var bio = request.Bio.IsSet ? request.Bio.Value : user.Bio;
+
+        // A newly set avatar is cleaned of EXIF/GPS (and checked to be a real image) before it is saved.
+        if (request.AvatarUrl.IsSet && avatarUrl is not null && avatarUrl != user.AvatarUrl
+            && !await imageSanitizer.SanitizeAsync(avatarUrl, cancellationToken))
+            throw new ValidationException([new ValidationFailure("AvatarUrl", "AvatarUrl must be an uploaded JPEG or PNG image (up to 15 MB).")]);
 
         user.UpdateProfile(name, avatarUrl, bio);
         await userRepository.SaveChangesAsync(cancellationToken);

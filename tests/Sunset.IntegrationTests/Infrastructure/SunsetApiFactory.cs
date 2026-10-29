@@ -33,6 +33,11 @@ public class SunsetApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         {
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(EmailSender);
+
+            // Test photo/avatar URLs point at storage that doesn't exist in this suite (no
+            // LocalStack): the real sanitizer would fail to download them.
+            services.RemoveAll<IUploadedImageSanitizer>();
+            services.AddSingleton<IUploadedImageSanitizer>(new AlwaysCleanImageSanitizer());
         });
     }
 
@@ -72,4 +77,9 @@ public class SunsetApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         await _postgresContainer.DisposeAsync();
         await base.DisposeAsync();
     }
+}
+
+internal sealed class AlwaysCleanImageSanitizer : IUploadedImageSanitizer
+{
+    public Task<bool> SanitizeAsync(string imageUrl, CancellationToken cancellationToken = default) => Task.FromResult(true);
 }
