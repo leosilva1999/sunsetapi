@@ -5,5 +5,6 @@ public enum ReportReason
     Spam,
     Inappropriate,
     Harassment,
-    Other
+    Other,
+    IncorrectInfo
 }

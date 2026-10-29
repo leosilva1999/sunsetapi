@@ -32,6 +32,10 @@ these are the diffs to check:
   [Moderation](#moderation).
 - **New `POST /moderation/users/{id}/anonymize` (Admin only)** — erases a user's account on
   behalf of moderation — see [Moderation](#moderation).
+- **Reporting locations and users**: new `POST /locations/{id}/reports` and `POST /users/{id}/reports`
+  (same body, rate limit and one-report-per-target rule as photos/comments), `ReportTargetType` gains
+  `Location` and `User`, and `ReportReason` gains `IncorrectInfo` (e.g. wrong map pin) — see
+  [Moderation](#moderation).
 - **CORS** is now configured (was previously missing/blocking) — see [CORS](#cors).
 - **Ratings now carry a comment and have their own endpoints**: `RatingResponse` (score + comment
   + author), `GET /locations/{id}/ratings` (list), `GET /locations/{id}/ratings/me`, and
@@ -681,6 +685,16 @@ caller — see [Photos](#photos)). → updated `ReportResponse`.
 Body: `{ "role": "User" | "Moderator" | "Admin" }`. No safeguard against demoting/promoting
 yourself or the last remaining Admin — the API trusts the caller. → updated `UserResponse`
 (includes `email`, unlike the public `GET /users/{id}`).
+
+### 🔒 `POST /locations/{id}/reports` · `POST /users/{id}/reports`
+Same as `POST /photos/{id}/reports`: body `{ "reason": "Spam" | "Inappropriate" | "Harassment" | "Other" | "IncorrectInfo", "details"?: string (≤500) }`
+→ `ReportResponse` (`targetType` is `Location` / `User`), `Reports` rate limit, one report per
+reporter and target (`409` on a repeat). Specific to these two: `IncorrectInfo` is meant for locations
+("the pin/name/city is wrong" — a moderator can then fix it with `PATCH /moderation/locations/{id}/coordinates`);
+reporting **yourself** is `409`; an unknown or already-deleted/anonymized target is `404`. They show up in
+`GET /moderation/reports` with the others — the moderator then acts on the target through the
+endpoints below (ban, anonymize, delete location) and closes the report with `PATCH /moderation/reports/{id}`
+(resolving a report does not act on the target by itself).
 
 ### 🔒🛡️ `POST /moderation/users/{id}/anonymize` (Admin only)
 Removes a user's account on behalf of moderation → `204`. Body: `{ "reason": string (≤500, required), "hideContent"?: boolean }`.

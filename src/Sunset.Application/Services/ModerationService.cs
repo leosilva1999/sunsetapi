@@ -24,12 +24,23 @@ public class ModerationService(
 {
     public async Task<ReportResponse> CreateReportAsync(Guid reporterId, ReportTargetType targetType, Guid targetId, CreateReportRequest request, CancellationToken cancellationToken = default)
     {
-        var targetExists = targetType == ReportTargetType.Photo
-            ? await photoRepository.GetByIdAsync(targetId, cancellationToken) is not null
-            : await photoRepository.GetCommentByIdAsync(targetId, cancellationToken) is not null;
+        var targetExists = targetType switch
+        {
+            ReportTargetType.Photo => await photoRepository.GetByIdAsync(targetId, cancellationToken) is not null,
+            ReportTargetType.Comment => await photoRepository.GetCommentByIdAsync(targetId, cancellationToken) is not null,
+            // The soft-delete query filter already hides removed locations.
+            ReportTargetType.Location => await locationRepository.GetByIdAsync(targetId, cancellationToken) is not null,
+            // An anonymized account (placeholder e-mail) is gone as far as the app is concerned.
+            ReportTargetType.User => await userRepository.GetByIdAsync(targetId, cancellationToken) is { } user
+                && !user.Email.EndsWith("@sunset.invalid", StringComparison.Ordinal),
+            _ => false,
+        };
 
         if (!targetExists)
             throw new NotFoundException($"{targetType} not found.");
+
+        if (targetType == ReportTargetType.User && targetId == reporterId)
+            throw new ConflictException("You cannot report yourself.");
 
         if (await reportRepository.ExistsAsync(reporterId, targetType, targetId, cancellationToken))
             throw new ConflictException("You have already reported this.");

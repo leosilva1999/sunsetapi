@@ -87,6 +87,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 
 **Moderation** (moderador/admin)
 - `DELETE /moderation/locations/:id` (soft delete + esconde as fotos), `POST .../restore`, `GET /moderation/locations/deleted`, `PATCH /moderation/locations/:id/coordinates` (moderador/admin)
+- `POST /locations/:id/reports`, `POST /users/:id/reports` (auth, rate limited — denúncia de local e de usuário; motivo `IncorrectInfo` p/ dados errados)
 - `POST /moderation/users/:id/anonymize` (admin only — apaga os dados da conta; `hideContent` esconde fotos e comentários)
 - `POST /moderation/users/:id/ban` / `DELETE /moderation/users/:id/ban` (banir/desbanir; moderador só bane `User`, admin bane também moderador)
 - `GET /moderation/reports` (`?status=Pending|Resolved|Dismissed`, paginado)
@@ -151,6 +152,10 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   removida. Curtidas/comentários/avaliações não são tocados. `PATCH /moderation/locations/:id/coordinates`
   corrige o pino (auditado com valor antigo → novo); o botão "editar localização" no mapa é do frontend,
   só para `Moderator`/`Admin`.
+- **Denúncias de local e usuário**: `Report.TargetType` ganha `Location` e `User` (mesma tabela e fila
+  `GET /moderation/reports`; `TargetId` segue sem FK). Alvo inexistente/apagado/anonimizado → 404; denunciar a
+  si mesmo → 409. Resolver a denúncia **não age sobre o alvo**: o moderador usa banir/anonimizar/apagar local
+  e depois fecha a denúncia. `ReportReason.IncorrectInfo` existe para "pino/nome errado" em locais.
 - **Anonimizar usuário (admin)**: `POST /moderation/users/:id/anonymize` aplica o mesmo `User.Anonymize` da
   exclusão de conta, **mais** um ban permanente (assim o access token que o usuário já tem morre na hora, via
   `IBanStatusService`) e revoga os refresh tokens. `hideContent` esconde todas as fotos (UPDATE em lote) e

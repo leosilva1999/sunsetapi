@@ -468,4 +468,78 @@ public class ModerationServiceTests
 
         await Assert.ThrowsAsync<ConflictException>(() => _sut.AnonymizeUserAsync(admin.Id, target.Id, new AnonymizeUserRequest("x")));
     }
+
+    [Fact]
+    public async Task CreateReportAsync_OnExistingLocation_AddsReport()
+    {
+        var reporter = SetupUser();
+        var location = new Location("Praia do Rosa", -28.1, -48.6, "Imbituba");
+        _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
+        _reportRepository.Setup(r => r.ExistsAsync(reporter.Id, ReportTargetType.Location, location.Id, default)).ReturnsAsync(false);
+        _reportRepository
+            .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default))
+            .ReturnsAsync((Guid id, CancellationToken _) => CreateReport(reporter.Id, reporter, ReportTargetType.Location, location.Id, ReportReason.IncorrectInfo));
+
+        var response = await _sut.CreateReportAsync(reporter.Id, ReportTargetType.Location, location.Id, new CreateReportRequest(ReportReason.IncorrectInfo));
+
+        Assert.Equal(ReportTargetType.Location, response.TargetType);
+        _reportRepository.Verify(r => r.AddAsync(It.Is<Report>(x => x.TargetType == ReportTargetType.Location && x.TargetId == location.Id), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateReportAsync_OnUnknownOrDeletedLocation_ThrowsNotFoundException()
+    {
+        var reporter = SetupUser();
+        _locationRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Location?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _sut.CreateReportAsync(reporter.Id, ReportTargetType.Location, Guid.NewGuid(), new CreateReportRequest(ReportReason.Spam)));
+    }
+
+    [Fact]
+    public async Task CreateReportAsync_OnExistingUser_AddsReport()
+    {
+        var reporter = SetupUser();
+        var target = SetupUser();
+        _reportRepository.Setup(r => r.ExistsAsync(reporter.Id, ReportTargetType.User, target.Id, default)).ReturnsAsync(false);
+        _reportRepository
+            .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default))
+            .ReturnsAsync((Guid id, CancellationToken _) => CreateReport(reporter.Id, reporter, ReportTargetType.User, target.Id, ReportReason.Harassment));
+
+        var response = await _sut.CreateReportAsync(reporter.Id, ReportTargetType.User, target.Id, new CreateReportRequest(ReportReason.Harassment));
+
+        Assert.Equal(ReportTargetType.User, response.TargetType);
+        _reportRepository.Verify(r => r.AddAsync(It.Is<Report>(x => x.TargetType == ReportTargetType.User && x.TargetId == target.Id), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateReportAsync_OnYourself_ThrowsConflictException()
+    {
+        var reporter = SetupUser();
+
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            _sut.CreateReportAsync(reporter.Id, ReportTargetType.User, reporter.Id, new CreateReportRequest(ReportReason.Spam)));
+    }
+
+    [Fact]
+    public async Task CreateReportAsync_OnAnonymizedUser_ThrowsNotFoundException()
+    {
+        var reporter = SetupUser();
+        var gone = SetupUser();
+        gone.Anonymize($"deleted-{gone.Id:N}@sunset.invalid", "unusable");
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _sut.CreateReportAsync(reporter.Id, ReportTargetType.User, gone.Id, new CreateReportRequest(ReportReason.Spam)));
+    }
+
+    [Fact]
+    public async Task CreateReportAsync_OnUnknownUser_ThrowsNotFoundException()
+    {
+        var reporter = SetupUser();
+        _userRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((User?)null);
+        _userRepository.Setup(r => r.GetByIdAsync(reporter.Id, default)).ReturnsAsync(reporter);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _sut.CreateReportAsync(reporter.Id, ReportTargetType.User, Guid.NewGuid(), new CreateReportRequest(ReportReason.Spam)));
+    }
 }

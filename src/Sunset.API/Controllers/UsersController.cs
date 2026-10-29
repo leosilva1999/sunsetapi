@@ -3,10 +3,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Sunset.Application.Common;
+using Sunset.Application.DTOs.Moderation;
 using Sunset.Application.DTOs.Photos;
 using Sunset.Application.DTOs.Users;
 using Sunset.Application.Exceptions;
 using Sunset.Application.Interfaces;
+using Sunset.Domain.Enums;
 
 namespace Sunset.API.Controllers;
 
@@ -18,6 +20,8 @@ public class UsersController(
     IValidator<UpdateProfileRequest> updateProfileValidator,
     IValidator<ChangePasswordRequest> changePasswordValidator,
     IValidator<CreateAvatarUploadUrlRequest> createAvatarUploadUrlValidator,
+    IValidator<CreateReportRequest> createReportValidator,
+    IModerationService moderationService,
     ICurrentUserService currentUserService) : ControllerBase
 {
     [HttpGet("{id:guid}")]
@@ -131,5 +135,19 @@ public class UsersController(
     {
         var page = await userService.GetPhotosAsync(id, cursor, Math.Clamp(limit, 1, 50), cancellationToken);
         return Ok(page);
+    }
+
+    [Authorize]
+    [EnableRateLimiting("Reports")]
+    [HttpPost("{id:guid}/reports")]
+    public async Task<ActionResult<ReportResponse>> Report(Guid id, CreateReportRequest request, CancellationToken cancellationToken)
+    {
+        await createReportValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedActionException("User is not authenticated.");
+
+        var response = await moderationService.CreateReportAsync(userId, ReportTargetType.User, id, request, cancellationToken);
+        return Ok(response);
     }
 }
