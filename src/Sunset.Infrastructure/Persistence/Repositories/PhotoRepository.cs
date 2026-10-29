@@ -117,6 +117,16 @@ public class PhotoRepository(SunsetDbContext context) : IPhotoRepository
                 .SetProperty(p => p.DeletedAt, (DateTime?)null)
                 .SetProperty(p => p.DeletedByUserId, (Guid?)null), cancellationToken);
 
+    public Task<int> SoftDeleteAllByUserAsync(Guid userId, Guid deletedByUserId, DateTime deletedAt, CancellationToken cancellationToken = default) =>
+        context.Photos
+            .Where(p => p.UserId == userId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(p => p.DeletedAt, deletedAt)
+                .SetProperty(p => p.DeletedByUserId, deletedByUserId), cancellationToken);
+
+    public async Task<IReadOnlyList<Comment>> GetCommentsByUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        await context.Comments.Where(c => c.UserId == userId).ToListAsync(cancellationToken);
+
     public Task<Like?> GetLikeAsync(Guid userId, Guid photoId, CancellationToken cancellationToken = default) =>
         context.Likes.FirstOrDefaultAsync(l => l.UserId == userId && l.PhotoId == photoId, cancellationToken);
 

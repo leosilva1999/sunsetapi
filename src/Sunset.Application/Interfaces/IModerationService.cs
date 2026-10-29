@@ -21,6 +21,7 @@ public interface IModerationService
     Task<IReadOnlyList<DeletedLocationResponse>> GetDeletedLocationsAsync(int limit, CancellationToken cancellationToken = default);
     Task<LocationResponse> UpdateLocationCoordinatesAsync(Guid moderatorId, Guid locationId, UpdateLocationCoordinatesRequest request, CancellationToken cancellationToken = default);
 
+    Task AnonymizeUserAsync(Guid adminId, Guid targetUserId, AnonymizeUserRequest request, CancellationToken cancellationToken = default);
     Task BanUserAsync(Guid moderatorId, Guid targetUserId, BanUserRequest request, CancellationToken cancellationToken = default);
     Task UnbanUserAsync(Guid moderatorId, Guid targetUserId, CancellationToken cancellationToken = default);
     Task<CursorPagedResult<UserResponse>> SearchUsersAsync(string? query, string? cursor, int limit, CancellationToken cancellationToken = default);

@@ -20,6 +20,7 @@ public class ModerationServiceTests
     private readonly Mock<IEmailSender> _emailSender = new();
     private readonly Mock<IBanStatusService> _banStatusService = new();
     private readonly Mock<ILocationRepository> _locationRepository = new();
+    private readonly Mock<IPasswordHasher> _passwordHasher = new();
     private readonly ModerationService _sut;
 
     public ModerationServiceTests()
@@ -33,7 +34,8 @@ public class ModerationServiceTests
             _refreshTokenRepository.Object,
             _emailSender.Object,
             _banStatusService.Object,
-            _locationRepository.Object);
+            _locationRepository.Object,
+            _passwordHasher.Object);
     }
 
     private static Report CreateReport(Guid reporterId, User reporter, ReportTargetType targetType, Guid targetId, ReportReason reason = ReportReason.Spam)
@@ -387,5 +389,83 @@ public class ModerationServiceTests
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
             _sut.UpdateLocationCoordinatesAsync(Guid.NewGuid(), Guid.NewGuid(), new UpdateLocationCoordinatesRequest(0, 0)));
+    }
+
+    [Fact]
+    public async Task AnonymizeUserAsync_ErasesAccountBansRevokesAuditsAndNotifiesOriginalAddress()
+    {
+        var admin = SetupUser(UserRole.Admin);
+        var target = SetupUser();
+        var originalEmail = target.Email;
+        _passwordHasher.Setup(h => h.Hash(It.IsAny<string>())).Returns("unusable");
+
+        await _sut.AnonymizeUserAsync(admin.Id, target.Id, new AnonymizeUserRequest("Conteudo ilegal"));
+
+        Assert.Equal("Usuário excluído", target.Name);
+        Assert.EndsWith("@sunset.invalid", target.Email);
+        Assert.Equal("unusable", target.PasswordHash);
+        Assert.True(target.IsBanned(DateTime.UtcNow));
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(target.Id, default), Times.Once);
+        _banStatusService.Verify(s => s.Invalidate(target.Id), Times.Once);
+        _photoRepository.Verify(r => r.SoftDeleteAllByUserAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<DateTime>(), default), Times.Never);
+        _moderationActionRepository.Verify(
+            r => r.AddAsync(It.Is<ModerationAction>(a => a.ActionType == ModerationActionType.UserAnonymized && a.Notes!.Contains("content kept")), default),
+            Times.Once);
+        _emailSender.Verify(e => e.SendAsync(originalEmail, It.IsAny<string>(), It.IsAny<string>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task AnonymizeUserAsync_WithHideContent_HidesPhotosAndCommentsAdjustingCounters()
+    {
+        var admin = SetupUser(UserRole.Admin);
+        var target = SetupUser();
+        _passwordHasher.Setup(h => h.Hash(It.IsAny<string>())).Returns("unusable");
+
+        var otherPhoto = new Photo(Guid.NewGuid(), Guid.NewGuid(), "https://x/p.jpg", null);
+        otherPhoto.IncrementCommentsCount();
+        otherPhoto.IncrementCommentsCount();
+        otherPhoto.IncrementCommentsCount();
+        var root = new Comment(target.Id, otherPhoto.Id, "root");
+        root.IncrementRepliesCount();
+        var ownReply = new Comment(target.Id, otherPhoto.Id, "reply", root.Id);
+        var strangerReply = new Comment(Guid.NewGuid(), otherPhoto.Id, "outra pessoa", root.Id);
+        // root has 2 replies in the denormalized counter: the user's own and a stranger's
+        root.IncrementRepliesCount();
+        _photoRepository.Setup(r => r.GetCommentsByUserAsync(target.Id, default)).ReturnsAsync(new[] { ownReply, root });
+        _photoRepository.Setup(r => r.GetAllRepliesAsync(root.Id, default)).ReturnsAsync(new[] { ownReply, strangerReply });
+        _photoRepository.Setup(r => r.GetByIdAsync(otherPhoto.Id, default)).ReturnsAsync(otherPhoto);
+        _photoRepository.Setup(r => r.SoftDeleteAllByUserAsync(target.Id, admin.Id, It.IsAny<DateTime>(), default)).ReturnsAsync(4);
+
+        await _sut.AnonymizeUserAsync(admin.Id, target.Id, new AnonymizeUserRequest("Spam em massa", HideContent: true));
+
+        Assert.NotNull(root.DeletedAt);
+        Assert.NotNull(ownReply.DeletedAt);
+        Assert.NotNull(strangerReply.DeletedAt);
+        // 3 comments were counted on the photo (root + 2 replies); all three are gone
+        Assert.Equal(0, otherPhoto.CommentsCount);
+        _moderationActionRepository.Verify(
+            r => r.AddAsync(It.Is<ModerationAction>(a => a.Notes!.Contains("hidden 4 photo(s) and 3 comment(s)")), default),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task AnonymizeUserAsync_OnAdminOrSelf_IsForbidden()
+    {
+        var admin = SetupUser(UserRole.Admin);
+        var otherAdmin = SetupUser(UserRole.Admin);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => _sut.AnonymizeUserAsync(admin.Id, otherAdmin.Id, new AnonymizeUserRequest("x")));
+        await Assert.ThrowsAsync<ForbiddenException>(() => _sut.AnonymizeUserAsync(admin.Id, admin.Id, new AnonymizeUserRequest("x")));
+    }
+
+    [Fact]
+    public async Task AnonymizeUserAsync_WhenAlreadyDeleted_ThrowsConflictException()
+    {
+        var admin = SetupUser(UserRole.Admin);
+        var target = SetupUser();
+        _passwordHasher.Setup(h => h.Hash(It.IsAny<string>())).Returns("unusable");
+        target.Anonymize($"deleted-{target.Id:N}@sunset.invalid", "unusable");
+
+        await Assert.ThrowsAsync<ConflictException>(() => _sut.AnonymizeUserAsync(admin.Id, target.Id, new AnonymizeUserRequest("x")));
     }
 }

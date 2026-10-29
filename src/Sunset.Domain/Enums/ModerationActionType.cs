@@ -12,5 +12,6 @@ public enum ModerationActionType
     UserUnbanned,
     LocationDeleted,
     LocationRestored,
-    LocationCoordinatesChanged
+    LocationCoordinatesChanged,
+    UserAnonymized
 }

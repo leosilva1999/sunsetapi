@@ -30,6 +30,8 @@ these are the diffs to check:
   location **and its photos**), `POST .../restore`, `GET /moderation/locations/deleted` and
   `PATCH /moderation/locations/{id}/coordinates` (fix a wrong map pin) — see
   [Moderation](#moderation).
+- **New `POST /moderation/users/{id}/anonymize` (Admin only)** — erases a user's account on
+  behalf of moderation — see [Moderation](#moderation).
 - **CORS** is now configured (was previously missing/blocking) — see [CORS](#cors).
 - **Ratings now carry a comment and have their own endpoints**: `RatingResponse` (score + comment
   + author), `GET /locations/{id}/ratings` (list), `GET /locations/{id}/ratings/me`, and
@@ -679,6 +681,22 @@ caller — see [Photos](#photos)). → updated `ReportResponse`.
 Body: `{ "role": "User" | "Moderator" | "Admin" }`. No safeguard against demoting/promoting
 yourself or the last remaining Admin — the API trusts the caller. → updated `UserResponse`
 (includes `email`, unlike the public `GET /users/{id}`).
+
+### 🔒🛡️ `POST /moderation/users/{id}/anonymize` (Admin only)
+Removes a user's account on behalf of moderation → `204`. Body: `{ "reason": string (≤500, required), "hideContent"?: boolean }`.
+**Irreversible** — ask for confirmation in the UI. Prefer [banning](#moderation) when the user may come back.
+
+- Same erasure as the user deleting their own account: name → "Usuário excluído", e-mail replaced by a
+  placeholder, password unusable, avatar/bio cleared; every session is revoked and (through a permanent
+  ban) an access token already issued stops working immediately. The user can no longer sign in.
+- `hideContent: true` also hides all the user's **photos and comments** (soft delete, counters kept
+  consistent; replies to a hidden comment are hidden with it). Default `false`: their content stays visible
+  under the "Usuário excluído" name.
+- A notice email with the reason goes to the **original** address before it is erased; a failed send
+  doesn't fail the request.
+- Rules: Admin only (a Moderator gets `403`); the target can't be an Admin or yourself (`403`); a
+  Moderator target is allowed; unknown user `404`; already removed `409`; empty/oversized `reason` `400`.
+- Audited as `UserAnonymized` with the reason and, if hidden, how many photos/comments.
 
 ### 🔒🛡️ `PATCH /moderation/locations/{id}/coordinates` (Moderator or Admin)
 Corrects a location's map pin. Body: `{ "latitude": number (-90..90), "longitude": number (-180..180) }`

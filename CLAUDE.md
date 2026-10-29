@@ -87,6 +87,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 
 **Moderation** (moderador/admin)
 - `DELETE /moderation/locations/:id` (soft delete + esconde as fotos), `POST .../restore`, `GET /moderation/locations/deleted`, `PATCH /moderation/locations/:id/coordinates` (moderador/admin)
+- `POST /moderation/users/:id/anonymize` (admin only — apaga os dados da conta; `hideContent` esconde fotos e comentários)
 - `POST /moderation/users/:id/ban` / `DELETE /moderation/users/:id/ban` (banir/desbanir; moderador só bane `User`, admin bane também moderador)
 - `GET /moderation/reports` (`?status=Pending|Resolved|Dismissed`, paginado)
 - `PATCH /moderation/reports/:id` (resolver/dispensar)
@@ -150,6 +151,13 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   removida. Curtidas/comentários/avaliações não são tocados. `PATCH /moderation/locations/:id/coordinates`
   corrige o pino (auditado com valor antigo → novo); o botão "editar localização" no mapa é do frontend,
   só para `Moderator`/`Admin`.
+- **Anonimizar usuário (admin)**: `POST /moderation/users/:id/anonymize` aplica o mesmo `User.Anonymize` da
+  exclusão de conta, **mais** um ban permanente (assim o access token que o usuário já tem morre na hora, via
+  `IBanStatusService`) e revoga os refresh tokens. `hideContent` esconde todas as fotos (UPDATE em lote) e
+  comentários (um a um, espelhando `PhotoService.DeleteCommentAsync`, para manter `CommentsCount`/`RepliesCount`
+  coerentes; comentários antes das fotos, porque o ajuste de contador precisa da foto visível). Admin e o
+  próprio admin são intocáveis; já anonimizado (`@sunset.invalid`) → 409. O aviso por e-mail vai para o
+  endereço **original**, antes de ser apagado.
 - **Banimento de usuário**: `User.BannedAt/BannedUntil/BanReason/BannedByUserId` (sem `BannedUntil` = permanente;
   ban temporário expira sozinho, `IsBanned(now)` compara com o relógio). `ModerationService.BanUserAsync` revoga
   todos os refresh tokens, grava `ModerationAction` (`UserBanned`/`UserUnbanned`) e avisa por e-mail (falha de e-mail

@@ -19,7 +19,8 @@ public class ModerationService(
     IRefreshTokenRepository refreshTokenRepository,
     IEmailSender emailSender,
     IBanStatusService banStatusService,
-    ILocationRepository locationRepository) : IModerationService
+    ILocationRepository locationRepository,
+    IPasswordHasher passwordHasher) : IModerationService
 {
     public async Task<ReportResponse> CreateReportAsync(Guid reporterId, ReportTargetType targetType, Guid targetId, CreateReportRequest request, CancellationToken cancellationToken = default)
     {
@@ -167,6 +168,103 @@ public class ModerationService(
         return location.ToResponse();
     }
 
+    public async Task AnonymizeUserAsync(Guid adminId, Guid targetUserId, AnonymizeUserRequest request, CancellationToken cancellationToken = default)
+    {
+        var target = await GetModeratableUserAsync(adminId, targetUserId, cancellationToken);
+        if (target.Email.EndsWith("@sunset.invalid", StringComparison.Ordinal))
+            throw new ConflictException("User is already deleted.");
+
+        var reason = request.Reason.Trim();
+        var originalEmail = target.Email;
+        var originalName = target.Name;
+
+        var photosHidden = 0;
+        var commentsHidden = 0;
+        if (request.HideContent)
+        {
+            // Comments first: hiding them needs their photos still visible (to fix the counters),
+            // and hiding the photos right after is a single bulk update.
+            commentsHidden = await HideCommentsAsync(targetUserId, adminId, cancellationToken);
+            var now = DateTime.UtcNow;
+            photosHidden = await photoRepository.SoftDeleteAllByUserAsync(
+                targetUserId, adminId, new DateTime(now.Ticks - now.Ticks % 10, DateTimeKind.Utc), cancellationToken);
+        }
+
+        // Same erasure as the user deleting their own account (UserService.DeleteAccountAsync),
+        // plus a permanent ban so an access token they already hold dies at once instead of
+        // lingering up to 15 minutes (IBanStatusService is checked on every request).
+        target.Anonymize($"deleted-{targetUserId:N}@sunset.invalid", passwordHasher.Hash(Guid.NewGuid().ToString()));
+        target.Ban("Account removed by moderation.", null, adminId, DateTime.UtcNow);
+        await userRepository.SaveChangesAsync(cancellationToken);
+        await refreshTokenRepository.RevokeAllForUserAsync(targetUserId, cancellationToken);
+        banStatusService.Invalidate(targetUserId);
+
+        await moderationActionRepository.AddAsync(
+            new ModerationAction(adminId, ModerationActionType.UserAnonymized, $"User:{targetUserId}",
+                request.HideContent
+                    ? $"Reason: {reason}; hidden {photosHidden} photo(s) and {commentsHidden} comment(s)"
+                    : $"Reason: {reason}; content kept"),
+            cancellationToken);
+
+        // Sent to the address as it was before erasure; a failed send doesn't undo the removal.
+        try
+        {
+            await emailSender.SendAsync(originalEmail, "Sua conta foi removida - Sunsetsss", $"""
+                <p>Olá, {System.Net.WebUtility.HtmlEncode(originalName)}!</p>
+                <p>Sua conta no Sunsetsss foi removida pela equipe de moderação.</p>
+                <p>Motivo: {System.Net.WebUtility.HtmlEncode(reason)}</p>
+                """, cancellationToken);
+        }
+        catch (ExternalServiceException)
+        {
+        }
+    }
+
+    // Mirrors PhotoService.DeleteCommentAsync (counters of the photo and of the parent comment,
+    // replies of a hidden root hidden with it), over every comment of one user.
+    private async Task<int> HideCommentsAsync(Guid userId, Guid moderatorId, CancellationToken cancellationToken)
+    {
+        var hidden = 0;
+        var comments = await photoRepository.GetCommentsByUserAsync(userId, cancellationToken);
+
+        // Roots first, so a user's reply under their own root is hidden by the cascade (and
+        // counted once) rather than twice.
+        foreach (var comment in comments.OrderBy(c => c.ParentCommentId is not null))
+        {
+            if (comment.DeletedAt is not null)
+                continue;
+
+            var photo = await photoRepository.GetByIdAsync(comment.PhotoId, cancellationToken);
+
+            if (comment.ParentCommentId is { } parentId)
+            {
+                var parent = await photoRepository.GetCommentByIdAsync(parentId, cancellationToken);
+                parent?.DecrementRepliesCount();
+                photo?.DecrementCommentsCount();
+                comment.SoftDelete(moderatorId);
+                await photoRepository.SoftDeleteCommentAsync(comment, cancellationToken);
+                hidden++;
+            }
+            else
+            {
+                var replies = await photoRepository.GetAllRepliesAsync(comment.Id, cancellationToken);
+                photo?.DecrementCommentsCount(1 + replies.Count);
+                comment.SoftDelete(moderatorId);
+                await photoRepository.SoftDeleteCommentAsync(comment, cancellationToken);
+                hidden++;
+
+                foreach (var reply in replies)
+                {
+                    reply.SoftDelete(moderatorId);
+                    await photoRepository.SoftDeleteCommentAsync(reply, cancellationToken);
+                    hidden++;
+                }
+            }
+        }
+
+        return hidden;
+    }
+
     public async Task BanUserAsync(Guid moderatorId, Guid targetUserId, BanUserRequest request, CancellationToken cancellationToken = default)
     {
         var target = await GetModeratableUserAsync(moderatorId, targetUserId, cancellationToken);
@@ -215,7 +313,7 @@ public class ModerationService(
             cancellationToken);
     }
 
-    // Who may be banned/unbanned: nobody bans themselves, an Admin is untouchable, and a
+    // Who may be banned/unbanned/removed: nobody bans themselves, an Admin is untouchable, and a
     // Moderator is only reachable by an Admin (peers can't act on each other).
     private async Task<User> GetModeratableUserAsync(Guid moderatorId, Guid targetUserId, CancellationToken cancellationToken)
     {
@@ -225,11 +323,11 @@ public class ModerationService(
             ?? throw new NotFoundException("User not found.");
 
         if (target.Id == moderator.Id)
-            throw new ForbiddenException("You cannot ban yourself.");
+            throw new ForbiddenException("You cannot act on yourself.");
         if (target.Role == UserRole.Admin)
-            throw new ForbiddenException("Admins cannot be banned.");
+            throw new ForbiddenException("Admins cannot be banned or removed.");
         if (target.Role == UserRole.Moderator && moderator.Role != UserRole.Admin)
-            throw new ForbiddenException("Only an Admin can ban a Moderator.");
+            throw new ForbiddenException("Only an Admin can act on a Moderator.");
 
         return target;
     }

@@ -19,6 +19,7 @@ public class ModerationController(
     IValidator<ResolveReportRequest> resolveReportValidator,
     IValidator<ChangeUserRoleRequest> changeUserRoleValidator,
     IValidator<BanUserRequest> banUserValidator,
+    IValidator<AnonymizeUserRequest> anonymizeUserValidator,
     IValidator<UpdateLocationCoordinatesRequest> updateCoordinatesValidator,
     ICurrentUserService currentUserService) : ControllerBase
 {
@@ -86,6 +87,16 @@ public class ModerationController(
     {
         await banUserValidator.ValidateAndThrowAsync(request, cancellationToken);
         await moderationService.BanUserAsync(RequireUserId(), id, request, cancellationToken);
+        return NoContent();
+    }
+
+    // Admin-only: this erases the account's personal data and cannot be undone.
+    [Authorize(Roles = "Admin")]
+    [HttpPost("users/{id:guid}/anonymize")]
+    public async Task<IActionResult> AnonymizeUser(Guid id, AnonymizeUserRequest request, CancellationToken cancellationToken)
+    {
+        await anonymizeUserValidator.ValidateAndThrowAsync(request, cancellationToken);
+        await moderationService.AnonymizeUserAsync(RequireUserId(), id, request, cancellationToken);
         return NoContent();
     }
 

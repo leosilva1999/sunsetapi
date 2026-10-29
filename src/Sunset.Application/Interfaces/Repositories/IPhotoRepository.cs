@@ -23,6 +23,12 @@ public interface IPhotoRepository
     Task<int> SoftDeleteAllByLocationAsync(Guid locationId, Guid deletedByUserId, DateTime deletedAt, CancellationToken cancellationToken = default);
     Task<int> RestoreAllByLocationAsync(Guid locationId, DateTime deletedAt, CancellationToken cancellationToken = default);
 
+    // Every non-deleted photo / comment of one user - used only by the admin "anonymize user and
+    // hide content" flow. Comments are returned as entities (not bulk-updated) because hiding one
+    // must also adjust the denormalized counters of its photo and parent comment.
+    Task<int> SoftDeleteAllByUserAsync(Guid userId, Guid deletedByUserId, DateTime deletedAt, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Comment>> GetCommentsByUserAsync(Guid userId, CancellationToken cancellationToken = default);
+
     Task<Like?> GetLikeAsync(Guid userId, Guid photoId, CancellationToken cancellationToken = default);
     Task AddLikeAsync(Like like, CancellationToken cancellationToken = default);
     Task RemoveLikeAsync(Like like, CancellationToken cancellationToken = default);
