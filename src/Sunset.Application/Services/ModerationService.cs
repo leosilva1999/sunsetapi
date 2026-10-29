@@ -14,7 +14,10 @@ public class ModerationService(
     IModerationActionRepository moderationActionRepository,
     ILegalDocumentRepository legalDocumentRepository,
     IUserRepository userRepository,
-    IPhotoRepository photoRepository) : IModerationService
+    IPhotoRepository photoRepository,
+    IRefreshTokenRepository refreshTokenRepository,
+    IEmailSender emailSender,
+    IBanStatusService banStatusService) : IModerationService
 {
     public async Task<ReportResponse> CreateReportAsync(Guid reporterId, ReportTargetType targetType, Guid targetId, CreateReportRequest request, CancellationToken cancellationToken = default)
     {
@@ -97,6 +100,73 @@ public class ModerationService(
             cancellationToken);
 
         return user.ToResponse();
+    }
+
+    public async Task BanUserAsync(Guid moderatorId, Guid targetUserId, BanUserRequest request, CancellationToken cancellationToken = default)
+    {
+        var target = await GetModeratableUserAsync(moderatorId, targetUserId, cancellationToken);
+
+        var reason = request.Reason.Trim();
+        var until = request.Until?.ToUniversalTime();
+        target.Ban(reason, until, moderatorId, DateTime.UtcNow);
+        await userRepository.SaveChangesAsync(cancellationToken);
+
+        // Signs the user out everywhere; the access token already issued stops working
+        // immediately through IBanStatusService (see Program.cs, OnTokenValidated).
+        await refreshTokenRepository.RevokeAllForUserAsync(targetUserId, cancellationToken);
+        banStatusService.Invalidate(targetUserId);
+
+        await moderationActionRepository.AddAsync(
+            new ModerationAction(moderatorId, ModerationActionType.UserBanned, $"User:{targetUserId}",
+                until is null ? $"Permanent. Reason: {reason}" : $"Until {until:O}. Reason: {reason}"),
+            cancellationToken);
+
+        // The ban is already in force: an SMTP/API outage must not turn that into an error.
+        try
+        {
+            var duration = until is null ? "permanentemente" : $"até {until:dd/MM/yyyy HH:mm} (UTC)";
+            await emailSender.SendAsync(target.Email, "Sua conta foi suspensa - Sunsetsss", $"""
+                <p>Olá, {System.Net.WebUtility.HtmlEncode(target.Name)}!</p>
+                <p>Sua conta no Sunsetsss foi suspensa {duration}.</p>
+                <p>Motivo: {System.Net.WebUtility.HtmlEncode(reason)}</p>
+                <p>Se você acredita que isso foi um engano, fale com a equipe do Sunsetsss.</p>
+                """, cancellationToken);
+        }
+        catch (ExternalServiceException)
+        {
+        }
+    }
+
+    public async Task UnbanUserAsync(Guid moderatorId, Guid targetUserId, CancellationToken cancellationToken = default)
+    {
+        var target = await GetModeratableUserAsync(moderatorId, targetUserId, cancellationToken);
+
+        target.Unban();
+        await userRepository.SaveChangesAsync(cancellationToken);
+        banStatusService.Invalidate(targetUserId);
+
+        await moderationActionRepository.AddAsync(
+            new ModerationAction(moderatorId, ModerationActionType.UserUnbanned, $"User:{targetUserId}"),
+            cancellationToken);
+    }
+
+    // Who may be banned/unbanned: nobody bans themselves, an Admin is untouchable, and a
+    // Moderator is only reachable by an Admin (peers can't act on each other).
+    private async Task<User> GetModeratableUserAsync(Guid moderatorId, Guid targetUserId, CancellationToken cancellationToken)
+    {
+        var moderator = await userRepository.GetByIdAsync(moderatorId, cancellationToken)
+            ?? throw new UnauthorizedActionException("User is not authenticated.");
+        var target = await userRepository.GetByIdAsync(targetUserId, cancellationToken)
+            ?? throw new NotFoundException("User not found.");
+
+        if (target.Id == moderator.Id)
+            throw new ForbiddenException("You cannot ban yourself.");
+        if (target.Role == UserRole.Admin)
+            throw new ForbiddenException("Admins cannot be banned.");
+        if (target.Role == UserRole.Moderator && moderator.Role != UserRole.Admin)
+            throw new ForbiddenException("Only an Admin can ban a Moderator.");
+
+        return target;
     }
 
     public async Task<CursorPagedResult<UserResponse>> SearchUsersAsync(string? query, string? cursor, int limit, CancellationToken cancellationToken = default)

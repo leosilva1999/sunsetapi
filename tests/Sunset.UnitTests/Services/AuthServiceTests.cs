@@ -322,4 +322,47 @@ public class AuthServiceTests
     {
         typeof(PasswordResetToken).GetProperty(nameof(PasswordResetToken.User))!.SetValue(token, user);
     }
+
+    [Fact]
+    public async Task LoginAsync_WhenBanned_ThrowsForbiddenWithReasonAndEnd()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        var until = DateTime.UtcNow.AddDays(3);
+        user.Ban("Spam", until, Guid.NewGuid(), DateTime.UtcNow);
+        _userRepository.Setup(r => r.GetByEmailAsync("ana@sunset.com", default)).ReturnsAsync(user);
+        _passwordHasher.Setup(h => h.Verify("password123", "hashed")).Returns(true);
+
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
+            _sut.LoginAsync(new LoginRequest("ana@sunset.com", "password123")));
+
+        Assert.Equal("Spam", ex.Errors!["reason"][0]);
+        Assert.True(ex.Errors.ContainsKey("bannedUntil"));
+    }
+
+    [Fact]
+    public async Task LoginAsync_WhenBannedButWrongPassword_DoesNotRevealBan()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        user.Ban("Spam", null, Guid.NewGuid(), DateTime.UtcNow);
+        _userRepository.Setup(r => r.GetByEmailAsync("ana@sunset.com", default)).ReturnsAsync(user);
+        _passwordHasher.Setup(h => h.Verify("wrong", "hashed")).Returns(false);
+
+        await Assert.ThrowsAsync<UnauthorizedActionException>(() =>
+            _sut.LoginAsync(new LoginRequest("ana@sunset.com", "wrong")));
+    }
+
+    [Fact]
+    public async Task LoginAsync_WhenBanExpired_Succeeds()
+    {
+        var user = new User("Ana", "ana@sunset.com", "hashed");
+        // Ban() refuses a past end, so build an already-lapsed ban through a short future one.
+        user.Ban("Spam", DateTime.UtcNow.AddMilliseconds(50), Guid.NewGuid(), DateTime.UtcNow);
+        await Task.Delay(120);
+        _userRepository.Setup(r => r.GetByEmailAsync("ana@sunset.com", default)).ReturnsAsync(user);
+        _passwordHasher.Setup(h => h.Verify("password123", "hashed")).Returns(true);
+
+        var response = await _sut.LoginAsync(new LoginRequest("ana@sunset.com", "password123"));
+
+        Assert.Equal("access-token", response.AccessToken);
+    }
 }

@@ -23,6 +23,9 @@ these are the diffs to check:
   `POST /photos/{id}/comments` takes an optional `parentCommentId`, new
   `GET /comments/{id}/replies` — see [Photos](#photos).
 - **`PhotoResponse.commentsCount`** (roots + replies combined) — see [Photos](#photos).
+- **User banning (Moderator/Admin)**: new `POST` / `DELETE /moderation/users/{id}/ban`; a banned
+  account gets `403` on login (with `errors.reason` / `errors.bannedUntil`) and its sessions end
+  immediately. `UserResponse` gains `isBanned` / `bannedUntil` — see [Moderation](#moderation).
 - **CORS** is now configured (was previously missing/blocking) — see [CORS](#cors).
 - **Ratings now carry a comment and have their own endpoints**: `RatingResponse` (score + comment
   + author), `GET /locations/{id}/ratings` (list), `GET /locations/{id}/ratings/me`, and
@@ -672,6 +675,26 @@ caller — see [Photos](#photos)). → updated `ReportResponse`.
 Body: `{ "role": "User" | "Moderator" | "Admin" }`. No safeguard against demoting/promoting
 yourself or the last remaining Admin — the API trusts the caller. → updated `UserResponse`
 (includes `email`, unlike the public `GET /users/{id}`).
+
+### 🔒🛡️ `POST /moderation/users/{id}/ban` · `DELETE /moderation/users/{id}/ban` (Moderator or Admin)
+Bans / unbans a user → `204`. Body of the ban: `{ "reason": string (≤500, required), "until"?: ISO-8601 UTC
+date }` — omit `until` for a **permanent** ban; a temporary one lifts itself at `until` (max 10 years
+ahead), nothing needs to run.
+
+- **Effect, immediately:** every refresh token of the user is revoked and the access token they
+  already hold stops working on the very next request (`401`; the server checks the ban state with a
+  ≤30 s cache that ban/unban invalidate). The client therefore lands on the login screen.
+- **Login while banned** → `403` `{ title: "This account is banned.", errors: { reason: [..], bannedUntil?: [..] }, requestId }`
+  (checked *after* the password, so a wrong password still gets the plain `401`). Same `403` for Google
+  sign-in. Show `errors.reason` and, when present, `errors.bannedUntil`.
+- The user gets a notice email with the reason; a failed send doesn't fail the ban. Their photos and
+  comments stay visible.
+- **Who can be banned:** a regular user by any Moderator/Admin; a **Moderator only by an Admin**; an
+  **Admin never**; nobody can ban themselves → `403`. Unknown user → `404`. Missing/oversized `reason` or
+  past/too-far `until` → `400`. Re-banning an already-banned user just replaces the ban.
+- Both calls are written to the audit log (`UserBanned` / `UserUnbanned`, see `GET /moderation/actions`).
+- `UserResponse` (as returned by `GET /moderation/users`) now has `isBanned` and `bannedUntil` so the
+  admin UI can show the state and offer "Unban".
 
 ### 🔒🛡️ `GET /moderation/users?q=&cursor=&limit=` (Admin only, not Moderator)
 Exists so an Admin can *find* the user they want to promote/demote via the endpoint above —

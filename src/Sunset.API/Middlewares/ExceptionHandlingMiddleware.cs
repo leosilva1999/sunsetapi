@@ -31,6 +31,8 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
                     .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())),
             NotFoundException notFoundException => (HttpStatusCode.NotFound, notFoundException.Message, null),
             UnauthorizedActionException unauthorizedException => (HttpStatusCode.Unauthorized, unauthorizedException.Message, null),
+            ForbiddenException forbiddenException => (HttpStatusCode.Forbidden, forbiddenException.Message,
+                forbiddenException.Errors?.ToDictionary(e => e.Key, e => e.Value)),
             ConflictException conflictException => (HttpStatusCode.Conflict, conflictException.Message, null),
             ExternalServiceException externalServiceException => (HttpStatusCode.BadGateway, externalServiceException.Message, null),
             _ => (HttpStatusCode.InternalServerError, "An unexpected error occurred.", null),

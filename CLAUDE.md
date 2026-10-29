@@ -86,6 +86,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - `DELETE /comments/:id` (auth, autor ou moderador/admin — soft delete)
 
 **Moderation** (moderador/admin)
+- `POST /moderation/users/:id/ban` / `DELETE /moderation/users/:id/ban` (banir/desbanir; moderador só bane `User`, admin bane também moderador)
 - `GET /moderation/reports` (`?status=Pending|Resolved|Dismissed`, paginado)
 - `PATCH /moderation/reports/:id` (resolver/dispensar)
 - `PATCH /moderation/users/:id/role` (admin only — promove/rebaixa)
@@ -141,6 +142,14 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   `Frontend:BaseUrl`, `Storage:*` (com chaves AWS quando não há `ServiceUrl`/LocalStack) e o provedor de
   e-mail escolhido (`Email:Provider` = `HostingerApi` exige `Hostinger:Mail:ApiKey`/`MailboxResourceId`;
   senão exige `Smtp:Host`/`FromAddress`). Variável nova obrigatória em produção entra aqui.
+- **Banimento de usuário**: `User.BannedAt/BannedUntil/BanReason/BannedByUserId` (sem `BannedUntil` = permanente;
+  ban temporário expira sozinho, `IsBanned(now)` compara com o relógio). `ModerationService.BanUserAsync` revoga
+  todos os refresh tokens, grava `ModerationAction` (`UserBanned`/`UserUnbanned`) e avisa por e-mail (falha de e-mail
+  não desfaz o ban). Efeito imediato em quem já está logado: `JwtBearerEvents.OnTokenValidated` consulta
+  `IBanStatusService` (cache de 30 s, invalidado em ban/unban) e rejeita o token (401); o login devolve **403**
+  (`ForbiddenException`, `errors.reason`/`bannedUntil`) só **depois** de conferir a senha, para não revelar a
+  existência da conta. Regras de papel: ninguém se bane, admin é intocável, moderador só é banido por admin.
+  Conteúdo (fotos/comentários) do banido continua visível.
 - **Redefinição de senha**: mesmo padrão de `RefreshToken` (token opaco, hash SHA-256 salvo,
   nunca o token puro). `forgot-password` sempre retorna 204 mesmo pra e-mail inexistente (evita
   enumeração de contas). `reset-password` revoga todos os refresh tokens do usuário ao suceder.

@@ -7,5 +7,7 @@ public enum ModerationActionType
     ReportResolved,
     ReportDismissed,
     LegalDocumentUpdated,
-    UserRoleChanged
+    UserRoleChanged,
+    UserBanned,
+    UserUnbanned
 }

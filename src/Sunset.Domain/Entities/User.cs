@@ -19,6 +19,13 @@ public class User : BaseEntity
     public int FollowersCount { get; private set; }
     public int FollowingCount { get; private set; }
 
+    // Ban state. BannedUntil == null with BannedAt set means permanent; an expired BannedUntil
+    // lifts the ban on its own (IsBanned compares against the clock, nothing needs to run).
+    public DateTime? BannedAt { get; private set; }
+    public DateTime? BannedUntil { get; private set; }
+    public string? BanReason { get; private set; }
+    public Guid? BannedByUserId { get; private set; }
+
     public ICollection<Photo> Photos { get; private set; } = new List<Photo>();
     public ICollection<Like> Likes { get; private set; } = new List<Like>();
     public ICollection<Comment> Comments { get; private set; } = new List<Comment>();
@@ -71,6 +78,30 @@ public class User : BaseEntity
     }
 
     public void ChangeRole(UserRole newRole) => Role = newRole;
+
+    public bool IsBanned(DateTime utcNow) =>
+        BannedAt is not null && (BannedUntil is null || BannedUntil > utcNow);
+
+    public void Ban(string reason, DateTime? until, Guid bannedByUserId, DateTime utcNow)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new ArgumentException("Reason is required.", nameof(reason));
+        if (until is not null && until <= utcNow)
+            throw new ArgumentException("Ban end must be in the future.", nameof(until));
+
+        BannedAt = utcNow;
+        BannedUntil = until;
+        BanReason = reason;
+        BannedByUserId = bannedByUserId;
+    }
+
+    public void Unban()
+    {
+        BannedAt = null;
+        BannedUntil = null;
+        BanReason = null;
+        BannedByUserId = null;
+    }
 
     public void ChangePassword(string newPasswordHash)
     {

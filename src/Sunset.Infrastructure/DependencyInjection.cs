@@ -35,6 +35,8 @@ public static class DependencyInjection
         services.Configure<FrontendOptions>(configuration.GetSection(FrontendOptions.SectionName));
 
         services.AddHttpContextAccessor();
+        services.AddMemoryCache();
+        services.AddScoped<IBanStatusService, BanStatusService>();
 
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<ILocationRepository, LocationRepository>();

@@ -1,6 +1,7 @@
 using Moq;
 using Sunset.Application.DTOs.Moderation;
 using Sunset.Application.Exceptions;
+using Sunset.Application.Interfaces;
 using Sunset.Application.Interfaces.Repositories;
 using Sunset.Application.Services;
 using Sunset.Domain.Entities;
@@ -15,6 +16,9 @@ public class ModerationServiceTests
     private readonly Mock<ILegalDocumentRepository> _legalDocumentRepository = new();
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IPhotoRepository> _photoRepository = new();
+    private readonly Mock<IRefreshTokenRepository> _refreshTokenRepository = new();
+    private readonly Mock<IEmailSender> _emailSender = new();
+    private readonly Mock<IBanStatusService> _banStatusService = new();
     private readonly ModerationService _sut;
 
     public ModerationServiceTests()
@@ -24,7 +28,10 @@ public class ModerationServiceTests
             _moderationActionRepository.Object,
             _legalDocumentRepository.Object,
             _userRepository.Object,
-            _photoRepository.Object);
+            _photoRepository.Object,
+            _refreshTokenRepository.Object,
+            _emailSender.Object,
+            _banStatusService.Object);
     }
 
     private static Report CreateReport(Guid reporterId, User reporter, ReportTargetType targetType, Guid targetId, ReportReason reason = ReportReason.Spam)
@@ -181,5 +188,114 @@ public class ModerationServiceTests
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
             _sut.ChangeUserRoleAsync(Guid.NewGuid(), Guid.NewGuid(), new ChangeUserRoleRequest(UserRole.Moderator)));
+    }
+
+    private User SetupUser(UserRole role = UserRole.User)
+    {
+        var user = new User("Fulano", $"{Guid.NewGuid():N}@sunset.com", "hashed");
+        if (role != UserRole.User)
+            user.ChangeRole(role);
+        _userRepository.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+        return user;
+    }
+
+    [Fact]
+    public async Task BanUserAsync_BansRevokesSessionsInvalidatesCacheLogsAndEmails()
+    {
+        var moderator = SetupUser(UserRole.Moderator);
+        var target = SetupUser();
+        var until = DateTime.UtcNow.AddDays(7);
+
+        await _sut.BanUserAsync(moderator.Id, target.Id, new BanUserRequest("  Spam repetido  ", until));
+
+        Assert.True(target.IsBanned(DateTime.UtcNow));
+        Assert.Equal("Spam repetido", target.BanReason);
+        Assert.Equal(moderator.Id, target.BannedByUserId);
+        _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(target.Id, default), Times.Once);
+        _banStatusService.Verify(s => s.Invalidate(target.Id), Times.Once);
+        _moderationActionRepository.Verify(
+            r => r.AddAsync(It.Is<ModerationAction>(a => a.ModeratorId == moderator.Id && a.ActionType == ModerationActionType.UserBanned), default),
+            Times.Once);
+        _emailSender.Verify(e => e.SendAsync(target.Email, It.IsAny<string>(), It.Is<string>(b => b.Contains("Spam repetido")), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task BanUserAsync_WhenEmailFails_StillBans()
+    {
+        var moderator = SetupUser(UserRole.Moderator);
+        var target = SetupUser();
+        _emailSender
+            .Setup(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), default))
+            .ThrowsAsync(new ExternalServiceException("smtp down"));
+
+        await _sut.BanUserAsync(moderator.Id, target.Id, new BanUserRequest("Abuso"));
+
+        Assert.True(target.IsBanned(DateTime.UtcNow));
+        Assert.Null(target.BannedUntil);
+    }
+
+    [Fact]
+    public async Task BanUserAsync_Self_IsForbidden()
+    {
+        var moderator = SetupUser(UserRole.Moderator);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            _sut.BanUserAsync(moderator.Id, moderator.Id, new BanUserRequest("Abuso")));
+    }
+
+    [Theory]
+    [InlineData(UserRole.Moderator, UserRole.Admin)]
+    [InlineData(UserRole.Admin, UserRole.Admin)]
+    [InlineData(UserRole.Moderator, UserRole.Moderator)]
+    public async Task BanUserAsync_OnPeerOrAdmin_IsForbidden(UserRole actorRole, UserRole targetRole)
+    {
+        var actor = SetupUser(actorRole);
+        var target = SetupUser(targetRole);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            _sut.BanUserAsync(actor.Id, target.Id, new BanUserRequest("Abuso")));
+
+        Assert.False(target.IsBanned(DateTime.UtcNow));
+        _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(It.IsAny<Guid>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task BanUserAsync_AdminCanBanModerator()
+    {
+        var admin = SetupUser(UserRole.Admin);
+        var target = SetupUser(UserRole.Moderator);
+
+        await _sut.BanUserAsync(admin.Id, target.Id, new BanUserRequest("Abuso de poder"));
+
+        Assert.True(target.IsBanned(DateTime.UtcNow));
+    }
+
+    [Fact]
+    public async Task BanUserAsync_WithUnknownUser_ThrowsNotFoundException()
+    {
+        var moderator = SetupUser(UserRole.Moderator);
+        _userRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((User?)null);
+        _userRepository.Setup(r => r.GetByIdAsync(moderator.Id, default)).ReturnsAsync(moderator);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _sut.BanUserAsync(moderator.Id, Guid.NewGuid(), new BanUserRequest("Abuso")));
+    }
+
+    [Fact]
+    public async Task UnbanUserAsync_LiftsBanInvalidatesCacheAndLogs()
+    {
+        var moderator = SetupUser(UserRole.Moderator);
+        var target = SetupUser();
+        target.Ban("Spam", null, moderator.Id, DateTime.UtcNow);
+
+        await _sut.UnbanUserAsync(moderator.Id, target.Id);
+
+        Assert.False(target.IsBanned(DateTime.UtcNow));
+        Assert.Null(target.BanReason);
+        _banStatusService.Verify(s => s.Invalidate(target.Id), Times.Once);
+        _moderationActionRepository.Verify(
+            r => r.AddAsync(It.Is<ModerationAction>(a => a.ActionType == ModerationActionType.UserUnbanned), default),
+            Times.Once);
     }
 }

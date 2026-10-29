@@ -17,6 +17,7 @@ public class ModerationController(
     IModerationService moderationService,
     IValidator<ResolveReportRequest> resolveReportValidator,
     IValidator<ChangeUserRoleRequest> changeUserRoleValidator,
+    IValidator<BanUserRequest> banUserValidator,
     ICurrentUserService currentUserService) : ControllerBase
 {
     [HttpGet("reports")]
@@ -45,6 +46,21 @@ public class ModerationController(
         await changeUserRoleValidator.ValidateAndThrowAsync(request, cancellationToken);
         var response = await moderationService.ChangeUserRoleAsync(RequireUserId(), id, request, cancellationToken);
         return Ok(response);
+    }
+
+    [HttpPost("users/{id:guid}/ban")]
+    public async Task<IActionResult> BanUser(Guid id, BanUserRequest request, CancellationToken cancellationToken)
+    {
+        await banUserValidator.ValidateAndThrowAsync(request, cancellationToken);
+        await moderationService.BanUserAsync(RequireUserId(), id, request, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpDelete("users/{id:guid}/ban")]
+    public async Task<IActionResult> UnbanUser(Guid id, CancellationToken cancellationToken)
+    {
+        await moderationService.UnbanUserAsync(RequireUserId(), id, cancellationToken);
+        return NoContent();
     }
 
     // Admin-only (não Moderator, ao contrário do resto da classe) - hoje só serve pra

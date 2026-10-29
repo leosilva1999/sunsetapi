@@ -80,6 +80,23 @@ builder.Services
             // instead of the short "role" claim TokenService actually puts in the JWT.
             RoleClaimType = "role",
         };
+
+        // The JWT is stateless, so a ban would otherwise only bite when the access token
+        // expires (<= 15 min). Failing validation here makes it immediate (401); the refresh tokens were
+        // revoked by the ban, so the client ends up at the login screen, where login answers 403
+        // with the ban reason/end.
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                if (!Guid.TryParse(context.Principal?.FindFirst("sub")?.Value, out var userId))
+                    return;
+
+                var banStatus = context.HttpContext.RequestServices.GetRequiredService<IBanStatusService>();
+                if (await banStatus.GetActiveBanAsync(userId, context.HttpContext.RequestAborted) is not null)
+                    context.Fail("This account is banned.");
+            },
+        };
     });
 
 builder.Services.AddAuthorization();

@@ -34,6 +34,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Bio)
             .HasMaxLength(160);
 
+        builder.Property(u => u.BanReason)
+            .HasMaxLength(500);
+
         builder.Property(u => u.CreatedAt)
             .IsRequired();
 

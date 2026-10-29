@@ -11,4 +11,6 @@ public sealed record UserResponse(
     string? Bio,
     [property: JsonConverter(typeof(JsonStringEnumConverter))] UserRole Role,
     DateTime CreatedAt,
-    bool HasPassword = true);
+    bool HasPassword = true,
+    bool IsBanned = false,
+    DateTime? BannedUntil = null);

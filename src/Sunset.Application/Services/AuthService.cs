@@ -41,6 +41,10 @@ public class AuthService(
         if (user is null || !passwordHasher.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedActionException("Invalid email or password.");
 
+        // After the password check on purpose: telling a wrong-password caller that the account
+        // is banned would confirm the account exists.
+        EnsureNotBanned(user);
+
         return await IssueTokensAsync(user, cancellationToken);
     }
 
@@ -62,6 +66,8 @@ public class AuthService(
             await userRepository.AddAsync(user, cancellationToken);
         }
 
+        EnsureNotBanned(user);
+
         return await IssueTokensAsync(user, cancellationToken);
     }
 
@@ -73,6 +79,8 @@ public class AuthService(
             throw new UnauthorizedActionException("Invalid or expired refresh token.");
 
         var user = storedToken.User;
+        EnsureNotBanned(user);
+
         var response = await IssueTokensAsync(user, cancellationToken);
 
         storedToken.Revoke(Hash(response.RefreshToken));
@@ -131,6 +139,18 @@ public class AuthService(
         // but the whole point of a reset flow is that we can't be sure) shouldn't leave every
         // other already-logged-in session still valid, same reasoning as DeleteAccountAsync.
         await refreshTokenRepository.RevokeAllForUserAsync(storedToken.UserId, cancellationToken);
+    }
+
+    private static void EnsureNotBanned(User user)
+    {
+        if (!user.IsBanned(DateTime.UtcNow))
+            return;
+
+        var errors = new Dictionary<string, string[]> { ["reason"] = [user.BanReason ?? string.Empty] };
+        if (user.BannedUntil is { } until)
+            errors["bannedUntil"] = [until.ToString("O")];
+
+        throw new ForbiddenException("This account is banned.", errors);
     }
 
     private async Task<AuthResponse> IssueTokensAsync(User user, CancellationToken cancellationToken)
