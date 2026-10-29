@@ -1,0 +1,196 @@
+POLÍTICA DE PRIVACIDADE DO SUNSETSSS
+
+Versão 2 - vigente a partir de 29 de outubro de 2026.
+Este documento está em revisão jurídica e poderá ser alterado. Quando houver mudança relevante, você será avisado conforme o item 15.
+
+
+1. INTRODUÇÃO E QUEM É O CONTROLADOR
+
+1.1. Esta Política explica, de forma clara, quais dados pessoais o Sunsetsss coleta, por que, com quem os compartilha, por quanto tempo os guarda e quais são os seus direitos, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD) e o Marco Civil da Internet (Lei nº 12.965/2014). Ela complementa os Termos de Uso.
+
+1.2. Controlador: [RAZÃO SOCIAL OU NOME DO RESPONSÁVEL], [CNPJ/CPF] nº [NÚMERO], [ENDEREÇO COMPLETO] ("Sunsetsss", "nós").
+Encarregado pelo tratamento de dados pessoais (DPO): [NOME DO ENCARREGADO] - [E-MAIL DO ENCARREGADO].
+Canal geral de privacidade: sunsetsss.app@outlook.com.
+
+1.3. Termos usados: "dado pessoal" é a informação relacionada a pessoa natural identificada ou identificável; "titular" é você; "tratamento" é qualquer operação feita com dados (coletar, armazenar, usar, compartilhar, eliminar etc.).
+
+
+2. DADOS QUE COLETAMOS
+
+2.1. Dados que você nos fornece
+- Cadastro e conta: nome, e-mail e senha. A senha é guardada apenas em forma de hash criptográfico (nunca em texto legível).
+- Entrada com Google: nome, e-mail e confirmação de que o e-mail foi verificado, enviados pelo Google com a sua autorização. Não recebemos sua senha do Google nem outros dados da sua conta Google.
+- Perfil: imagem de perfil e biografia (opcionais).
+- Conteúdo que você publica: fotos, legendas, comentários, respostas, avaliações (nota e comentário), locais que você cadastra (nome, cidade e posição no mapa).
+- Interações: curtidas, pessoas que você segue e que seguem você.
+- Denúncias: o alvo denunciado, o motivo e os detalhes que você escrever.
+- Contato: o conteúdo das mensagens que você nos envia (por exemplo, pedidos de revisão ou de exercício de direitos).
+
+2.2. Dados gerados pelo uso do serviço
+- Notificações recebidas (curtidas, comentários, novos seguidores) e seu estado de leitura.
+- Sessões: códigos (tokens) de sessão que mantêm você conectado, armazenados de forma protegida (somente em hash) no servidor, com data de criação e validade.
+- Registros de moderação relacionados a você: denúncias, medidas aplicadas (como remoção de conteúdo, suspensão, banimento ou remoção de conta), motivo e quem aplicou.
+
+2.3. Dados coletados automaticamente
+- Dados técnicos de acesso e segurança: endereço IP, data e hora, identificador da requisição, páginas/rotas acessadas, código de resposta e identificação do usuário autenticado, registrados em logs de servidor. Também usamos o IP para limitar tentativas excessivas (como tentativas repetidas de login ou troca de senha).
+- Dados do dispositivo e do navegador (como tipo de navegador e sistema), na medida em que são enviados em toda comunicação com os servidores.
+- Armazenamento local: o aplicativo pode guardar no seu aparelho ou navegador informações necessárias à sessão (como os tokens de acesso) e preferências. Veja o item 11.
+
+2.4. Localização
+- Posição no mapa dos locais: é informação sobre o local, não sobre você.
+- Funcionalidade "perto de mim": somente se você permitir no navegador ou aparelho, suas coordenadas são enviadas ao servidor para listar os locais mais próximos. Não as gravamos em nosso banco de dados nem formamos histórico de deslocamentos. Você pode revogar a permissão a qualquer momento nas configurações do dispositivo.
+- Fotos: a imagem pode conter metadados (EXIF), inclusive coordenadas de GPS do ponto onde foi feita. Não removemos esses metadados automaticamente; quem vê o arquivo pode vê-los. Recomendamos removê-los antes de enviar fotos feitas em locais que você não queira revelar.
+
+2.5. O que não pedimos
+Não solicitamos dados pessoais sensíveis (como origem racial, saúde, religião, opinião política ou biometria), dados bancários ou de pagamento, nem acesso à sua lista de contatos. Se você inserir dados desse tipo em fotos, legendas ou comentários, eles serão tratados como parte do Conteúdo público que você escolheu publicar - evite fazê-lo.
+
+
+3. PARA QUE USAMOS SEUS DADOS (FINALIDADES E BASES LEGAIS)
+
+3.1. Tratamos dados pessoais apenas quando há uma base legal da LGPD (art. 7º):
+
+- Criar e manter sua conta, autenticar seu acesso e prestar o serviço (publicar, avaliar, curtir, comentar, seguir, ranking, notificações): execução de contrato ou de procedimentos preliminares a pedido do titular (art. 7º, V).
+- Enviar e-mails e avisos necessários ao serviço (redefinição e alteração de senha, avisos de suspensão ou remoção de conta, mudanças nestes documentos): execução de contrato (art. 7º, V) e legítimo interesse (art. 7º, IX).
+- Segurança, prevenção a fraudes e abusos, limitação de tentativas, investigação de incidentes e manutenção de logs: legítimo interesse (art. 7º, IX) e cumprimento de obrigação legal (art. 7º, II), quanto aos registros de acesso exigidos pelo Marco Civil da Internet.
+- Moderação (análise de denúncias, remoção de conteúdo, suspensão, banimento, remoção de conta, prevenção de reincidência) e registro dessas ações para auditoria: legítimo interesse (art. 7º, IX), execução de contrato (art. 7º, V) e exercício regular de direitos em processo judicial, administrativo ou arbitral (art. 7º, VI).
+- Funcionalidade "perto de mim": consentimento (art. 7º, I), dado pelo seu navegador ou aparelho e revogável a qualquer momento.
+- Entrada com Google: execução de contrato (art. 7º, V), a partir da sua escolha de usar essa forma de acesso.
+- Cumprir obrigações legais e regulatórias e ordens de autoridades: art. 7º, II.
+- Melhorar e manter a qualidade do serviço (estatísticas agregadas, correção de erros): legítimo interesse (art. 7º, IX), sempre que possível com dados agregados ou anonimizados.
+- Comunicações de marketing, se um dia existirem: somente com seu consentimento (art. 7º, I).
+
+3.2. Quando a base é o legítimo interesse, avaliamos o impacto sobre você e adotamos salvaguardas. Você pode se opor ao tratamento (item 9).
+
+3.3. Não vendemos seus dados pessoais. Não usamos seus dados para criar perfis para publicidade de terceiros. Não tomamos decisões exclusivamente automatizadas que produzam efeitos jurídicos sobre você; os rankings são calculados automaticamente a partir de avaliações e interações agregadas e não definem direitos seus. Medidas de moderação são decididas por pessoas.
+
+
+4. O QUE É PÚBLICO
+
+4.1. O Sunsetsss é uma rede com conteúdo público. Podem ser vistos por qualquer pessoa, mesmo sem conta: seu nome, imagem de perfil, biografia, data de cadastro, número de seguidores e de pessoas seguidas, as listas de seguidores e seguidos, suas fotos, legendas, comentários, respostas e avaliações (nota e comentário) e os locais que você cadastrou, bem como as curtidas contadas nas fotos.
+
+4.2. Seu e-mail e sua senha não são públicos.
+
+4.3. Imagens enviadas ficam acessíveis por endereço (URL) público. Quem conhece o endereço pode abrir a imagem, mesmo que ela seja ocultada do aplicativo; por isso, ao excluir uma foto, pode haver um intervalo até a eliminação definitiva do arquivo (item 7).
+
+
+5. COM QUEM COMPARTILHAMOS
+
+5.1. Operadores e prestadores de serviço. Usamos prestadores que tratam dados em nosso nome, sob contrato e apenas para as finalidades descritas:
+- Hospedagem da aplicação (API): Render Services, Inc.
+- Banco de dados (PostgreSQL): Neon, Inc., em servidores na região de São Paulo (AWS sa-east-1).
+- Armazenamento de imagens: Amazon Web Services (Amazon S3), na região de São Paulo (sa-east-1).
+- Envio de e-mails transacionais: Hostinger.
+- Autenticação (login com Google): Google LLC.
+- Hospedagem do site/aplicativo web: [PROVEDOR DE HOSPEDAGEM DO FRONTEND].
+- Cálculo do horário do pôr do sol: serviço sunrise-sunset.org, que recebe apenas as coordenadas do local consultado (e não dados pessoais seus).
+[O jurídico deve conferir a lista final de operadores e os respectivos contratos.]
+
+5.2. Outros usuários e o público: conforme o item 4.
+
+5.3. Autoridades e terceiros legitimados. Podemos fornecer dados quando houver obrigação legal, ordem judicial ou requisição de autoridade competente, ou para exercer direitos em processos, sempre limitado ao necessário.
+
+5.4. Reorganizações societárias. Em fusão, aquisição ou venda de ativos, os dados podem ser transferidos ao sucessor, que deverá respeitar esta Política, com aviso a você.
+
+5.5. Nunca compartilhamos dados para fins de venda a terceiros.
+
+
+6. TRANSFERÊNCIA INTERNACIONAL
+
+6.1. Alguns prestadores (como Render, Google, Hostinger e Amazon Web Services) podem tratar dados em servidores fora do Brasil. Nesses casos, a transferência é feita com base na LGPD (art. 33), por exemplo mediante cláusulas contratuais, garantias de nível adequado de proteção ou, quando necessário, o seu consentimento específico. [O jurídico deve confirmar o fundamento adotado para cada prestador.]
+
+
+7. POR QUANTO TEMPO GUARDAMOS
+
+7.1. Mantemos os dados pelo tempo necessário às finalidades desta Política e aos prazos legais:
+- Conta e perfil (nome, e-mail, imagem, biografia): enquanto a conta existir. Se você excluir a conta, esses dados são eliminados/anonimizados imediatamente (item 10).
+- Conteúdo publicado (fotos, comentários, avaliações): enquanto estiver publicado ou até você excluí-lo. Após a exclusão da conta, o que não for excluído pode permanecer sem identificar você (item 10).
+- Sessões (refresh token): até 30 dias, ou até o encerramento da sessão; links de redefinição de senha: 30 minutos e uso único.
+- Registros de acesso a aplicação (IP, data e hora): no mínimo 6 meses, conforme o art. 15 do Marco Civil da Internet, e pelo prazo adicional necessário para segurança e defesa de direitos [prazo máximo a definir pelo jurídico].
+- Demais logs técnicos de aplicação: [PRAZO A DEFINIR, por exemplo 30 a 90 dias].
+- Registros de moderação e de denúncias: [PRAZO A DEFINIR, por exemplo 5 anos], para segurança, auditoria e defesa de direitos.
+- Dados de contas banidas (e-mail e motivo): enquanto necessários para prevenir reincidência e proteger outros usuários [prazo a definir].
+- Cópias de segurança: mantidas pelos prestadores por períodos limitados; os dados eliminados saem delas conforme o ciclo de retenção deles.
+- Conteúdo ocultado pela moderação ou excluído por você: pode permanecer armazenado em modo oculto, sem exibição, por [PRAZO A DEFINIR], para auditoria, restauração em caso de erro e defesa de direitos.
+
+7.2. Terminado o prazo, os dados são eliminados ou anonimizados, salvo se a lei autorizar ou exigir a conservação (LGPD, art. 16).
+
+
+8. COMO PROTEGEMOS SEUS DADOS
+
+8.1. Adotamos medidas técnicas e administrativas razoáveis para proteger os dados contra acessos não autorizados, perda e uso indevido, entre elas: comunicação criptografada (HTTPS), senhas armazenadas com hash, tokens de sessão armazenados em hash, expiração e revogação de sessões, limitação de tentativas, controle de acesso por papéis (usuário, moderador e administrador), registro de ações de moderação e segregação de credenciais em variáveis de ambiente.
+
+8.2. Nenhum sistema é totalmente seguro. Em caso de incidente que possa acarretar risco ou dano relevante, comunicaremos a Autoridade Nacional de Proteção de Dados (ANPD) e os titulares afetados, nos termos do art. 48 da LGPD.
+
+8.3. Cuide da sua senha, não a compartilhe e use uma senha exclusiva. Desconfie de mensagens que a solicitem.
+
+
+9. SEUS DIREITOS
+
+9.1. Nos termos do art. 18 da LGPD, você pode, a qualquer momento e mediante requisição:
+- confirmar que tratamos seus dados e acessá-los;
+- corrigir dados incompletos, inexatos ou desatualizados;
+- solicitar anonimização, bloqueio ou eliminação de dados desnecessários, excessivos ou tratados em desconformidade com a lei;
+- solicitar a portabilidade dos dados a outro fornecedor, conforme regulamentação da ANPD;
+- solicitar a eliminação dos dados tratados com base no seu consentimento;
+- ser informado sobre as entidades com as quais compartilhamos seus dados;
+- ser informado sobre a possibilidade de não fornecer consentimento e sobre as consequências da negativa;
+- revogar o consentimento a qualquer momento;
+- opor-se a tratamento realizado com fundamento em hipótese diferente do consentimento, se houver descumprimento da lei;
+- solicitar a revisão de decisões tomadas unicamente com base em tratamento automatizado, quando existirem.
+
+9.2. Como exercer. Várias opções você mesmo faz na sua conta: editar nome, imagem e biografia; alterar a senha; excluir suas fotos e comentários; excluir a conta. Para as demais, escreva ao encarregado ou ao canal do item 1.2, identificando-se e descrevendo o pedido. Podemos pedir informações adicionais para confirmar a sua identidade e proteger seus dados.
+
+9.3. Prazo. Responderemos de forma imediata, quando possível, ou em até 15 (quinze) dias, contados do requerimento, no caso de declaração completa sobre a origem dos dados, os critérios e a finalidade do tratamento (art. 19 da LGPD). Prazos diversos podem ser fixados pela ANPD.
+
+9.4. Podemos negar um pedido, de forma fundamentada, quando houver impedimento legal, por exemplo a necessidade de guardar dados para cumprir obrigação legal ou exercer direitos.
+
+9.5. Você também pode peticionar à ANPD (www.gov.br/anpd) e aos órgãos de defesa do consumidor.
+
+
+10. EXCLUSÃO DE CONTA E ANONIMIZAÇÃO
+
+10.1. Você pode excluir sua conta nas configurações do serviço ou por pedido a nós. Quando isso acontece:
+- seu nome é substituído por "Usuário excluído"; seu e-mail é substituído por um endereço fictício; sua senha é invalidada; sua imagem de perfil e biografia são apagadas;
+- todas as suas sessões são encerradas, e você não poderá mais entrar na conta;
+- as fotos, comentários e avaliações que você não excluiu antes permanecem exibidos, mas sem identificar você;
+- as relações de seguir deixam de identificá-lo; os registros de moderação e de segurança que dizem respeito à conta são mantidos conforme o item 7.
+
+10.2. Para apagar o seu Conteúdo, exclua suas fotos e comentários antes de excluir a conta, ou peça-nos a ocultação ao excluir.
+
+10.3. A moderação também pode remover a conta de um usuário que viole os Termos, caso em que os dados de identificação são apagados do mesmo modo e o Conteúdo pode ser ocultado. Os dados mínimos necessários para evitar reincidência e para defesa de direitos podem ser mantidos.
+
+10.4. A anonimização é um processo irreversível: não será possível recuperar a conta.
+
+
+11. COOKIES E ARMAZENAMENTO LOCAL
+
+11.1. Usamos armazenamento local do navegador/aparelho (como local storage) para manter sua sessão ativa e lembrar preferências. São itens estritamente necessários ao funcionamento. Não usamos cookies de publicidade comportamental. Se, no futuro, utilizarmos cookies ou tecnologias analíticas de terceiros, atualizaremos esta Política e, quando exigido, pediremos seu consentimento. Você pode limpar esses dados nas configurações do navegador, mas isso o desconecta. [O jurídico e o time de frontend devem conferir o inventário real de cookies e armazenamento local.]
+
+
+12. CRIANÇAS E ADOLESCENTES
+
+12.1. O Sunsetsss é destinado a maiores de 18 anos. Adolescentes de 13 a 17 anos só podem usá-lo com a assistência de seus pais ou responsáveis. Não coletamos intencionalmente dados de menores de 13 anos. Se tomarmos conhecimento de que dados de uma criança foram coletados sem o consentimento específico e em destaque de um dos pais ou responsável (LGPD, art. 14), eliminaremos a conta e os dados. Pais e responsáveis podem entrar em contato conosco para solicitar a exclusão.
+
+12.2. O tratamento de dados de adolescentes observará o seu melhor interesse. [O jurídico deve avaliar a aderência à legislação de proteção de crianças e adolescentes em ambiente digital aplicável.]
+
+
+13. LINKS E SERVIÇOS DE TERCEIROS
+
+13.1. O serviço pode conter links ou integrações com terceiros (como o login do Google). Quando você os utiliza, o tratamento passa também a seguir as políticas desses terceiros, que recomendamos ler.
+
+
+14. CONTEÚDO DE TERCEIROS SOBRE VOCÊ
+
+14.1. Se alguém publicar uma foto, comentário ou informação sobre você que viole sua privacidade, imagem ou outros direitos, use o botão de denúncia ou escreva para o canal do item 1.2, indicando o endereço (link) do material. Analisaremos e poderemos removê-lo.
+
+
+15. ALTERAÇÕES DESTA POLÍTICA
+
+15.1. Podemos atualizar esta Política. Cada versão é numerada e datada. Em caso de mudança relevante, avisaremos pelo aplicativo e/ou por e-mail, com antecedência razoável sempre que possível. Se a mudança exigir novo consentimento, o solicitaremos.
+
+
+16. CONTATO E LEI APLICÁVEL
+
+16.1. Dúvidas, solicitações e exercício de direitos: sunsetsss.app@outlook.com. Encarregado (DPO): [NOME E E-MAIL DO ENCARREGADO].
+
+16.2. Esta Política é regida pelas leis do Brasil. Fica eleito o foro de [CIDADE/UF], ressalvado o direito do titular e do consumidor de optar pelo foro de seu domicílio, quando aplicável.

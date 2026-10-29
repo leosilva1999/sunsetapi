@@ -875,6 +875,12 @@ difference is which document you get. →
 `404` only if that particular document has never been published (shouldn't happen outside a
 from-scratch dev DB that hasn't run `DbSeeder` or `PUT /terms`/`PUT /privacy` yet).
 
+> **Current content (2026-10-29):** both documents are at **version 2** — full Terms of Use and LGPD
+> Privacy Policy drafts, plain text with numbered headings, published while awaiting legal review (the
+> text says so at the top and still has `[BRACKETED]` fields to fill in). The sources and the review
+> checklist live in `docs/legal/`. Render `content` preserving line breaks (`white-space: pre-wrap`) or
+> as light Markdown. Once the lawyers finish, publish the final text with the `PUT`s below.
+
 ### 🔒🛡️ `PUT /terms` / 🔒🛡️ `PUT /privacy` (Admin only)
 Body: `{ "content": string }`, required, ≤20000 chars. **Every update creates a new version** —
 there's no in-place edit, so old versions aren't retrievable through the API but aren't lost

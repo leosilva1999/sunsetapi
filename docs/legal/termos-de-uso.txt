@@ -1,0 +1,186 @@
+TERMOS DE USO DO SUNSETSSS
+
+Versão 2 - vigente a partir de 29 de outubro de 2026.
+Este documento está em revisão jurídica e poderá ser alterado. Quando houver mudança relevante, você será avisado conforme o item 17.
+
+
+1. QUEM SOMOS E O QUE ESTES TERMOS REGULAM
+
+1.1. O Sunsetsss ("Sunsetsss", "nós") é uma plataforma digital, acessível por navegador e aplicativo, em que pessoas descobrem locais com belos pores do sol, publicam fotos desses locais, avaliam, curtem e comentam publicações e seguem outros usuários. O serviço é mantido por [RAZÃO SOCIAL OU NOME DO RESPONSÁVEL], inscrito(a) sob o [CNPJ/CPF] nº [NÚMERO], com sede/endereço em [ENDEREÇO COMPLETO] ("Responsável").
+
+1.2. Estes Termos de Uso ("Termos") regulam o acesso e o uso do Sunsetsss. Ao criar uma conta, entrar com sua conta Google ou usar o serviço, você declara que leu, entendeu e concorda com estes Termos e com a Política de Privacidade, que é parte integrante deles. Se não concordar, não utilize o serviço.
+
+1.3. Definições: "Usuário" é toda pessoa que usa o serviço, com ou sem conta; "Conteúdo" é qualquer foto, legenda, comentário, avaliação, nome, imagem de perfil, biografia, local cadastrado ou outra informação que o Usuário envie ou publique; "Moderação" é a equipe e os processos que analisam denúncias e aplicam as medidas descritas no item 9.
+
+
+2. CADASTRO E CONTA
+
+2.1. Para publicar, curtir, comentar, avaliar, seguir ou denunciar é necessário ter uma conta. A consulta de locais, fotos e perfis públicos pode ser feita sem conta.
+
+2.2. Você pode se cadastrar com nome, e-mail e senha, ou entrar com sua conta Google. Ao usar o Google, recebemos apenas o nome, o e-mail e a confirmação de que o e-mail foi verificado; não recebemos sua senha do Google.
+
+2.3. Idade mínima. O Sunsetsss é destinado a pessoas com 18 anos ou mais. Adolescentes entre 13 e 17 anos só podem usar o serviço com o conhecimento e a assistência de seus pais ou responsáveis legais, que respondem por esse uso. É proibido o uso por menores de 13 anos. Se identificarmos conta em desacordo com este item, ela poderá ser suspensa ou removida.
+
+2.4. Você se compromete a fornecer informações verdadeiras e a mantê-las atualizadas. Cada pessoa deve ter apenas uma conta, que é pessoal e intransferível. É proibido se passar por outra pessoa, criar perfil falso ou criar nova conta para contornar suspensão ou banimento.
+
+2.5. Você é responsável por manter a confidencialidade da sua senha e por toda atividade realizada na sua conta. Use uma senha forte e exclusiva. Se suspeitar de uso não autorizado, altere a senha imediatamente e avise-nos. Quando você altera a senha, os demais dispositivos conectados são desconectados.
+
+2.6. O Sunsetsss não solicita sua senha por e-mail, mensagem ou telefone. Desconfie de qualquer contato que a peça.
+
+
+3. REGRAS DE USO E CONDUTAS PROIBIDAS
+
+3.1. Você deve usar o serviço de boa-fé, respeitando a lei, estes Termos e os direitos de outras pessoas. É proibido, entre outras condutas:
+a) publicar Conteúdo de terceiros ou que não seja de sua autoria, sem autorização de quem detém os direitos;
+b) publicar Conteúdo ilegal, ofensivo, discriminatório, que incite violência, ódio, crime ou autolesão, ou que faça apologia a esses temas;
+c) publicar nudez, conteúdo sexual explícito, violência gráfica ou qualquer conteúdo envolvendo crianças e adolescentes de forma inadequada ou que exponha sua intimidade;
+d) assediar, ameaçar, intimidar, perseguir ou expor outras pessoas, inclusive divulgando dados pessoais delas sem autorização;
+e) fotografar e publicar pessoas identificáveis, especialmente crianças, em situação que viole sua privacidade, imagem ou dignidade, ou sem a autorização exigida em lei;
+f) enviar spam, publicidade não autorizada, correntes, links enganosos ou conteúdo repetitivo;
+g) manipular curtidas, avaliações, rankings ou seguidores, inclusive por contas falsas, automatizadas ou combinadas, e publicar avaliações que não reflitam sua experiência real;
+h) cadastrar locais falsos, duplicados de má-fé, ou com informações propositalmente incorretas;
+i) tentar acessar contas, sistemas ou dados sem autorização, explorar falhas, sobrecarregar a infraestrutura, usar robôs, raspagem massiva de dados (scraping) ou qualquer meio automatizado não autorizado;
+j) introduzir vírus, códigos maliciosos ou qualquer mecanismo que prejudique o serviço ou os dispositivos de terceiros;
+k) usar o serviço para fins ilícitos, fraudulentos ou que violem direitos de propriedade intelectual, de personalidade ou de privacidade;
+l) contornar ou tentar contornar medidas de segurança, limites de uso ou sanções de moderação.
+
+3.2. Segurança no mundo real. Ao frequentar os locais exibidos no Sunsetsss, você o faz por sua conta e risco. Respeite propriedades privadas, áreas de proteção ambiental, sinalizações, horários de funcionamento e as normas de cada local. Nunca se coloque em risco para fazer uma foto.
+
+
+4. CONTEÚDO PUBLICADO POR VOCÊ
+
+4.1. Você é o único responsável pelo Conteúdo que publica. Ao publicar, declara que é o autor ou tem autorização para usá-lo e que ele não viola direitos de terceiros nem a lei.
+
+4.2. Você mantém a titularidade dos direitos sobre seu Conteúdo. Para que o serviço funcione, você concede ao Sunsetsss uma licença não exclusiva, gratuita, mundial e válida enquanto o Conteúdo estiver disponível na plataforma, para hospedar, armazenar, reproduzir, redimensionar ou comprimir tecnicamente, exibir e distribuir o Conteúdo dentro do serviço (feeds, páginas de locais, perfis, rankings e notificações) e para divulgá-lo em destaques e materiais de divulgação do próprio Sunsetsss, com a indicação do autor sempre que possível. Essa licença não transfere a titularidade e termina quando o Conteúdo é removido, ressalvadas cópias técnicas temporárias (como cópias de segurança) e usos já realizados.
+
+4.3. Seu nome, imagem de perfil, biografia, fotos, legendas, comentários e avaliações são exibidos publicamente, conforme descrito na Política de Privacidade. Pense antes de publicar.
+
+4.4. Metadados das fotos. Arquivos de imagem podem conter metadados (como data, modelo do aparelho e coordenadas de GPS). O Sunsetsss não remove automaticamente esses metadados. Se você não deseja revelar o local exato onde a foto foi feita, remova os metadados antes de enviá-la.
+
+4.5. Você pode excluir suas próprias fotos e comentários a qualquer momento. A exclusão de uma foto oculta também seus comentários e curtidas da vista pública.
+
+4.6. Não temos obrigação de monitorar previamente o Conteúdo, mas podemos analisá-lo, ocultá-lo ou removê-lo conforme o item 9. O Sunsetsss não endossa o Conteúdo publicado pelos Usuários nem responde por ele, ressalvadas as hipóteses em que a lei determine de forma diversa.
+
+
+5. LOCAIS, AVALIAÇÕES E RANKINGS
+
+5.1. Qualquer Usuário com conta pode cadastrar um local. Ao fazê-lo, compromete-se a informar nome, cidade e posição no mapa com boa-fé e precisão, e a não cadastrar locais já existentes.
+
+5.2. A moderação pode corrigir a posição (coordenadas) de um local, ocultá-lo, restaurá-lo ou mesclá-lo com outro local duplicado. Na mesclagem, as fotos e as avaliações do local duplicado são transferidas para o local mantido; quando o mesmo Usuário avaliou os dois, prevalece a avaliação do local mantido. Essas medidas visam a qualidade das informações e podem ser aplicadas sem aviso prévio.
+
+5.3. Avaliações (notas e comentários sobre locais) devem refletir sua opinião sincera. A nota média e o ranking são calculados automaticamente a partir das avaliações e das interações dos Usuários e são apenas referências informativas; não constituem recomendação, certificação ou garantia de qualidade, segurança ou existência do local.
+
+5.4. Horário do pôr do sol e outras informações. O horário do pôr do sol exibido é obtido de um serviço de terceiros a partir das coordenadas do local e tem caráter estimativo. As informações sobre locais são fornecidas pelos Usuários e podem conter erros ou estar desatualizadas. Confirme-as antes de se deslocar.
+
+5.5. Funcionalidade "perto de mim". Se você permitir que seu navegador ou aparelho informe sua localização, usamos suas coordenadas somente para listar os locais mais próximos. Você pode negar ou revogar essa permissão a qualquer momento nas configurações do dispositivo, e o restante do serviço continua disponível.
+
+
+6. INTERAÇÕES ENTRE USUÁRIOS
+
+6.1. Você pode curtir fotos, comentar, responder comentários, seguir outros Usuários e receber notificações dessas interações. Seus seguidores e as pessoas que você segue podem ser exibidos publicamente.
+
+6.2. O Sunsetsss não é parte nas relações entre Usuários. Encontros, trocas ou combinações entre Usuários fora da plataforma são de exclusiva responsabilidade deles. Tenha cautela ao compartilhar informações pessoais com desconhecidos.
+
+
+7. DENÚNCIAS
+
+7.1. Você pode denunciar fotos, comentários, locais e outros Usuários que, a seu ver, violem estes Termos, indicando o motivo (por exemplo: spam, conteúdo impróprio, assédio, informação incorreta ou outro). Cada Usuário pode denunciar o mesmo alvo uma vez.
+
+7.2. Denúncias devem ser feitas de boa-fé. Denúncias falsas, repetitivas ou abusivas podem resultar em sanções.
+
+7.3. Analisamos as denúncias com razoável brevidade, mas não garantimos prazo nem que toda denúncia resultará em medida. A decisão considera a gravidade, o contexto e a legislação aplicável.
+
+
+8. PROPRIEDADE INTELECTUAL DO SUNSETSSS
+
+8.1. O nome e a identidade visual do Sunsetsss, o software, o código, o design, os textos próprios, o banco de dados e demais elementos do serviço, exceto o Conteúdo dos Usuários e materiais de terceiros, pertencem ao Responsável ou a seus licenciadores e são protegidos pela legislação de propriedade intelectual.
+
+8.2. É concedida a você uma licença pessoal, limitada, revogável, não exclusiva e intransferível para usar o serviço conforme estes Termos. É proibido copiar, modificar, descompilar, fazer engenharia reversa, revender ou explorar comercialmente o serviço ou seus elementos sem autorização por escrito.
+
+8.3. Se você acredita que um Conteúdo viola direito autoral ou outro direito seu, envie-nos notificação com a identificação do material (link), a comprovação da titularidade e seus dados de contato, para o endereço do item 18. Avaliaremos o pedido e poderemos remover o Conteúdo, dando ciência a quem o publicou.
+
+
+9. MODERAÇÃO, SUSPENSÃO, BANIMENTO E REMOÇÃO DE CONTA
+
+9.1. Para preservar um ambiente seguro e respeitoso, o Sunsetsss conta com moderadores e administradores que podem, a seu critério razoável e conforme a gravidade da conduta:
+a) ocultar ou remover fotos, comentários e locais;
+b) corrigir informações de locais, inclusive a posição no mapa, ou mesclar locais duplicados;
+c) suspender a conta por prazo determinado ou bani-la permanentemente (banimento);
+d) remover a conta, apagando seus dados de identificação conforme a Política de Privacidade, com ou sem ocultação do Conteúdo que o Usuário publicou.
+
+9.2. Em caso de suspensão, banimento ou remoção da conta, você será desconectado de todos os dispositivos, perderá o acesso à conta e, sempre que possível, receberá um aviso por e-mail com o motivo informado pela moderação. Em casos graves ou para cumprir ordem legal, a medida pode ser aplicada sem aviso prévio.
+
+9.3. Para evitar a reincidência e proteger outros Usuários, podemos manter o e-mail e os dados mínimos necessários de contas banidas, impedindo novo cadastro com os mesmos dados, nos termos da Política de Privacidade.
+
+9.4. Revisão. Se você discordar de uma medida de moderação, pode solicitar a revisão pelo e-mail do item 18, informando o motivo e as razões do pedido. Responderemos em prazo razoável, e a medida poderá ser mantida, modificada ou revertida.
+
+9.5. As ações de moderação são registradas internamente, para fins de segurança, auditoria e defesa de direitos.
+
+
+10. SERVIÇOS DE TERCEIROS
+
+10.1. O Sunsetsss utiliza serviços de terceiros, como autenticação do Google, hospedagem de aplicação e de banco de dados, armazenamento de imagens, envio de e-mails e consulta de horários do pôr do sol. Esses serviços têm termos e políticas próprios, e o Sunsetsss não se responsabiliza por falhas ou condutas de terceiros fora do seu controle razoável. A Política de Privacidade lista os principais.
+
+10.2. Links para sites de terceiros são fornecidos por conveniência; não controlamos seu conteúdo nem suas práticas.
+
+
+11. DISPONIBILIDADE E ALTERAÇÕES NO SERVIÇO
+
+11.1. Empenhamo-nos em manter o serviço disponível, mas ele é oferecido "no estado em que se encontra". Podem ocorrer indisponibilidades por manutenção, falhas técnicas, de terceiros ou casos fortuitos e de força maior.
+
+11.2. Podemos modificar, suspender ou descontinuar funcionalidades, total ou parcialmente, buscando avisar com antecedência razoável quando a mudança afetar de forma relevante o uso. Adotamos medidas de segurança e cópias de segurança, mas recomendamos que você mantenha cópia das suas fotos originais.
+
+
+12. LIMITAÇÃO DE RESPONSABILIDADE
+
+12.1. Na máxima extensão permitida pela lei, o Sunsetsss não responde por: (i) Conteúdo, opiniões ou condutas de Usuários; (ii) informações sobre locais ou horários que se mostrem incorretas ou desatualizadas; (iii) acidentes, danos ou prejuízos decorrentes da visita a locais exibidos; (iv) indisponibilidade, perda de dados ou falhas decorrentes de terceiros, de caso fortuito ou força maior; (v) uso indevido da sua conta por falta de cuidado com sua senha.
+
+12.2. Nada nestes Termos exclui ou limita responsabilidades que não possam ser excluídas ou limitadas por lei, inclusive direitos assegurados ao consumidor pelo Código de Defesa do Consumidor, quando aplicável, nem a responsabilidade por dolo ou culpa grave do Responsável.
+
+12.3. Você concorda em manter o Sunsetsss indene em relação a reclamações de terceiros decorrentes do Conteúdo que você publicou ou do uso do serviço em violação a estes Termos, na medida permitida pela lei.
+
+
+13. ENCERRAMENTO
+
+13.1. Você pode parar de usar o serviço e excluir sua conta a qualquer momento, pelas opções da própria conta ou por pedido ao e-mail do item 18. A exclusão apaga ou anonimiza seus dados pessoais conforme descrito na Política de Privacidade; o Conteúdo que você publicou e não excluiu pode permanecer exibido sem identificar você, como "Usuário excluído".
+
+13.2. Podemos suspender ou encerrar sua conta nas hipóteses do item 9, por violação destes Termos, por exigência legal ou para proteger o serviço e outros Usuários.
+
+13.3. Disposições que, por sua natureza, devam permanecer (como propriedade intelectual, limitação de responsabilidade e foro) continuam valendo após o encerramento.
+
+
+14. PRIVACIDADE E PROTEÇÃO DE DADOS
+
+14.1. O tratamento de dados pessoais é regido pela Política de Privacidade do Sunsetsss, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD) e o Marco Civil da Internet (Lei nº 12.965/2014). Leia-a com atenção.
+
+
+15. COMUNICAÇÕES
+
+15.1. Enviaremos comunicações necessárias ao serviço, como redefinição de senha, aviso de alteração de senha, avisos de suspensão ou remoção de conta e alterações destes Termos, para o e-mail cadastrado, e notificações dentro do aplicativo sobre curtidas, comentários e novos seguidores. Mantenha seu e-mail atualizado.
+
+15.2. Não enviamos comunicações de marketing sem a sua autorização, que poderá ser revogada a qualquer momento.
+
+
+16. DENÚNCIAS DE ILÍCITOS E ORDENS LEGAIS
+
+16.1. Podemos cooperar com autoridades e cumprir ordens judiciais e requisições legais, inclusive fornecendo dados e registros quando exigido por lei, e remover Conteúdo para cumprir determinação legal ou para proteger direitos e a segurança de pessoas.
+
+
+17. ALTERAÇÕES DOS TERMOS
+
+17.1. Podemos atualizar estes Termos para refletir mudanças legais, técnicas ou do serviço. Cada versão é numerada e datada. Alterações relevantes serão comunicadas por aviso no aplicativo e/ou e-mail, com antecedência razoável sempre que possível, e entram em vigor na data indicada.
+
+17.2. Se continuar a usar o serviço após a vigência da nova versão, entenderemos que você a aceitou. Se não concordar, deixe de usar o serviço e, se desejar, exclua sua conta.
+
+
+18. CONTATO
+
+18.1. Dúvidas, solicitações, pedidos de revisão de moderação e notificações sobre estes Termos: sunsetsss.app@outlook.com.
+Encarregado pelo tratamento de dados pessoais (LGPD): [NOME DO ENCARREGADO], [E-MAIL DO ENCARREGADO].
+
+
+19. LEI APLICÁVEL E FORO
+
+19.1. Estes Termos são regidos pelas leis da República Federativa do Brasil.
+
+19.2. Fica eleito o foro da comarca de [CIDADE/UF], ressalvado o direito do consumidor de optar pelo foro de seu domicílio, quando a legislação consumerista for aplicável. Antes de qualquer medida judicial, buscaremos resolver amigavelmente eventual controvérsia pelos canais do item 18.
