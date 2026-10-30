@@ -261,6 +261,22 @@ field being present in that specific case. **A `403` has two possible bodies**:
   removed", "only an Admin can act on a Moderator") uses the normal `{ title, errors, requestId }`
   shape. So read `title` only if the body is non-empty, and always fall back to the status code.
 
+### Client IP and rate limits
+
+Every 🐌 limit is **per client IP**. The API runs behind the host's reverse proxy, so it reads the visitor's
+address from `X-Forwarded-For` (and the scheme from `X-Forwarded-Proto`) — it takes the **rightmost** entry,
+the one the proxy itself appended, so a client cannot dodge a limit by sending its own `X-Forwarded-For`.
+Before this was configured, the API saw only the proxy's address and **all visitors shared one bucket** for
+search, reports, password reset and password change; now each visitor has their own.
+
+- A server-side caller (e.g. the Next.js server fetching pages) is **one** IP for all the visitors it serves:
+  its calls share a single bucket, so don't route per-visitor search traffic through the server.
+- `GET /health/client-ip` (public, no auth) answers how the API sees *your* request: `{ clientIp, scheme,
+  proxyPeer, remainingForwardedFor, forwardLimit }`. `clientIp` is what the limiters key on. The full
+  `X-Forwarded-For` chain the proxy sent is `remainingForwardedFor` followed by `clientIp`. Operational
+  setting: `ForwardedHeaders:ForwardLimit` (env `ForwardedHeaders__ForwardLimit`, default `1`) is how many
+  trusted proxies sit in front of the API; raise it only after checking this endpoint.
+
 ### Auth requirement legend
 
 🔒 = requires `Authorization: Bearer <token>`. Endpoints without 🔒 are public (some

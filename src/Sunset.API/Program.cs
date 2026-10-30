@@ -3,7 +3,9 @@ using System.Text.Json;
 using System.Threading.RateLimiting;
 using Amazon.S3;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -134,6 +136,21 @@ var rateLimitTitlesByPolicy = new Dictionary<string, string>
     [PasswordResetRateLimitPolicy] = "Too many password reset requests. Please slow down.",
     [ChangePasswordRateLimitPolicy] = "Too many password change attempts. Please try again later.",
 };
+// Trust X-Forwarded-For / -Proto from the platform proxy. The app is only reachable through it, so
+// the default "loopback only" trust list (which would ignore the headers entirely) is cleared.
+// ForwardLimit decides how many entries are consumed from the RIGHT of X-Forwarded-For: the proxy
+// APPENDS the address it saw, so the rightmost entry can't be forged by the client, while anything
+// to its left can. 1 = only the entry added by the proxy directly in front of us. If more than one
+// trusted proxy sits in front (e.g. a CDN + the platform load balancer), raise it with
+// ForwardedHeaders:ForwardLimit - measured with GET /health/client-ip (see docs/API.md).
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+    options.ForwardLimit = Math.Max(1, builder.Configuration.GetValue("ForwardedHeaders:ForwardLimit", 1));
+});
+
 builder.Services.AddRateLimiter(options =>
 {
     options.AddPolicy(SearchRateLimitPolicy, httpContext => RateLimitPartition.GetSlidingWindowLimiter(
@@ -201,6 +218,12 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+
+// Behind Render's proxy the TCP peer is the proxy, not the visitor. Without this, every
+// IP-keyed rate limiter (Search, Reports, PasswordReset, ChangePassword) put all users in ONE
+// bucket, and the log line "from {ClientIp}" showed the proxy. Must run before anything that reads
+// the client address or scheme.
+app.UseForwardedHeaders();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -279,6 +302,19 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     Predicate = check => check.Tags.Contains("ready"),
     ResponseWriter = HealthResponseWriter.WriteAsync
 });
+
+// Diagnostic for the forwarded-headers setup: shows the caller how the API sees them (nothing but
+// their own request). `clientIp` is what the rate limiters key on. The full X-Forwarded-For chain the
+// proxy sent is `remainingForwardedFor` (entries left of the consumed ones) followed by `clientIp`, and
+// `proxyPeer` is the TCP peer (the platform proxy) - enough to verify the right ForwardedHeaders:ForwardLimit.
+app.MapGet("/health/client-ip", (HttpContext context, IOptions<ForwardedHeadersOptions> forwarded) => Results.Ok(new
+{
+    clientIp = context.Connection.RemoteIpAddress?.ToString(),
+    scheme = context.Request.Scheme,
+    proxyPeer = context.Request.Headers["X-Original-For"].ToString(),
+    remainingForwardedFor = context.Request.Headers["X-Forwarded-For"].ToString(),
+    forwardLimit = forwarded.Value.ForwardLimit,
+}));
 
 app.Run();
 
