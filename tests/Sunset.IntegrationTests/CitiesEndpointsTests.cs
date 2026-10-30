@@ -106,7 +106,7 @@ public class CitiesEndpointsTests(SunsetApiFactory factory) : IntegrationTestBas
     public async Task StateFilter_IsCaseInsensitive_AndPopulationIsTheDefaultOrder_WithCursorPaging()
     {
         var tag = Tag();
-        var state = $"S{tag[..6]}";
+        var state = $"S{tag[..6]}".ToUpperInvariant();   // real states are upper case, and the filter compares upper case
         foreach (var (name, population) in new[] { ("Pequena", 10), ("Grande", 900), ("Media", 300), ("Minima", 1), ("Enorme", 5000) })
             await SeedAsync($"{name}{tag}", state, population);
 
@@ -128,7 +128,7 @@ public class CitiesEndpointsTests(SunsetApiFactory factory) : IntegrationTestBas
     public async Task SortByName_OrdersAlphabetically_WithCursorPaging()
     {
         var tag = Tag();
-        var state = $"N{tag[..6]}";
+        var state = $"N{tag[..6]}".ToUpperInvariant();
         foreach (var name in new[] { "Charlie", "Alfa", "Echo", "Bravo", "Delta" })
             await SeedAsync($"{name}{tag}", state);
 
