@@ -203,6 +203,20 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   Render → salto interno; com 1 o "cliente" seria um IP 10.x que muda a cada requisição). Sem isso todos os limitadores por IP (Search, Reports, PasswordReset,
   ChangePassword) dividiam um balde só. `GET /health/client-ip` mostra como a API vê a requisição (para conferir o limite
   em produção). Há CI em `.github/workflows/ci.yml` (build + testes unitários + de integração, o runner tem Docker).
+- **Cache e limite de busca**: respostas **públicas** de leitura (`/cities*`, `/locations` lista, `/locations/ranking`,
+  `/locations/:id`, `/locations/:id/photos`, `/photos`) usam `OutputCache` por 60 s (variando por query string e por
+  `Origin` — o `Access-Control-Allow-Origin` fica gravado na entrada), em memória e por instância. **Pedido com
+  `Authorization` nunca entra nem sai do cache** (por isso `likedByCurrentUser` segue certo). Ordem do pipeline:
+  `UseCors` → `UseOutputCache` → `UseRateLimiter` → auth — o cache vem **antes** do limitador (acerto de cache não gasta
+  cota). `PublicCacheHeadersMiddleware` (dentro do cache, só roda no miss) põe `Cache-Control` + `ETag`; o 304 num acerto é
+  do próprio OutputCache. Invalidação por tag (`cities`, `locations`, `photos`) via `IResponseCacheInvalidator` (Application;
+  `OutputCacheInvalidator` na API), chamada **depois** de gravar em: criar local, avaliar/remover nota, criar/apagar foto,
+  apagar/restaurar/mesclar local, corrigir coordenadas, mudar cidade, `anonymize` com `hideContent`. Curtidas, comentários e
+  perfil não invalidam (60 s). A ferramenta de cidades roda fora da API, então não invalida: o TTL cobre. **Nos testes de
+  integração o cache só liga com o cabeçalho `X-Test-Cache: on`** (a suíte divide um servidor; cache sempre ligado vazaria
+  respostas entre testes). Limite `Search` agora só vale com `q`/`lat`/`lng` (`CitySearch`: só com `q`); listagem simples não conta.
+  `X-Service-Key` (`Service:ApiKey`, comparação em tempo constante, **obrigatória em produção** no `StartupConfigurationValidator`)
+  dá ao servidor do site um balde próprio de 600/10 s; só capacidade, não autentica nada.
 - **Remoção de EXIF/GPS**: o cliente sobe a imagem direto no S3 (URL pré-assinada), então o servidor limpa **depois**,
   em `POST /photos` e no `PATCH /users/me` com avatar novo (`IUploadedImageSanitizer`): baixa o objeto pela URL pública
   (o IAM continua só com `s3:PutObject`), `ImageMetadataStripper` (Application, sem dependências) remove EXIF/XMP/IPTC/

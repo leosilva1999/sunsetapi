@@ -1,7 +1,9 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
+using Sunset.API.Caching;
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Locations;
 using Sunset.Application.DTOs.Moderation;
@@ -24,6 +26,7 @@ public class LocationsController(
     ICurrentUserService currentUserService) : ControllerBase
 {
     [EnableRateLimiting("Search")]
+    [OutputCache(PolicyName = PublicCaching.LocationsPolicy)]
     [HttpGet]
     public async Task<ActionResult<CursorPagedResult<LocationResponse>>> Search(
         [FromQuery] string? q,
@@ -40,6 +43,7 @@ public class LocationsController(
         return Ok(page);
     }
 
+    [OutputCache(PolicyName = PublicCaching.LocationsPolicy)]
     [HttpGet("ranking")]
     public async Task<ActionResult<IReadOnlyList<LocationResponse>>> GetRanking(
         [FromQuery] RankingPeriod period = RankingPeriod.All,
@@ -50,6 +54,7 @@ public class LocationsController(
         return Ok(ranking);
     }
 
+    [OutputCache(PolicyName = PublicCaching.LocationsPolicy)]
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<LocationResponse>> GetById(Guid id, CancellationToken cancellationToken)
     {
@@ -69,6 +74,7 @@ public class LocationsController(
         return CreatedAtAction(nameof(GetById), new { id = response.Id }, response);
     }
 
+    [OutputCache(PolicyName = PublicCaching.PhotosPolicy)]
     [HttpGet("{id:guid}/photos")]
     public async Task<ActionResult<CursorPagedResult<PhotoResponse>>> GetPhotos(
         Guid id,

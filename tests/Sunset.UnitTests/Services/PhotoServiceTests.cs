@@ -17,12 +17,13 @@ public class PhotoServiceTests
     private readonly Mock<IModerationActionRepository> _moderationActionRepository = new();
     private readonly Mock<INotificationRepository> _notificationRepository = new();
     private readonly Mock<IUploadedImageSanitizer> _imageSanitizer = new();
+    private readonly Mock<IResponseCacheInvalidator> _cache = new();
     private readonly PhotoService _sut;
 
     public PhotoServiceTests()
     {
         _imageSanitizer.Setup(s => s.SanitizeAsync(It.IsAny<string>(), default)).ReturnsAsync(true);
-        _sut = new PhotoService(_photoRepository.Object, _locationRepository.Object, _moderationActionRepository.Object, _notificationRepository.Object, _imageSanitizer.Object);
+        _sut = new PhotoService(_photoRepository.Object, _locationRepository.Object, _moderationActionRepository.Object, _notificationRepository.Object, _imageSanitizer.Object, _cache.Object);
     }
 
     private static Photo CreatePhoto(User user, Location location, Guid? userId = null)

@@ -41,6 +41,15 @@ public static class StartupConfigurationValidator
         if (!isProduction)
             return problems;
 
+        // The secret the site's server sends as X-Service-Key to get its own rate-limit bucket. Without it the
+        // server (one IP for all visitors) would run into the per-IP search limit. Generate one with:
+        // openssl rand -base64 32
+        var serviceKey = configuration["Service:ApiKey"];
+        if (string.IsNullOrWhiteSpace(serviceKey))
+            problems.Add("Service:ApiKey is not set (env var Service__ApiKey; generate one with: openssl rand -base64 32).");
+        else if (serviceKey.Length < 32)
+            problems.Add("Service:ApiKey is too short (at least 32 characters; generate one with: openssl rand -base64 32).");
+
         Require(configuration, problems, "ConnectionStrings:DefaultConnection", "ConnectionStrings__DefaultConnection");
         Require(configuration, problems, "Frontend:BaseUrl", "Frontend__BaseUrl");
 

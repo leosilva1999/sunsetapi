@@ -16,6 +16,7 @@ public class LocationServiceTests
     private readonly Mock<IPhotoRepository> _photoRepository = new();
     private readonly Mock<ISunsetTimeService> _sunsetTimeService = new();
     private readonly Mock<ICityRepository> _cityRepository = new();
+    private readonly Mock<IResponseCacheInvalidator> _cache = new();
     private readonly LocationService _sut;
 
     public LocationServiceTests()
@@ -27,7 +28,7 @@ public class LocationServiceTests
             .ReturnsAsync(new Dictionary<Guid, Sunset.Application.DTOs.Locations.LocationStats>());
 
         _sut = new LocationService(_locationRepository.Object, _photoRepository.Object, _sunsetTimeService.Object,
-            _cityRepository.Object, new Sunset.Application.Cities.CityResolver(_cityRepository.Object));
+            _cityRepository.Object, new Sunset.Application.Cities.CityResolver(_cityRepository.Object), _cache.Object);
     }
 
     [Fact]

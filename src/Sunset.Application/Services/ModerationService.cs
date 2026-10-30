@@ -26,7 +26,8 @@ public class ModerationService(
     ILocationRepository locationRepository,
     IPasswordHasher passwordHasher,
     ICityRepository cityRepository,
-    CityResolver cityResolver) : IModerationService
+    CityResolver cityResolver,
+    IResponseCacheInvalidator cacheInvalidator) : IModerationService
 {
     public async Task<ReportResponse> CreateReportAsync(Guid reporterId, ReportTargetType targetType, Guid targetId, CreateReportRequest request, CancellationToken cancellationToken = default)
     {
@@ -137,6 +138,7 @@ public class ModerationService(
         await locationRepository.SaveChangesAsync(cancellationToken);
         var photosHidden = await photoRepository.SoftDeleteAllByLocationAsync(locationId, moderatorId, deletedAt, cancellationToken);
 
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.All, cancellationToken);
         await moderationActionRepository.AddAsync(
             new ModerationAction(moderatorId, ModerationActionType.LocationDeleted, $"Location:{locationId}",
                 $"{location.Name} ({location.City}); {photosHidden} photo(s) hidden"),
@@ -154,6 +156,7 @@ public class ModerationService(
         await locationRepository.SaveChangesAsync(cancellationToken);
         var photosRestored = await photoRepository.RestoreAllByLocationAsync(locationId, deletedAt, cancellationToken);
 
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.All, cancellationToken);
         await moderationActionRepository.AddAsync(
             new ModerationAction(moderatorId, ModerationActionType.LocationRestored, $"Location:{locationId}",
                 $"{location.Name} ({location.City}); {photosRestored} photo(s) restored"),
@@ -190,6 +193,7 @@ public class ModerationService(
         source.SoftDelete(moderatorId, new DateTime(now.Ticks - now.Ticks % 10, DateTimeKind.Utc));
         await locationRepository.SaveChangesAsync(cancellationToken);
 
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.All, cancellationToken);
         await moderationActionRepository.AddAsync(
             new ModerationAction(moderatorId, ModerationActionType.LocationMerged, $"Location:{sourceLocationId}",
                 $"{source.Name} ({source.City}) merged into {target.Name} ({target.City}) [{target.Id}]; {photosMoved} photo(s) and {ratingsMoved} rating(s) moved"),
@@ -207,6 +211,7 @@ public class ModerationService(
         location.ChangeCoordinates(request.Latitude, request.Longitude);
         await locationRepository.SaveChangesAsync(cancellationToken);
 
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.Locations | ResponseCacheTag.Cities, cancellationToken);
         await moderationActionRepository.AddAsync(
             new ModerationAction(moderatorId, ModerationActionType.LocationCoordinatesChanged, $"Location:{locationId}",
                 FormattableString.Invariant($"({oldLat}, {oldLng}) -> ({request.Latitude}, {request.Longitude})")),
@@ -257,6 +262,7 @@ public class ModerationService(
             location.ChangeCity(city);
         await locationRepository.SaveChangesAsync(cancellationToken);
 
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.Locations | ResponseCacheTag.Cities, cancellationToken);
         await moderationActionRepository.AddAsync(
             new ModerationAction(moderatorId, ModerationActionType.LocationCityChanged, $"Location:{locationId}",
                 $"{before} -> {location.City}" + (location.Locality is { } locality ? $" (locality: {locality.Name})" : string.Empty)),
@@ -286,6 +292,9 @@ public class ModerationService(
             photosHidden = await photoRepository.SoftDeleteAllByUserAsync(
                 targetUserId, adminId, new DateTime(now.Ticks - now.Ticks % 10, DateTimeKind.Utc), cancellationToken);
         }
+
+        if (request.HideContent)
+            await cacheInvalidator.InvalidateAsync(ResponseCacheTag.All, cancellationToken);
 
         // Same erasure as the user deleting their own account (UserService.DeleteAccountAsync),
         // plus a permanent ban so an access token they already hold dies at once instead of

@@ -15,7 +15,8 @@ public class PhotoService(
     ILocationRepository locationRepository,
     IModerationActionRepository moderationActionRepository,
     INotificationRepository notificationRepository,
-    IUploadedImageSanitizer imageSanitizer) : IPhotoService
+    IUploadedImageSanitizer imageSanitizer,
+    IResponseCacheInvalidator cacheInvalidator) : IPhotoService
 {
     public async Task<CursorPagedResult<PhotoResponse>> GetFeedAsync(PhotoSortOption sort, string? cursor, int limit, Guid? currentUserId, CancellationToken cancellationToken = default)
     {
@@ -58,6 +59,7 @@ public class PhotoService(
 
         var photo = new Photo(userId, request.LocationId, request.ImageUrl, request.Caption);
         await photoRepository.AddAsync(photo, cancellationToken);
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.All, cancellationToken);
 
         var created = await photoRepository.GetByIdAsync(photo.Id, cancellationToken)
             ?? throw new NotFoundException("Photo not found.");
@@ -76,6 +78,7 @@ public class PhotoService(
 
         photo.SoftDelete(userId);
         await photoRepository.SoftDeleteAsync(photo, cancellationToken);
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.All, cancellationToken);
 
         if (!isAuthor)
         {

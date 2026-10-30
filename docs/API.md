@@ -45,6 +45,11 @@ these are the diffs to check:
   optional `termsVersion` / `privacyVersion`; every auth response carries a `legalAcceptance` object saying
   whether the user still has something to accept; new `GET` / `POST /users/me/legal-acceptances` — see
   [Terms of Use and Privacy Policy](#terms-of-use-and-privacy-policy).
+- **Public reads are cached and only real searches are rate limited**: the anonymous `GET`s of cities, locations,
+  the location ranking and the photo feed are cached for 60 s (with `Cache-Control` and an `ETag`; changes
+  made through the API show up at once), `GET /locations` and `GET /cities` without `q`/`lat`/`lng` no longer
+  count against the search limit, and the site's server can send `X-Service-Key` for a bucket of its own — see
+  [Caching and rate limits](#caching-and-rate-limits).
 - **Locations are tied to cities** (`LocationResponse.citySlug/cityName/state/localitySlug`, `ratingsCount`, `photosCount`,
   `coverImageUrl`); `POST /locations` takes a `cityId`; `GET /cities` now defaults to *cities that have locations* (sorted
   by number of locations) — **pass `includeEmpty=true&sort=population` for the registration autocomplete**; new
@@ -279,7 +284,8 @@ Before this was configured, the API saw only the proxy's address and **all visit
 search, reports, password reset and password change; now each visitor has their own.
 
 - A server-side caller (e.g. the Next.js server fetching pages) is **one** IP for all the visitors it serves:
-  its calls share a single bucket, so don't route per-visitor search traffic through the server.
+  its calls share a single bucket — send `X-Service-Key` (see [Caching and rate limits](#caching-and-rate-limits))
+  and don't route per-visitor search traffic through the server.
 - `GET /health/client-ip` (public, no auth) answers how the API sees *your* request: `{ clientIp, scheme,
   proxyPeer, remainingForwardedFor, forwardLimit }`. `clientIp` is what the limiters key on. The full
   `X-Forwarded-For` chain the proxy sent is `remainingForwardedFor` followed by `clientIp`. Operational
@@ -287,6 +293,35 @@ search, reports, password reset and password change; now each visitor has their 
   trusted proxies sit in front of the API; raise it only after checking this endpoint. **On Render it is `3`**
   (measured in production: Cloudflare → Render load balancer → an internal hop, so the visitor's address is the
   third entry from the right; anything further left is client-supplied and ignored).
+
+### <a id="caching-and-rate-limits"></a>Caching and rate limits
+
+**Cached responses.** These anonymous `GET`s are served from a 60-second cache (one entry per query string):
+`/cities` (list), `/cities/{slug}` and its `/locations`, `/photos`, `/sunset`; `/locations` (list/search),
+`/locations/ranking`, `/locations/{id}`, `/locations/{id}/photos`; `/photos` (feed).
+
+- Every such response carries `Cache-Control: public, max-age=60, stale-while-revalidate=300` and a weak
+  `ETag`. Send the `ETag` back as `If-None-Match` to get an empty `304 Not Modified` while nothing changed (the
+  browser and Next.js `fetch` do this on their own).
+- **A request with an `Authorization` header is never cached and never served from the cache**, so
+  `likedByCurrentUser` (and anything else per user) is always right for a signed-in visitor. A server-side render
+  for an anonymous visitor (no token) is cached; send the visitor's token only when it matters.
+- **Changes appear at once** when they go through the API: creating/removing a location, rating, photo, moving a
+  pin, changing a city, merging, restoring... evict the affected responses. Things that don't evict (likes, comments,
+  profile name/avatar) are simply up to 60 s old. If you edit data straight in the database (or re-run the
+  city importer), the cache catches up within 60 s.
+- The cache is per API instance (there is one today); a response served from it does **not** spend the rate-limit quota.
+
+**Rate limits are per client IP and only for real searches.** `GET /locations` is limited (40 per 10 s) only when it
+carries `q`, `lat` or `lng`; `GET /cities` only when it carries `q`. Plain listing and paging — what the sitemap
+and the page renderers do — is not limited. Rejected → `429` `{ title, errors, requestId }` with `Retry-After`.
+
+**`X-Service-Key` — for the site's server.** Pages rendered on the Next.js server all reach the API from the same
+address, which would make every visitor share one bucket. Send the header `X-Service-Key: <secret>` from the **server**
+(environment variable without `NEXT_PUBLIC_`, never in code that runs in the browser): requests carrying the right key
+get a bucket of their own (600 searches per 10 s). It only buys capacity — it is not authentication and opens nothing
+(a request with the key still needs a token wherever a token is required). A wrong or missing key is simply treated as
+an ordinary visitor. The value is set by the API's operator (`Service__ApiKey`, at least 32 characters).
 
 ### Auth requirement legend
 
@@ -513,8 +548,9 @@ source of truth for "which city is this?" — users pick from it instead of typi
   `null` without ratings. `coverImageUrl` is the most liked visible photo (ties: the most recent), `null` without photos.
 
 ### `GET /cities?q=&kind=&country=&state=&sort=&includeEmpty=&cursor=&limit=` 🐌
-Search / list, cursor-paginated (`limit` 1–50, default 20) → `CursorPagedResult<CityResponse>`. Shares the
-location-search rate limit (it is meant for the autocomplete on every keystroke).
+Search / list, cursor-paginated (`limit` 1–50, default 20) → `CursorPagedResult<CityResponse>`. A text search (`q`)
+has the same ceiling as the location search (it is meant for the autocomplete on every keystroke); listing without
+`q` is not limited. Cached for 60 s (see [Caching and rate limits](#caching-and-rate-limits)).
 
 > ⚠️ **Defaults changed with the location link:** with no parameters you now get only **cities that have at least one
 > visible location**, most locations first — the right list for the site's "Cities" index. The **registration

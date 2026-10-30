@@ -12,9 +12,11 @@ using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Events;
 using Sunset.API;
+using Sunset.API.Caching;
 using Sunset.API.Health;
 using Sunset.API.Middlewares;
 using Sunset.API.OpenApi;
+using Sunset.API.Security;
 using Sunset.Application;
 using Sunset.Application.Interfaces;
 using Sunset.Infrastructure;
@@ -119,6 +121,8 @@ builder.Services.AddCors(options =>
 // being hammered, whether by a runaway client-side loop or a debounce bug - independent of
 // whatever debouncing the frontend does, since that's not something the API can rely on.
 const string SearchRateLimitPolicy = "Search";
+// "CitySearch": the same ceiling for the cities' text search (the registration autocomplete).
+const string CitySearchRateLimitPolicy = "CitySearch";
 // "Reports" policy: much lower ceiling than Search - filing a report is a deliberate, infrequent
 // action, so this exists purely to stop report-flooding abuse, not accommodate legitimate bursts.
 const string ReportsRateLimitPolicy = "Reports";
@@ -132,6 +136,7 @@ const string ChangePasswordRateLimitPolicy = "ChangePassword";
 var rateLimitTitlesByPolicy = new Dictionary<string, string>
 {
     [SearchRateLimitPolicy] = "Too many search requests. Please slow down.",
+    [CitySearchRateLimitPolicy] = "Too many search requests. Please slow down.",
     [ReportsRateLimitPolicy] = "Too many reports. Please slow down.",
     [PasswordResetRateLimitPolicy] = "Too many password reset requests. Please slow down.",
     [ChangePasswordRateLimitPolicy] = "Too many password change attempts. Please try again later.",
@@ -151,17 +156,42 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.ForwardLimit = Math.Max(1, builder.Configuration.GetValue("ForwardedHeaders:ForwardLimit", 1));
 });
 
-builder.Services.AddRateLimiter(options =>
+// The site's own server presents a secret (X-Service-Key) and gets a bucket of its own - otherwise every visitor
+// it renders pages for would share ONE address and one bucket. See ServiceKeyValidator.
+builder.Services.AddSingleton<ServiceKeyValidator>();
+
+// Response cache for the public reads. In the Testing environment it is opt-in per request, so tests sharing
+// one server don't read each other's cached responses.
+builder.Services.AddPublicOutputCache(optInOnly: builder.Environment.IsEnvironment("Testing"));
+
+// Only a real SEARCH is rate limited: a plain listing/paging (what the site's server and the sitemap do) is cheap
+// and cacheable, and used to burn the same 40-per-10s budget as a keystroke-by-keystroke autocomplete.
+static bool IsLocationSearch(HttpRequest request) =>
+    !string.IsNullOrWhiteSpace(request.Query["q"]) || request.Query.ContainsKey("lat") || request.Query.ContainsKey("lng");
+
+static bool IsCitySearch(HttpRequest request) => !string.IsNullOrWhiteSpace(request.Query["q"]);
+
+static RateLimitPartition<string> SearchPartition(HttpContext httpContext, Func<HttpRequest, bool> isSearch)
 {
-    options.AddPolicy(SearchRateLimitPolicy, httpContext => RateLimitPartition.GetSlidingWindowLimiter(
-        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+    if (!isSearch(httpContext.Request))
+        return RateLimitPartition.GetNoLimiter("not-a-search");
+
+    var fromSiteServer = httpContext.RequestServices.GetRequiredService<ServiceKeyValidator>().IsValid(httpContext.Request);
+    return RateLimitPartition.GetSlidingWindowLimiter(
+        partitionKey: fromSiteServer ? "service" : httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         factory: _ => new SlidingWindowRateLimiterOptions
         {
-            PermitLimit = 40,
+            PermitLimit = fromSiteServer ? 600 : 40,
             Window = TimeSpan.FromSeconds(10),
             SegmentsPerWindow = 5,
             QueueLimit = 0,
-        }));
+        });
+}
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy(SearchRateLimitPolicy, httpContext => SearchPartition(httpContext, IsLocationSearch));
+    options.AddPolicy(CitySearchRateLimitPolicy, httpContext => SearchPartition(httpContext, IsCitySearch));
 
     // In the integration suite every request comes from the same address, so the whole suite shares one
     // bucket - lift the cap there (same as the password policies below).
@@ -287,10 +317,18 @@ app.UseHttpsRedirection();
 
 app.UseCors(FrontendCorsPolicy);
 
+// The cache goes BEFORE the rate limiter: a response served from memory costs nothing, so it must not spend the
+// visitor's quota. (And before authentication on purpose - a request that carries a token is never served from or
+// stored in the cache, so nothing user-specific is shared.)
+app.UseOutputCache();
+
 app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Inside the cache: stamps Cache-Control + ETag on the cacheable public GETs (only runs on a cache miss).
+app.UseMiddleware<PublicCacheHeadersMiddleware>();
 
 app.MapControllers();
 

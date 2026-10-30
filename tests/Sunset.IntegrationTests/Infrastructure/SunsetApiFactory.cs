@@ -25,6 +25,9 @@ public class SunsetApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public FakeEmailSender EmailSender { get; } = new();
 
+    /// <summary>The secret the suite's server accepts as X-Service-Key.</summary>
+    public const string ServiceApiKey = "test-only-service-key-0123456789abcdef";
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // The suite shouldn't depend on Mailpit running or on any network - swap the real SMTP
@@ -64,6 +67,7 @@ public class SunsetApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("Storage__SecretKey", "test");
         Environment.SetEnvironmentVariable("Cors__AllowedOrigins__0", "http://localhost:3000");
         Environment.SetEnvironmentVariable("Frontend__BaseUrl", "https://sunset-tests.dev");
+        Environment.SetEnvironmentVariable("Service__ApiKey", ServiceApiKey);
 
         // Triggers host build (reads the env vars set above), then applies migrations so the
         // schema - full-text index included - actually exists.

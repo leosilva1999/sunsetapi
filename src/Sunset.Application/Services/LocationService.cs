@@ -17,7 +17,8 @@ public class LocationService(
     IPhotoRepository photoRepository,
     ISunsetTimeService sunsetTimeService,
     ICityRepository cityRepository,
-    CityResolver cityResolver) : ILocationService
+    CityResolver cityResolver,
+    IResponseCacheInvalidator cacheInvalidator) : ILocationService
 {
     public async Task<CursorPagedResult<LocationResponse>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default)
     {
@@ -64,6 +65,7 @@ public class LocationService(
             location.ChangeCity(municipality, locality);
 
         await locationRepository.AddAsync(location, cancellationToken);
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.Locations | ResponseCacheTag.Cities, cancellationToken);
 
         return location.ToResponse();
     }
@@ -105,6 +107,7 @@ public class LocationService(
         var averageRating = await locationRepository.GetAverageRatingAsync(locationId, cancellationToken);
         location.RecalculateAvgRating(averageRating);
         await locationRepository.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.Locations | ResponseCacheTag.Cities, cancellationToken);
 
         var created = await locationRepository.GetRatingAsync(userId, locationId, cancellationToken)
             ?? throw new NotFoundException("Rating not found.");
@@ -144,6 +147,7 @@ public class LocationService(
         var averageRating = await locationRepository.GetAverageRatingAsync(locationId, cancellationToken);
         location.RecalculateAvgRating(averageRating);
         await locationRepository.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.Locations | ResponseCacheTag.Cities, cancellationToken);
     }
 
     public async Task<SunsetTimeResponse> GetSunsetTimeAsync(Guid locationId, DateOnly? date, CancellationToken cancellationToken = default)

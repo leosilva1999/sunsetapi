@@ -1,6 +1,8 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
+using Sunset.API.Caching;
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Cities;
 using Sunset.Application.DTOs.Locations;
@@ -19,7 +21,8 @@ public class CitiesController(
 {
     // A text search runs a full-text query per call (and the site's autocomplete fires it on every
     // keystroke), so it shares the location search's per-client limit.
-    [EnableRateLimiting("Search")]
+    [EnableRateLimiting("CitySearch")]
+    [OutputCache(PolicyName = PublicCaching.CitiesPolicy)]
     [HttpGet]
     public async Task<ActionResult<CursorPagedResult<CityResponse>>> List(
         [FromQuery] string? q,
@@ -38,10 +41,12 @@ public class CitiesController(
         return Ok(await cityService.SearchAsync(query, cancellationToken));
     }
 
+    [OutputCache(PolicyName = PublicCaching.CitiesPolicy)]
     [HttpGet("{slug}")]
     public async Task<ActionResult<CityDetailResponse>> GetBySlug(string slug, CancellationToken cancellationToken) =>
         Ok(await cityService.GetBySlugAsync(Normalize(slug), cancellationToken));
 
+    [OutputCache(PolicyName = PublicCaching.CitiesPolicy)]
     [HttpGet("{slug}/locations")]
     public async Task<ActionResult<CursorPagedResult<LocationResponse>>> GetLocations(
         string slug,
@@ -52,6 +57,7 @@ public class CitiesController(
         Ok(await cityService.GetLocationsAsync(Normalize(slug), sort, cursor, Math.Clamp(limit, 1, 50), cancellationToken));
 
     // Reads the token when one is sent, so likedByCurrentUser is right for a logged-in visitor (anonymous: false).
+    [OutputCache(PolicyName = PublicCaching.CitiesPolicy)]
     [HttpGet("{slug}/photos")]
     public async Task<ActionResult<CursorPagedResult<PhotoResponse>>> GetPhotos(
         string slug,
@@ -61,6 +67,7 @@ public class CitiesController(
         CancellationToken cancellationToken = default) =>
         Ok(await cityService.GetPhotosAsync(Normalize(slug), sort, cursor, Math.Clamp(limit, 1, 50), currentUserService.UserId, cancellationToken));
 
+    [OutputCache(PolicyName = PublicCaching.CitiesPolicy)]
     [HttpGet("{slug}/sunset")]
     public async Task<ActionResult<SunsetTimeResponse>> GetSunset(
         string slug,

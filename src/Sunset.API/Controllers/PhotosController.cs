@@ -1,7 +1,9 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
+using Sunset.API.Caching;
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Moderation;
 using Sunset.Application.DTOs.Photos;
@@ -32,6 +34,7 @@ public class PhotosController(
         return Ok(response);
     }
 
+    [OutputCache(PolicyName = PublicCaching.PhotosPolicy)]
     [HttpGet]
     public async Task<ActionResult<CursorPagedResult<PhotoResponse>>> GetFeed(
         [FromQuery] PhotoSortOption sort = PhotoSortOption.Recent,

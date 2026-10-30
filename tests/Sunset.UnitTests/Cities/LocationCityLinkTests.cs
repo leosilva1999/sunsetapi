@@ -215,8 +215,10 @@ public class LocationServiceCityTests
         _locations.Setup(r => r.GetStatsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
             .ReturnsAsync(new Dictionary<Guid, LocationStats>());
         _sut = new LocationService(_locations.Object, new Mock<IPhotoRepository>().Object, new Mock<ISunsetTimeService>().Object,
-            _cities.Object, new CityResolver(_cities.Object));
+            _cities.Object, new CityResolver(_cities.Object), _cache.Object);
     }
+
+    private readonly Mock<IResponseCacheInvalidator> _cache = new();
 
     private Location? Saved() => _locations.Invocations
         .Where(i => i.Method.Name == nameof(ILocationRepository.AddAsync)).Select(i => (Location)i.Arguments[0]).SingleOrDefault();
