@@ -203,6 +203,16 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   Render → salto interno; com 1 o "cliente" seria um IP 10.x que muda a cada requisição). Sem isso todos os limitadores por IP (Search, Reports, PasswordReset,
   ChangePassword) dividiam um balde só. `GET /health/client-ip` mostra como a API vê a requisição (para conferir o limite
   em produção). Há CI em `.github/workflows/ci.yml` (build + testes unitários + de integração, o runner tem Docker).
+- **Slug de local**: `Location.Slug` (obrigatório, único em **todas** as linhas, apagadas inclusas — slug de local removido
+  fica reservado), `{nome}-{slug do município}` (só o nome sem cidade), sufixo `-2`, `-3` na colisão
+  (`SlugGenerator.ForLocation/WithSuffix`, `LocationService.CreateAsync` checa `SlugExistsAsync`). Atribuído **uma vez**
+  (`AssignSlug` lança se já tem) e imutável: mudar a cidade depois não muda o slug. `AddAsync` recusa local sem slug; o
+  `DbSeeder` gera os seus. A migração preenche os existentes com `{nome sem acento}-{8 hex do id}`.
+  `GET /locations/{idOrSlug}`: GUID → por id, senão slug (valida formato antes da consulta); rotas literais (`ranking`)
+  ganham da rota de slug. Não há tabela de histórico de slugs (não existe edição de nome/cidade).
+- **Feed do sitemap**: `GET /sitemap/entries?type=` (`SitemapRepository`): paginado por id (cursor = último Guid), 1 consulta
+  da página + consultas agrupadas de datas só para os ids da página (`lastModified` calculado, sem coluna). Cache de 1 h
+  (política `Sitemap`, mesmas tags de invalidação), sem limite de busca.
 - **Cache e limite de busca**: respostas **públicas** de leitura (`/cities*`, `/locations` lista, `/locations/ranking`,
   `/locations/:id`, `/locations/:id/photos`, `/photos`) usam `OutputCache` por 60 s (variando por query string e por
   `Origin` — o `Access-Control-Allow-Origin` fica gravado na entrada), em memória e por instância. **Pedido com

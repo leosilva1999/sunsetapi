@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Sunset.Application.Common;
 using Sunset.Application.Interfaces;
 using Sunset.Domain.Entities;
 using Sunset.Domain.Enums;
@@ -97,8 +98,16 @@ public static class DbSeeder
         var locations = LocationSeeds
             .Select(l => new Location(l.Name, l.Lat, l.Lng, l.City))
             .ToList();
+        var usedSlugs = new HashSet<string>();
         for (var i = 0; i < locations.Count; i++)
+        {
             SetCreatedAt(locations[i], now.AddDays(-random.Next(60, 300)));
+
+            // The slug is required (and unique) for every location; the seeds aren't tied to catalog cities.
+            var slug = SlugGenerator.Unique(SlugGenerator.ForLocation(locations[i].Name, null), usedSlugs.Contains, SlugGenerator.LocationMaxLength);
+            usedSlugs.Add(slug);
+            locations[i].AssignSlug(slug);
+        }
 
         var photos = new List<Photo>();
         foreach (var seed in PhotoSeeds)

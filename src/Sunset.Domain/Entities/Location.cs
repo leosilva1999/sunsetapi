@@ -10,6 +10,13 @@ public class Location : BaseEntity
     public string City { get; private set; } = null!;
     public decimal AvgRating { get; private set; }
 
+    /// <summary>
+    /// Public URL key ("praia-do-rosa-imbituba-sc"). Assigned ONCE when the location is registered and never
+    /// changed (it ends up in indexed URLs), not even when a moderator later ties the location to a city or the
+    /// location is removed - a deleted location keeps its slug reserved.
+    /// </summary>
+    public string Slug { get; private set; } = string.Empty;
+
     /// <summary>The municipality (always a <see cref="CityKind.Municipality"/>) this location belongs to; null until it is matched.</summary>
     public Guid? CityId { get; private set; }
 
@@ -67,6 +74,16 @@ public class Location : BaseEntity
         Municipality = municipality;
         Locality = locality;
         City = CanonicalCityText(municipality);
+    }
+
+    public void AssignSlug(string slug)
+    {
+        if (string.IsNullOrWhiteSpace(slug))
+            throw new ArgumentException("Slug is required.", nameof(slug));
+        if (!string.IsNullOrEmpty(Slug))
+            throw new InvalidOperationException("A location's slug is assigned once and never changes.");
+
+        Slug = slug;
     }
 
     /// <summary>"Imbituba - SC": the format the legacy text field settles on once a location is linked.</summary>

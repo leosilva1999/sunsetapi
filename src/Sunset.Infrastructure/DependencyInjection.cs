@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<ILegalDocumentRepository, LegalDocumentRepository>();
         services.AddScoped<ILegalAcceptanceRepository, LegalAcceptanceRepository>();
         services.AddScoped<ICityRepository, CityRepository>();
+        services.AddScoped<ISitemapRepository, SitemapRepository>();
         services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
         services.AddScoped<IFollowRepository, FollowRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();

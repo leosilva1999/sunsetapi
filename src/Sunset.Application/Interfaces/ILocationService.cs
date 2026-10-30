@@ -9,6 +9,9 @@ public interface ILocationService
 {
     Task<CursorPagedResult<LocationResponse>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default);
     Task<LocationResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>Detail by id (a GUID) or by public slug; anything else, or no such location, is a 404.</summary>
+    Task<LocationResponse> GetByIdOrSlugAsync(string idOrSlug, CancellationToken cancellationToken = default);
     Task<LocationResponse> CreateAsync(Guid userId, CreateLocationRequest request, CancellationToken cancellationToken = default);
     Task<CursorPagedResult<PhotoResponse>> GetPhotosAsync(Guid locationId, string? cursor, int limit, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<LocationResponse>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default);

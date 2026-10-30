@@ -20,6 +20,12 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
     public Task<Location?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         WithCity().FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
 
+    public Task<Location?> GetBySlugAsync(string slug, CancellationToken cancellationToken = default) =>
+        WithCity().FirstOrDefaultAsync(l => l.Slug == slug, cancellationToken);
+
+    public Task<bool> SlugExistsAsync(string slug, CancellationToken cancellationToken = default) =>
+        context.Locations.IgnoreQueryFilters().AnyAsync(l => l.Slug == slug, cancellationToken);
+
     public Task<Location?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) =>
         context.Locations.IgnoreQueryFilters().Include(l => l.Municipality).Include(l => l.Locality).FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
 
@@ -235,6 +241,10 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
 
     public async Task AddAsync(Location location, CancellationToken cancellationToken = default)
     {
+        // The slug is part of a public URL: a location must never reach the database without one.
+        if (string.IsNullOrWhiteSpace(location.Slug))
+            throw new InvalidOperationException("A location needs its slug before it is saved (Location.AssignSlug).");
+
         await context.Locations.AddAsync(location, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
     }

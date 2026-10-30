@@ -11,6 +11,12 @@ public interface ILocationRepository
     Task<Location?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     // Both bypass the soft-delete query filter: the moderation restore flow needs to see hidden rows.
+    /// <summary>A visible location by its public slug (city navigations loaded).</summary>
+    Task<Location?> GetBySlugAsync(string slug, CancellationToken cancellationToken = default);
+
+    /// <summary>True when the slug is taken by ANY location, removed ones included (their slugs stay reserved).</summary>
+    Task<bool> SlugExistsAsync(string slug, CancellationToken cancellationToken = default);
+
     Task<Location?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Location>> GetDeletedAsync(int limit, CancellationToken cancellationToken = default);
 

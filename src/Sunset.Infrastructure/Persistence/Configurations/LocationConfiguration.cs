@@ -23,6 +23,14 @@ public class LocationConfiguration : IEntityTypeConfiguration<Location>
             .IsRequired()
             .HasMaxLength(100);
 
+        builder.Property(l => l.Slug)
+            .IsRequired()
+            .HasMaxLength(200);
+
+        // Unique over ALL rows, removed ones included: a deleted location's slug is never reused.
+        builder.HasIndex(l => l.Slug)
+            .IsUnique();
+
         builder.Property(l => l.Latitude)
             .IsRequired();
 

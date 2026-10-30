@@ -19,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<ILegalAcceptanceService, LegalAcceptanceService>();
         services.AddScoped<ICityService, CityService>();
+        services.AddScoped<ISitemapService, SitemapService>();
         services.AddScoped<Sunset.Application.Cities.CityResolver>();
 
         return services;

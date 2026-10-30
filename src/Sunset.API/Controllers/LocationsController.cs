@@ -55,10 +55,11 @@ public class LocationsController(
     }
 
     [OutputCache(PolicyName = PublicCaching.LocationsPolicy)]
-    [HttpGet("{id:guid}")]
-    public async Task<ActionResult<LocationResponse>> GetById(Guid id, CancellationToken cancellationToken)
+    // The id (a GUID) or the public slug - a literal route such as "ranking" still wins over this one.
+    [HttpGet("{idOrSlug}")]
+    public async Task<ActionResult<LocationResponse>> GetByIdOrSlug(string idOrSlug, CancellationToken cancellationToken)
     {
-        var response = await locationService.GetByIdAsync(id, cancellationToken);
+        var response = await locationService.GetByIdOrSlugAsync(idOrSlug, cancellationToken);
         return Ok(response);
     }
 
@@ -71,7 +72,7 @@ public class LocationsController(
             ?? throw new UnauthorizedActionException("User is not authenticated.");
 
         var response = await locationService.CreateAsync(userId, request, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = response.Id }, response);
+        return CreatedAtAction(nameof(GetByIdOrSlug), new { idOrSlug = response.Id }, response);
     }
 
     [OutputCache(PolicyName = PublicCaching.PhotosPolicy)]

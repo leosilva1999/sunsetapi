@@ -50,6 +50,10 @@ these are the diffs to check:
   made through the API show up at once), `GET /locations` and `GET /cities` without `q`/`lat`/`lng` no longer
   count against the search limit, and the site's server can send `X-Service-Key` for a bucket of its own — see
   [Caching and rate limits](#caching-and-rate-limits).
+- **Location slugs and the sitemap feed**: every location has a `slug` ("praia-do-rosa-imbituba-sc"), set once at
+  registration and never changed; `GET /locations/{idOrSlug}` takes the GUID **or** the slug (the old id URLs keep
+  working, so the site can redirect them). New `GET /sitemap/entries` lists everything with a public page, lean and
+  cached — see [Sitemap](#sitemap).
 - **Locations are tied to cities** (`LocationResponse.citySlug/cityName/state/localitySlug`, `ratingsCount`, `photosCount`,
   `coverImageUrl`); `POST /locations` takes a `cityId`; `GET /cities` now defaults to *cities that have locations* (sorted
   by number of locations) — **pass `includeEmpty=true&sort=population` for the registration autocomplete**; new
@@ -644,8 +648,13 @@ or bypassed, so don't rely on 429s as your only signal to slow down; debounce fi
 rating **within that window** (not the location's all-time `avgRating` field, though that field
 is still what's returned per location). → plain array of `LocationResponse` (not paginated).
 
-### `GET /locations/{id}`
-→ `{ "id", "name", "latitude", "longitude", "city", "avgRating", "createdAt", "distanceKm", "citySlug", "cityName", "state", "localityName", "localitySlug", "ratingsCount", "photosCount", "coverImageUrl" }`
+### `GET /locations/{idOrSlug}`
+`idOrSlug` is the location's GUID or its public slug (case-insensitive); anything else, or a removed location, is `404`.
+→ `{ "id", "name", "latitude", "longitude", "city", "avgRating", "createdAt", "distanceKm", "citySlug", "cityName", "state", "localityName", "localitySlug", "ratingsCount", "photosCount", "coverImageUrl", "slug" }`
+
+- `slug`: `{name}-{municipality slug}` (just the name when the location has no city), `-2`, `-3`... on a clash.
+  **Immutable** — moving the pin to another city later does not change it — and a removed location's slug is never
+  reused. Locations that existed before slugs got `{name}-{first 8 hex of the id}`.
 (the new fields are described under [`LocationResponse`](#locationresponse-city-and-counts) below)
 (`distanceKm` is always `null` outside the near-me search above). `avgRating` is a
 decimal (e.g. `4.33`), 0 for a location with no ratings yet. `latitude`/`longitude` are exactly
@@ -733,6 +742,18 @@ Removes the **authenticated** user's own rating for this location and recalculat
 most one rating per location, so there's nothing to disambiguate.
 
 ---
+
+## <a id="sitemap"></a>Sitemap
+
+### `GET /sitemap/entries?type=city|location|photo&cursor=&limit=`
+Public, **not** under the search rate limit, cached (1 h; writes evict it). `limit` 1–1000 (default 1000).
+→ `{ "items": [ { "id", "slug", "lastModified" } ], "nextCursor", "hasMore" }`
+
+- Ordered by id, so paging is stable while rows are added; follow `nextCursor` until `hasMore` is `false`.
+- Only visible things: cities (municipalities) with ≥ 1 visible location, visible locations, visible photos.
+- `slug` is `null` for photos (addressed by id). `lastModified` (UTC): city = latest change among its locations;
+  location = max(creation, latest visible photo, latest rating); photo = creation.
+- Invalid `type` → `400`.
 
 ## Photos
 

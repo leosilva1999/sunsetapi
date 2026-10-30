@@ -11,7 +11,8 @@ public static class LocationExtensions
             distanceKm is { } d ? Math.Round(d, 2) : null,
             location.Municipality?.Slug, location.Municipality?.Name, location.Municipality?.AdminArea,
             location.Locality?.Name, location.Locality?.Slug,
-            stats?.RatingsCount ?? 0, stats?.PhotosCount ?? 0, stats?.CoverImageUrl);
+            stats?.RatingsCount ?? 0, stats?.PhotosCount ?? 0, stats?.CoverImageUrl,
+            string.IsNullOrEmpty(location.Slug) ? null : location.Slug);
 
     /// <summary>Builds the responses of a batch of locations with ONE extra round trip for their counts and covers.</summary>
     public static async Task<List<LocationResponse>> ToResponsesAsync(

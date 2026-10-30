@@ -13,6 +13,7 @@ public static class PublicCaching
     public const string CitiesPolicy = "Cities";
     public const string LocationsPolicy = "Locations";
     public const string PhotosPolicy = "Photos";
+    public const string SitemapPolicy = "Sitemap";
 
     public const string CitiesTag = "cities";
     public const string LocationsTag = "locations";
@@ -35,9 +36,10 @@ public static class PublicCaching
             // (the cached response carries Access-Control-Allow-Origin of the origin that populated it).
             // Requests with an Authorization header are never cached nor served from the cache (the default
             // policy), so per-user fields such as likedByCurrentUser can't leak between visitors.
-            void Add(string name, params string[] tags) => options.AddPolicy(name, builder =>
+            void Add(string name, params string[] tags) => AddWithTtl(name, TimeToLive, tags);
+            void AddWithTtl(string name, TimeSpan ttl, params string[] tags) => options.AddPolicy(name, builder =>
             {
-                builder.Expire(TimeToLive).SetVaryByQuery("*").SetVaryByHeader("Origin").Tag(tags);
+                builder.Expire(ttl).SetVaryByQuery("*").SetVaryByHeader("Origin").Tag(tags);
                 if (optInOnly)
                     builder.AddPolicy<TestOptInPolicy>();
             });
@@ -46,6 +48,8 @@ public static class PublicCaching
             Add(CitiesPolicy, CitiesTag, LocationsTag, PhotosTag);
             Add(LocationsPolicy, LocationsTag, PhotosTag);
             Add(PhotosPolicy, PhotosTag);
+            // Walked by crawlers, heavy to build and fine to be a bit old; writes still evict it.
+            AddWithTtl(SitemapPolicy, TimeSpan.FromHours(1), CitiesTag, LocationsTag, PhotosTag);
         });
 
         services.AddScoped<IResponseCacheInvalidator, OutputCacheInvalidator>();

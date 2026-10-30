@@ -336,6 +336,11 @@ namespace Sunset.Infrastructure.Migrations
                         .HasColumnType("tsvector")
                         .HasComputedColumnSql("to_tsvector('simple', coalesce(\"Name\", '') || ' ' || coalesce(\"City\", ''))", true);
 
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("City");
@@ -349,6 +354,9 @@ namespace Sunset.Infrastructure.Migrations
                     b.HasIndex("SearchVector");
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "GIN");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
 
                     b.HasIndex("Latitude", "Longitude");
 

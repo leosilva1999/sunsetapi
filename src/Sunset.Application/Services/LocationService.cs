@@ -36,6 +36,21 @@ public class LocationService(
         return await locationRepository.ToResponseAsync(location, cancellationToken: cancellationToken);
     }
 
+    public async Task<LocationResponse> GetByIdOrSlugAsync(string idOrSlug, CancellationToken cancellationToken = default)
+    {
+        var key = idOrSlug.Trim();
+        var location = Guid.TryParse(key, out var id)
+            ? await locationRepository.GetByIdAsync(id, cancellationToken)
+            : SlugGenerator.IsWellFormed(key)
+                ? await locationRepository.GetBySlugAsync(key.ToLowerInvariant(), cancellationToken)
+                : null;
+
+        if (location is null)
+            throw new NotFoundException("Location not found.");
+
+        return await locationRepository.ToResponseAsync(location, cancellationToken: cancellationToken);
+    }
+
     public async Task<LocationResponse> CreateAsync(Guid userId, CreateLocationRequest request, CancellationToken cancellationToken = default)
     {
         City? municipality = null;
@@ -63,6 +78,13 @@ public class LocationService(
         var location = new Location(request.Name, request.Latitude, request.Longitude, cityText, userId);
         if (municipality is not null)
             location.ChangeCity(municipality, locality);
+
+        // "{name}-{city slug}" (just the name while no city is tied), with -2, -3... on a clash. Fixed for good.
+        var baseSlug = SlugGenerator.ForLocation(request.Name, municipality?.Slug);
+        var slug = baseSlug;
+        for (var n = 2; await locationRepository.SlugExistsAsync(slug, cancellationToken); n++)
+            slug = SlugGenerator.WithSuffix(baseSlug, n, SlugGenerator.LocationMaxLength);
+        location.AssignSlug(slug);
 
         await locationRepository.AddAsync(location, cancellationToken);
         await cacheInvalidator.InvalidateAsync(ResponseCacheTag.Locations | ResponseCacheTag.Cities, cancellationToken);
