@@ -44,6 +44,7 @@ Regras:
 | `LegalDocument` | id, document_type, content, version, updated_by_user_id | `document_type`: `TermsOfService`\|`PrivacyPolicy`; cada edição cria uma linha nova (histórico via `version`, numerado por tipo), sem update in-place |
 | `PasswordResetToken` | id, user_id, token_hash, expires_at, used_at | mesmo padrão de `RefreshToken` (hash SHA-256, nunca o token puro); validade de 30 min, uso único |
 | `Follow` | id, follower_id, following_id | par (follower_id, following_id) único; `User` ganha `followers_count`/`following_count` desnormalizados |
+| `City` | id, kind (`Municipality`\|`Locality`), name, country, admin_area, slug, parent_city_id, national_code, time_zone_id, population | catálogo geográfico do GeoNames (não é digitado por usuário); `slug` imutável; localidade tem pai município; nunca apagada (`is_active`) |
 | `Notification` | id, recipient_user_id, type, actor_user_id, target_description | `target_description` livre (sem FK polimórfica), mesmo padrão de `ModerationAction`; lido via polling, sem push em tempo real |
 
 Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`ModerationAction`/`PasswordResetToken`/`Notification`.
@@ -62,6 +63,9 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - `GET /users/:id`, `PATCH /users/me` (auth), `GET /users/:id/photos`
 - `PUT /users/me/password` (auth — troca de senha; revoga os outros dispositivos, rate limited)
 - `POST /users/:id/follow` / `DELETE /users/:id/follow` (auth), `GET /users/:id/followers`, `GET /users/:id/following`
+
+**Cities** (público)
+- `GET /cities` (busca/autocomplete: `?q=` sem acento, também por nome alternativo; `?kind=municipality|locality|any`, `?state=`, `?sort=population|name`, cursor), `GET /cities/:slug`
 
 **Notifications** (auth, sempre "minhas")
 - `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/:id/read`, `POST /notifications/read-all`
@@ -169,6 +173,18 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   publicada que o usuário não aceitou); `GET`/`POST /users/me/legal-acceptances`. **Não bloqueia endpoints** — é o
   cliente que mostra a tela de aceite; clientes antigos seguem funcionando (a conta só fica *pending*). Documento
   nunca publicado nunca é pendência.
+- **Cidades (GeoNames)**: `City` é um catálogo carregado por `tools/Sunset.CityImporter` (comando manual; a API nunca
+  baixa nada) a partir do dump do GeoNames — **CC BY 4.0, a atribuição é obrigatória onde os dados aparecem**.
+  Município = `ADM2` (o `admin2` é o código IBGE de 7 dígitos); localidade = lugar povoado (sem `PPLX`) cujo `admin2`
+  aponta para um município importado. Descartadas: localidades sem município e as com o **mesmo nome do município** (a
+  sede, repetida pelo GeoNames — a página do município já a cobre). Nome oficial do IBGE vence
+  (`data/city-name-overrides.json`, `SourceName` guarda o original); município que falta no GeoNames entra por
+  `city-additions.json` e é *adotado* (mesma linha/slug) quando o GeoNames passar a tê-lo. Slug = `{nome}-{uf}` /
+  `{nome}-{slug do município}` (sufixo `-2` em colisão), **gerado uma vez e nunca alterado**. Importação idempotente
+  por `(Source, ExternalId)`, nunca apaga (`IsActive=false`). A busca usa `SearchText` (nome + nome de origem + nomes
+  alternativos, sem acento) com `tsvector` + GIN, calculado pelo importador — sem depender da extensão `unaccent`.
+  Regras por país em `CityImportRules` (só o Brasil). Medido no Neon: 65.401 linhas = 18 MB de tabela + índices = 37 MB.
+  Ainda não há vínculo `Location → City` (próxima etapa).
 - **IP do cliente atrás do proxy**: `UseForwardedHeaders` (XFF + XFP, `KnownProxies/Networks` limpos porque o app só é
   alcançável pelo proxy) é o primeiro middleware. `ForwardLimit` = quantas entradas consumir **da direita** do
   `X-Forwarded-For` (o proxy *acrescenta* o endereço que viu; o que está à esquerda o cliente pode forjar) — padrão 1,

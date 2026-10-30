@@ -15,6 +15,13 @@ public abstract class IntegrationTestBase(SunsetApiFactory factory)
 {
     protected HttpClient CreateClient() => factory.CreateClient();
 
+    /// <summary>Runs something against the suite's database directly (to seed data the API can't create).</summary>
+    protected async Task<T> WithDbAsync<T>(Func<SunsetDbContext, Task<T>> action)
+    {
+        using var scope = factory.Services.CreateScope();
+        return await action(scope.ServiceProvider.GetRequiredService<SunsetDbContext>());
+    }
+
     // Every test gets its own throwaway user/email so tests can run against a database shared
     // with the rest of the suite without colliding (no per-test DB reset).
     protected static string UniqueEmail([System.Runtime.CompilerServices.CallerMemberName] string caller = "") =>

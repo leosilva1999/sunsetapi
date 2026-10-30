@@ -1,0 +1,13 @@
+6323145	Imbituba	Imbituba	Imbituba,imabituba,yin bi tu ba,Імбітуба,Имбитуба,אימביטובה,ইমবিটুবা,იმბიტუბა,因比图巴	-28.1909	-48.70446	A	ADM2	BR		26	4207304			45286		28	America/Sao_Paulo	2022-03-03
+6321196	Buritis	Buritis	Buritis,bu li di si,buritisa,Буритис,Բուրիտիս,বুরিটিস,ბურიტისი,布里蒂斯	-15.41389	-46.5547	A	ADM2	BR		15	3109303			22729		966	America/Sao_Paulo	2015-07-15
+6319785	Santa Helena	Santa Helena		-2.4266	-45.38362	A	ADM2	BR		13	2109809			39060		16	America/Belem	2016-06-23
+6320401	Santa Helena	Santa Helena		-6.72745	-38.59506	A	ADM2	BR		17	2513307			5369		278	America/Fortaleza	2015-06-29
+6322970	Santa Helena	Santa Helena		-24.90689	-54.28722	A	ADM2	BR		18	4123501			23425		239	America/Sao_Paulo	2011-04-21
+6323257	Santa Helena	Santa Helena	Santa Helena,Santa-Ehlena,sheng ai lun na,Санта-Элена,სანტა-ელენა,聖埃倫娜	-26.9235	-53.60898	A	ADM2	BR		26	4215554			2200		473	America/Sao_Paulo	2022-03-06
+6324222	Brasília	Brasilia	Brasilia,Brasília,Brazilija,Бразилия	-15.79159	-47.89558	A	ADM2	BR		07	5300108			2562966		1124	America/Sao_Paulo	2026-05-24
+6320114	Açu	Acu		-5.58487	-36.92505	A	ADM2	BR		22	2400208			53245		79	America/Fortaleza	2015-07-05
+8556211	Praia do Rosa	Praia do Rosa		-28.12696	-48.65149	P	PPL	BR		26	4207304			0		42	America/Sao_Paulo	2013-06-21
+12115955	Goiasminas	Goiasminas	Goiaminas,Goiasminas	-15.05323	-46.50114	P	PPL	BR		15	3109303			0		872	America/Sao_Paulo	2024-08-13
+13067152	Marinas	Marinas	Marinas	-24.87142	-54.35972	P	PPL	BR		18	4123501			0		229	America/Sao_Paulo	2024-09-13
+3461370	Imbituba	Imbituba	Henrique Lage,Henrique Laje	-28.24	-48.67028	P	PPL	BR		26	4207304			52579		22	America/Sao_Paulo	2025-06-18
+7506746	Praia da Vila	Praia da Vila		-28.23975	-48.65613	T	BCH	BR		26	4207304			0		-9999	America/Sao_Paulo	2023-05-30

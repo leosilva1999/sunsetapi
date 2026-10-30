@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.AddScoped<IModerationService, ModerationService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<ILegalAcceptanceService, LegalAcceptanceService>();
+        services.AddScoped<ICityService, CityService>();
 
         return services;
     }

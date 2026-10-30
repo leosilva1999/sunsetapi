@@ -1,0 +1,74 @@
+[
+  {
+    "nationalCode": "1400605",
+    "adminArea": "RR",
+    "sourceName": "São Luiz",
+    "name": "São Luiz do Anauá"
+  },
+  {
+    "nationalCode": "1708254",
+    "adminArea": "TO",
+    "sourceName": "Fortaleza do Tabocão",
+    "name": "Tabocão"
+  },
+  {
+    "nationalCode": "2400208",
+    "adminArea": "RN",
+    "sourceName": "Açu",
+    "name": "Assú"
+  },
+  {
+    "nationalCode": "2401206",
+    "adminArea": "RN",
+    "sourceName": "Arês",
+    "name": "Arez"
+  },
+  {
+    "nationalCode": "2800100",
+    "adminArea": "SE",
+    "sourceName": "Amparo de São Francisco",
+    "name": "Amparo do São Francisco"
+  },
+  {
+    "nationalCode": "2802601",
+    "adminArea": "SE",
+    "sourceName": "Gracho Cardoso",
+    "name": "Graccho Cardoso"
+  },
+  {
+    "nationalCode": "3102506",
+    "adminArea": "MG",
+    "sourceName": "Amparo da Serra",
+    "name": "Amparo do Serra"
+  },
+  {
+    "nationalCode": "3105509",
+    "adminArea": "MG",
+    "sourceName": "Barão de Monte Alto",
+    "name": "Barão do Monte Alto"
+  },
+  {
+    "nationalCode": "3122900",
+    "adminArea": "MG",
+    "sourceName": "Dona Eusébia",
+    "name": "Dona Euzébia"
+  },
+  {
+    "nationalCode": "3165206",
+    "adminArea": "MG",
+    "sourceName": "São Thomé das Letras",
+    "name": "São Tomé das Letras"
+  },
+  {
+    "nationalCode": "5107800",
+    "adminArea": "MT",
+    "sourceName": "Santo Antônio do Leverger",
+    "name": "Santo Antônio de Leverger"
+  },
+  {
+    "nationalCode": "5215207",
+    "adminArea": "GO",
+    "sourceName": "Novo Brazil",
+    "name": "Novo Brasil"
+  }
+]

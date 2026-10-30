@@ -45,6 +45,9 @@ these are the diffs to check:
   optional `termsVersion` / `privacyVersion`; every auth response carries a `legalAcceptance` object saying
   whether the user still has something to accept; new `GET` / `POST /users/me/legal-acceptances` — see
   [Terms of Use and Privacy Policy](#terms-of-use-and-privacy-policy).
+- **Cities (catalog + search)**: new `GET /cities` (search/autocomplete of municipalities and localities, by
+  name or alternate name, ignoring accents) and `GET /cities/{slug}` — see [Cities](#cities). Locations are not
+  linked to cities yet (that comes next).
 - **CORS** is now configured (was previously missing/blocking) — see [CORS](#cors).
 - **Ratings now carry a comment and have their own endpoints**: `RatingResponse` (score + comment
   + author), `GET /locations/{id}/ratings` (list), `GET /locations/{id}/ratings/me`, and
@@ -471,6 +474,53 @@ shape). **Note:** `likedByCurrentUser` is always `false` here regardless of the 
 not wired up for this listing (only `/photos` feed and `/photos/{id}` resolve it correctly).
 
 ---
+
+## Cities
+
+A catalog of Brazilian **municipalities** (5.571, with the official IBGE names) and **localities** (villages, districts,
+beaches... inside a municipality, about 59.8 thousand), loaded from [GeoNames](https://www.geonames.org/). It is the
+source of truth for "which city is this?" — users pick from it instead of typing free text. Public endpoints, no auth.
+
+> **Attribution (license requirement):** GeoNames data is CC BY 4.0. Anywhere this data is displayed, credit
+> "Dados geográficos: GeoNames (CC BY 4.0)" with a link to https://www.geonames.org/ (the site footer is enough).
+
+**`CityResponse`**
+```json
+{
+  "id": "guid", "kind": "Municipality" | "Locality", "name": "Imbituba", "country": "BR", "state": "SC",
+  "slug": "imbituba-sc",
+  "parent": null,
+  "timeZoneId": "America/Sao_Paulo", "population": 45286, "latitude": -28.19, "longitude": -48.70
+}
+```
+- `slug` is the public key: `{name}-{state}` for a municipality (`imbituba-sc`, `santa-helena-pr` — the state tells the
+  4 Santa Helenas apart) and `{name}-{municipality slug}` for a locality (`praia-do-rosa-imbituba-sc`). **It never
+  changes** once assigned, so it is safe to put in URLs.
+- `parent` is `null` for a municipality; for a locality it is the municipality: `{ id, name, state, slug }` (show it as
+  "Goiasminas, Buritis - MG").
+- `name` for a municipality is the official IBGE spelling (`Assú`, not GeoNames' `Açu`).
+- `population` is `0` for most localities.
+
+### `GET /cities?q=&kind=&country=&state=&sort=&cursor=&limit=` 🐌
+Search / list, cursor-paginated (`limit` 1–50, default 20) → `CursorPagedResult<CityResponse>`. Shares the
+location-search rate limit (it is meant for the autocomplete on every keystroke).
+
+| Param | |
+|---|---|
+| `q` | Matches the **start of each word** of the name **or any alternate name**, ignoring accents and case: `brasil` finds Brasília, `goiaminas` finds Goiasminas, `sao jo` finds São João…, `praia do rosa` finds the locality. All words must match. Minimum 2 characters, else `400` (`errors.Q`). Omit it to list. |
+| `kind` | `municipality` (default) \| `locality` \| `any`. The registration autocomplete will use `any`. |
+| `country` | 2-letter ISO code (only `BR` has data today). |
+| `state` | State abbreviation, case-insensitive (`sc`, `SC`). |
+| `sort` | `population` (default: most populous first — the right order for an autocomplete) \| `name` (alphabetical). |
+
+Inactive cities (gone from the dataset) are never listed. The same `cursor` only works with the same filters and `sort`.
+
+### `GET /cities/{slug}`
+→ `CityResponse` of a **municipality**. `404` for an unknown slug, an inactive city, and (for now) any locality — locality
+pages are not public yet. The slug is matched case-insensitively. Counts of locations/photos, the cover image and the
+city's own locations/photos/sunset time come with the location link (next step).
+
+**Operations:** the table is filled by `tools/Sunset.CityImporter` (see its README), never by the API.
 
 ## Locations
 
