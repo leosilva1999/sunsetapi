@@ -1,4 +1,5 @@
 using Moq;
+using Sunset.Application.Common;
 using Sunset.Application.Cities;
 using Sunset.Application.DTOs.Cities;
 using Sunset.Application.DTOs.Locations;
@@ -84,7 +85,7 @@ public class PhotoCacheInvalidationTests
 
     public PhotoCacheInvalidationTests()
     {
-        _sanitizer.Setup(s => s.SanitizeAsync(It.IsAny<string>(), default)).ReturnsAsync(true);
+        _sanitizer.Setup(s => s.SanitizeAndMeasureAsync(It.IsAny<string>(), default)).ReturnsAsync(new ImageDimensions(1200, 800));
         _sut = new PhotoService(_photos.Object, _locations.Object, new Mock<IModerationActionRepository>().Object,
             new Mock<INotificationRepository>().Object, _sanitizer.Object, _cache.Object);
     }
@@ -118,7 +119,7 @@ public class PhotoCacheInvalidationTests
     {
         var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
         _locations.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
-        _sanitizer.Setup(s => s.SanitizeAsync(It.IsAny<string>(), default)).ReturnsAsync(false);
+        _sanitizer.Setup(s => s.SanitizeAndMeasureAsync(It.IsAny<string>(), default)).ReturnsAsync((ImageDimensions?)null);
 
         await Assert.ThrowsAnyAsync<Exception>(() => _sut.CreateAsync(Guid.NewGuid(), new CreatePhotoRequest(location.Id, "https://x/bad.jpg", null)));
 

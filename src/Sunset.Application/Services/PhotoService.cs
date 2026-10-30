@@ -54,10 +54,11 @@ public class PhotoService(
             throw new NotFoundException("Location not found.");
 
         // Strips EXIF/GPS from the already-uploaded file before it becomes visible to anyone.
-        if (!await imageSanitizer.SanitizeAsync(request.ImageUrl, cancellationToken))
+        var size = await imageSanitizer.SanitizeAndMeasureAsync(request.ImageUrl, cancellationToken);
+        if (size is null)
             throw new ValidationException([new ValidationFailure(nameof(request.ImageUrl), "ImageUrl must be an uploaded JPEG or PNG image (up to 15 MB).")]);
 
-        var photo = new Photo(userId, request.LocationId, request.ImageUrl, request.Caption);
+        var photo = new Photo(userId, request.LocationId, request.ImageUrl, request.Caption, size.Width, size.Height);
         await photoRepository.AddAsync(photo, cancellationToken);
         await cacheInvalidator.InvalidateAsync(ResponseCacheTag.All, cancellationToken);
 

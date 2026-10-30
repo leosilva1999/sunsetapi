@@ -203,6 +203,11 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   Render → salto interno; com 1 o "cliente" seria um IP 10.x que muda a cada requisição). Sem isso todos os limitadores por IP (Search, Reports, PasswordReset,
   ChangePassword) dividiam um balde só. `GET /health/client-ip` mostra como a API vê a requisição (para conferir o limite
   em produção). Há CI em `.github/workflows/ci.yml` (build + testes unitários + de integração, o runner tem Docker).
+- **Tamanho da foto**: `Photo.Width/Height` (`int?`, ambos ou nenhum), preenchidos em `POST /photos` por
+  `IUploadedImageSanitizer.SanitizeAndMeasureAsync` (o `SanitizeAsync` do avatar segue igual): `ImageDimensionReader` lê o
+  cabeçalho do arquivo **já limpo** (SOF do JPEG / IHDR do PNG), sem decodificar. JPEG com orientação EXIF 5–8 tem
+  largura/altura **trocadas** (é como o navegador exibe). Fotos anteriores ficam `null` — sem tarefa de backfill: em
+  produção ainda não havia fotos; se surgirem, uma tarefa única lê o cabeçalho de cada objeto (precisa de leitura no bucket).
 - **Slug de local**: `Location.Slug` (obrigatório, único em **todas** as linhas, apagadas inclusas — slug de local removido
   fica reservado), `{nome}-{slug do município}` (só o nome sem cidade), sufixo `-2`, `-3` na colisão
   (`SlugGenerator.ForLocation/WithSuffix`, `LocationService.CreateAsync` checa `SlugExistsAsync`). Atribuído **uma vez**

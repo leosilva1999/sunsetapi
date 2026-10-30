@@ -187,7 +187,7 @@ public static class ImageMetadataStripper
     }
 
     // Reads only the Orientation tag (0x0112) of IFD0 from an EXIF APP1 payload; 1 when absent/unreadable.
-    private static int ReadExifOrientation(byte[] d, int start, int length)
+    internal static int ReadExifOrientation(byte[] d, int start, int length)
     {
         if (!HasAsciiPrefix(d, start, length, "Exif\0\0"))
             return 1;

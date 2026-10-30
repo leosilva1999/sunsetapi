@@ -22,7 +22,7 @@ public class PhotoServiceTests
 
     public PhotoServiceTests()
     {
-        _imageSanitizer.Setup(s => s.SanitizeAsync(It.IsAny<string>(), default)).ReturnsAsync(true);
+        _imageSanitizer.Setup(s => s.SanitizeAndMeasureAsync(It.IsAny<string>(), default)).ReturnsAsync(new ImageDimensions(1200, 800));
         _sut = new PhotoService(_photoRepository.Object, _locationRepository.Object, _moderationActionRepository.Object, _notificationRepository.Object, _imageSanitizer.Object, _cache.Object);
     }
 
@@ -449,9 +449,9 @@ public class PhotoServiceTests
         _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
         var order = new List<string>();
         _imageSanitizer
-            .Setup(s => s.SanitizeAsync("https://cdn.sunset.dev/photos/u/p.jpg", default))
+            .Setup(s => s.SanitizeAndMeasureAsync("https://cdn.sunset.dev/photos/u/p.jpg", default))
             .Callback(() => order.Add("sanitize"))
-            .ReturnsAsync(true);
+            .ReturnsAsync(new ImageDimensions(1200, 800));
         _photoRepository
             .Setup(r => r.AddAsync(It.IsAny<Photo>(), default))
             .Callback(() => order.Add("save"))
@@ -470,7 +470,7 @@ public class PhotoServiceTests
     {
         var location = new Location("Praia do Rosa", -28.13, -48.62, "Imbituba");
         _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
-        _imageSanitizer.Setup(s => s.SanitizeAsync(It.IsAny<string>(), default)).ReturnsAsync(false);
+        _imageSanitizer.Setup(s => s.SanitizeAndMeasureAsync(It.IsAny<string>(), default)).ReturnsAsync((ImageDimensions?)null);
 
         var ex = await Assert.ThrowsAsync<FluentValidation.ValidationException>(() =>
             _sut.CreateAsync(Guid.NewGuid(), new CreatePhotoRequest(location.Id, "https://cdn.sunset.dev/photos/u/bad.jpg", null)));

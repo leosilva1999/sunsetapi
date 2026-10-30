@@ -16,6 +16,10 @@ public class PhotoConfiguration : IEntityTypeConfiguration<Photo>
             .IsRequired()
             .HasMaxLength(2048);
 
+        // Both null (photos from before they were recorded) or both set.
+        builder.Property(p => p.Width);
+        builder.Property(p => p.Height);
+
         builder.Property(p => p.Caption)
             .HasMaxLength(500);
 

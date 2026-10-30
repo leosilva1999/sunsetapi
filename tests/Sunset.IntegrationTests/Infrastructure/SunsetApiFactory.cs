@@ -86,4 +86,7 @@ public class SunsetApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 internal sealed class AlwaysCleanImageSanitizer : IUploadedImageSanitizer
 {
     public Task<bool> SanitizeAsync(string imageUrl, CancellationToken cancellationToken = default) => Task.FromResult(true);
+
+    public Task<Sunset.Application.Common.ImageDimensions?> SanitizeAndMeasureAsync(string imageUrl, CancellationToken cancellationToken = default) =>
+        Task.FromResult<Sunset.Application.Common.ImageDimensions?>(new Sunset.Application.Common.ImageDimensions(1200, 800));
 }

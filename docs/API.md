@@ -50,6 +50,9 @@ these are the diffs to check:
   made through the API show up at once), `GET /locations` and `GET /cities` without `q`/`lat`/`lng` no longer
   count against the search limit, and the site's server can send `X-Service-Key` for a bucket of its own — see
   [Caching and rate limits](#caching-and-rate-limits).
+- **`PhotoResponse.width` / `height`** (`int|null`): the image's pixel size **as displayed** (a portrait phone shot
+  stored sideways is already swapped), read from the file on `POST /photos`. Use them to reserve the space (no layout
+  jump) and for `ImageObject` JSON-LD. `null` on photos uploaded before this change — treat as unknown.
 - **Location slugs and the sitemap feed**: every location has a `slug` ("praia-do-rosa-imbituba-sc"), set once at
   registration and never changed; `GET /locations/{idOrSlug}` takes the GUID **or** the slug (the old id URLs keep
   working, so the site can redirect them). New `GET /sitemap/entries` lists everything with a public page, lean and
@@ -766,7 +769,7 @@ Public, **not** under the search rate limit, cached (1 h; writes evict it). `lim
     "locationId": "guid", "locationName": "string", "city": "string",
     "imageUrl": "string", "caption": "string|null",
     "likesCount": 5, "likedByCurrentUser": true, "commentsCount": 3,
-    "createdAt": "date"
+    "createdAt": "date", "width": 1200, "height": 800
   }],
   "nextCursor": "...", "hasMore": true
 }

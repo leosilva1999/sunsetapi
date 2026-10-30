@@ -22,17 +22,20 @@ public class S3UploadedImageSanitizer(
 {
     private const int MaxBytes = 15 * 1024 * 1024;
 
-    public async Task<bool> SanitizeAsync(string imageUrl, CancellationToken cancellationToken = default)
+    public async Task<bool> SanitizeAsync(string imageUrl, CancellationToken cancellationToken = default) =>
+        await SanitizeAndMeasureAsync(imageUrl, cancellationToken) is not null;
+
+    public async Task<ImageDimensions?> SanitizeAndMeasureAsync(string imageUrl, CancellationToken cancellationToken = default)
     {
         var storage = options.Value;
         var prefix = storage.PublicBaseUrl.TrimEnd('/') + "/";
 
         // Only objects in our own bucket; no query/fragment/traversal tricks in the key.
         if (!imageUrl.StartsWith(prefix, StringComparison.Ordinal))
-            return false;
+            return null;
         var key = imageUrl[prefix.Length..];
         if (key.Length == 0 || key.IndexOfAny(['?', '#', '\\']) >= 0 || key.Contains(".."))
-            return false;
+            return null;
 
         byte[] original;
         try
@@ -41,15 +44,15 @@ public class S3UploadedImageSanitizer(
 
             // Nothing was uploaded under that key (or it isn't readable): not a usable image.
             if (response.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Forbidden)
-                return false;
+                return null;
             response.EnsureSuccessStatusCode();
 
             if (response.Content.Headers.ContentLength > MaxBytes)
-                return false;
+                return null;
 
             var read = await ReadLimitedAsync(response.Content, cancellationToken);
             if (read is null)
-                return false;
+                return null;
             original = read;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
@@ -60,11 +63,15 @@ public class S3UploadedImageSanitizer(
 
         var clean = ImageMetadataStripper.TryStrip(original, out var contentType);
         if (clean is null)
-            return false;
+            return null;
+
+        var dimensions = ImageDimensionReader.TryRead(clean);
+        if (dimensions is null)
+            return null;
 
         // Already clean: nothing to rewrite.
         if (clean.AsSpan().SequenceEqual(original))
-            return true;
+            return dimensions;
 
         try
         {
@@ -84,7 +91,7 @@ public class S3UploadedImageSanitizer(
         }
 
         logger.LogInformation("Stripped image metadata from {Key} ({Before} -> {After} bytes)", key, original.Length, clean.Length);
-        return true;
+        return dimensions;
     }
 
     private static async Task<byte[]?> ReadLimitedAsync(HttpContent content, CancellationToken cancellationToken)

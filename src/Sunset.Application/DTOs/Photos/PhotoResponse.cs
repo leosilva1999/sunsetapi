@@ -13,4 +13,6 @@ public sealed record PhotoResponse(
     int LikesCount,
     bool LikedByCurrentUser,
     int CommentsCount,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    int? Width = null,
+    int? Height = null);

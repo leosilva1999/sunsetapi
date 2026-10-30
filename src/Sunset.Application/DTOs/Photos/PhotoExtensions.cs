@@ -18,5 +18,7 @@ public static class PhotoExtensions
             photo.LikesCount,
             likedByCurrentUser,
             photo.CommentsCount,
-            photo.CreatedAt);
+            photo.CreatedAt,
+            photo.Width,
+            photo.Height);
 }
