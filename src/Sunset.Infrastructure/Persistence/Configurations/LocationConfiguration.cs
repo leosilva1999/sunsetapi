@@ -53,6 +53,27 @@ public class LocationConfiguration : IEntityTypeConfiguration<Location>
         builder.HasIndex(LocationSearchVector)
             .HasMethod("GIN");
 
+        // City link: optional, never cascades (a catalog row must not vanish under a location).
+        builder.HasOne(l => l.Municipality)
+            .WithMany()
+            .HasForeignKey(l => l.CityId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(l => l.Locality)
+            .WithMany()
+            .HasForeignKey(l => l.LocalityId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(l => l.CityId);
+        builder.HasIndex(l => l.LocalityId);
+
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(l => l.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(l => l.CreatedByUserId);
+
         builder.HasMany(l => l.Photos)
             .WithOne(p => p.Location)
             .HasForeignKey(p => p.LocationId)

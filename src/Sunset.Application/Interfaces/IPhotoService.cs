@@ -7,6 +7,7 @@ namespace Sunset.Application.Interfaces;
 public interface IPhotoService
 {
     Task<CursorPagedResult<PhotoResponse>> GetFeedAsync(PhotoSortOption sort, string? cursor, int limit, Guid? currentUserId, CancellationToken cancellationToken = default);
+    Task<CursorPagedResult<PhotoResponse>> GetCityFeedAsync(Guid cityId, PhotoSortOption sort, string? cursor, int limit, Guid? currentUserId, CancellationToken cancellationToken = default);
     Task<PhotoCountResponse> GetTotalCountAsync(CancellationToken cancellationToken = default);
     Task<PhotoResponse> GetByIdAsync(Guid id, Guid? currentUserId, CancellationToken cancellationToken = default);
     Task<PhotoResponse> CreateAsync(Guid userId, CreatePhotoRequest request, CancellationToken cancellationToken = default);

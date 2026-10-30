@@ -1,4 +1,8 @@
+using FluentValidation;
+using FluentValidation.Results;
+using Sunset.Application.Cities;
 using Sunset.Application.Common;
+using Sunset.Application.DTOs.Cities;
 using Sunset.Application.DTOs.Locations;
 using Sunset.Application.DTOs.Moderation;
 using Sunset.Application.DTOs.Users;
@@ -20,7 +24,9 @@ public class ModerationService(
     IEmailSender emailSender,
     IBanStatusService banStatusService,
     ILocationRepository locationRepository,
-    IPasswordHasher passwordHasher) : IModerationService
+    IPasswordHasher passwordHasher,
+    ICityRepository cityRepository,
+    CityResolver cityResolver) : IModerationService
 {
     public async Task<ReportResponse> CreateReportAsync(Guid reporterId, ReportTargetType targetType, Guid targetId, CreateReportRequest request, CancellationToken cancellationToken = default)
     {
@@ -189,7 +195,7 @@ public class ModerationService(
                 $"{source.Name} ({source.City}) merged into {target.Name} ({target.City}) [{target.Id}]; {photosMoved} photo(s) and {ratingsMoved} rating(s) moved"),
             cancellationToken);
 
-        return target.ToResponse();
+        return await locationRepository.ToResponseAsync(target, cancellationToken: cancellationToken);
     }
 
     public async Task<LocationResponse> UpdateLocationCoordinatesAsync(Guid moderatorId, Guid locationId, UpdateLocationCoordinatesRequest request, CancellationToken cancellationToken = default)
@@ -206,7 +212,57 @@ public class ModerationService(
                 FormattableString.Invariant($"({oldLat}, {oldLng}) -> ({request.Latitude}, {request.Longitude})")),
             cancellationToken);
 
-        return location.ToResponse();
+        return await locationRepository.ToResponseAsync(location, cancellationToken: cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<UnresolvedCityLocationResponse>> GetUnresolvedCityLocationsAsync(int limit, CancellationToken cancellationToken = default)
+    {
+        var locations = await locationRepository.GetWithoutCityAsync(limit, cancellationToken);
+        var responses = await locationRepository.ToResponsesAsync(locations.Select(l => (l, (double?)null)).ToList(), cancellationToken);
+
+        var result = new List<UnresolvedCityLocationResponse>(locations.Count);
+        for (var i = 0; i < locations.Count; i++)
+        {
+            var location = locations[i];
+            var resolution = await cityResolver.ResolveAsync(location.City, location.Latitude, location.Longitude, cancellationToken);
+
+            result.Add(resolution.Kind switch
+            {
+                CityResolutionKind.Linked => new UnresolvedCityLocationResponse(
+                    responses[i], location.CreatedByUserId, "match", resolution.Municipality!.ToResponse(), null, []),
+                CityResolutionKind.Ambiguous => new UnresolvedCityLocationResponse(
+                    responses[i], location.CreatedByUserId, "ambiguous", null, null, resolution.Candidates.Select(c => c.ToResponse()).ToList()),
+                CityResolutionKind.Locality => new UnresolvedCityLocationResponse(
+                    responses[i], location.CreatedByUserId, "locality", resolution.Municipality?.ToResponse(), resolution.Locality!.ToResponse(), []),
+                _ => new UnresolvedCityLocationResponse(responses[i], location.CreatedByUserId, "none", null, null, []),
+            });
+        }
+
+        return result;
+    }
+
+    public async Task<LocationResponse> ChangeLocationCityAsync(Guid moderatorId, Guid locationId, ChangeLocationCityRequest request, CancellationToken cancellationToken = default)
+    {
+        var location = await locationRepository.GetByIdAsync(locationId, cancellationToken)
+            ?? throw new NotFoundException("Location not found.");
+
+        var city = await cityRepository.GetActiveByIdAsync(request.CityId, cancellationToken);
+        if (city is null || (city.Kind == CityKind.Locality && city.ParentCity is not { IsActive: true }))
+            throw new ValidationException([new ValidationFailure(nameof(request.CityId), "City not found.")]);
+
+        var before = location.City;
+        if (city.Kind == CityKind.Locality)
+            location.ChangeCity(city.ParentCity!, city);
+        else
+            location.ChangeCity(city);
+        await locationRepository.SaveChangesAsync(cancellationToken);
+
+        await moderationActionRepository.AddAsync(
+            new ModerationAction(moderatorId, ModerationActionType.LocationCityChanged, $"Location:{locationId}",
+                $"{before} -> {location.City}" + (location.Locality is { } locality ? $" (locality: {locality.Name})" : string.Empty)),
+            cancellationToken);
+
+        return await locationRepository.ToResponseAsync(location, cancellationToken: cancellationToken);
     }
 
     public async Task AnonymizeUserAsync(Guid adminId, Guid targetUserId, AnonymizeUserRequest request, CancellationToken cancellationToken = default)

@@ -20,6 +20,8 @@ public interface IModerationService
     Task RestoreLocationAsync(Guid moderatorId, Guid locationId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<DeletedLocationResponse>> GetDeletedLocationsAsync(int limit, CancellationToken cancellationToken = default);
     Task<LocationResponse> MergeLocationsAsync(Guid moderatorId, Guid sourceLocationId, MergeLocationsRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<UnresolvedCityLocationResponse>> GetUnresolvedCityLocationsAsync(int limit, CancellationToken cancellationToken = default);
+    Task<LocationResponse> ChangeLocationCityAsync(Guid moderatorId, Guid locationId, ChangeLocationCityRequest request, CancellationToken cancellationToken = default);
     Task<LocationResponse> UpdateLocationCoordinatesAsync(Guid moderatorId, Guid locationId, UpdateLocationCoordinatesRequest request, CancellationToken cancellationToken = default);
 
     Task AnonymizeUserAsync(Guid adminId, Guid targetUserId, AnonymizeUserRequest request, CancellationToken cancellationToken = default);

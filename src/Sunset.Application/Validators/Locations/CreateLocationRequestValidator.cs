@@ -11,9 +11,19 @@ public class CreateLocationRequestValidator : AbstractValidator<CreateLocationRe
             .NotEmpty()
             .MaximumLength(150);
 
+        // The catalog city is preferred; the legacy text still works for clients that haven't moved yet.
+        RuleFor(x => x.CityId)
+            .NotNull()
+            .When(x => string.IsNullOrWhiteSpace(x.City))
+            .WithMessage("Either 'cityId' or 'city' is required.");
+
         RuleFor(x => x.City)
-            .NotEmpty()
-            .MaximumLength(100);
+            .MaximumLength(100)
+            .When(x => x.City is not null);
+
+        RuleFor(x => x.CityId)
+            .NotEqual(Guid.Empty)
+            .When(x => x.CityId is not null);
 
         RuleFor(x => x.Latitude)
             .InclusiveBetween(-90, 90);

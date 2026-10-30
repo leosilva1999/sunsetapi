@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using NpgsqlTypes;
 using Sunset.Application.Common;
+using Sunset.Application.DTOs.Cities;
 using Sunset.Application.DTOs.Locations;
 using Sunset.Application.Interfaces.Repositories;
 using Sunset.Domain.Entities;
@@ -12,11 +13,15 @@ namespace Sunset.Infrastructure.Persistence.Repositories;
 
 public class LocationRepository(SunsetDbContext context) : ILocationRepository
 {
+    // The city navigations ride along on every read: the response names the city and its slug.
+    private IQueryable<Location> WithCity() =>
+        context.Locations.Include(l => l.Municipality).Include(l => l.Locality);
+
     public Task<Location?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        context.Locations.FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
+        WithCity().FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
 
     public Task<Location?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default) =>
-        context.Locations.IgnoreQueryFilters().FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
+        context.Locations.IgnoreQueryFilters().Include(l => l.Municipality).Include(l => l.Locality).FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<Location>> GetDeletedAsync(int limit, CancellationToken cancellationToken = default) =>
         await context.Locations.IgnoreQueryFilters()
@@ -33,7 +38,7 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
 
     public async Task<CursorPagedResult<LocationWithDistance>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default)
     {
-        var locations = context.Locations.AsQueryable();
+        var locations = WithCity();
 
         if (!string.IsNullOrWhiteSpace(query.Q))
         {
@@ -98,6 +103,10 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
         var withDistance = locations.Select(l => new
         {
             Location = l,
+            // Pulled into the projection so the tracked Location gets its navigations fixed up (an Include
+            // does not survive a Select into an anonymous type).
+            l.Municipality,
+            l.Locality,
             DistanceKm = 2 * EarthRadiusKm * Math.Asin(Math.Min(1.0, Math.Sqrt(
                 Math.Sin((l.Latitude * DegToRad - latRad) / 2) * Math.Sin((l.Latitude * DegToRad - latRad) / 2) +
                 cosLat * Math.Cos(l.Latitude * DegToRad) *
@@ -146,6 +155,84 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
         return words.Count == 0 ? null : string.Join(" & ", words);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, LocationStats>> GetStatsAsync(IReadOnlyCollection<Guid> locationIds, CancellationToken cancellationToken = default)
+    {
+        if (locationIds.Count == 0)
+            return new Dictionary<Guid, LocationStats>();
+
+        var photos = await context.Photos
+            .Where(p => locationIds.Contains(p.LocationId))
+            .GroupBy(p => p.LocationId)
+            .Select(g => new
+            {
+                LocationId = g.Key,
+                Count = g.Count(),
+                Cover = g.OrderByDescending(p => p.LikesCount).ThenByDescending(p => p.CreatedAt).Select(p => p.ImageUrl).FirstOrDefault(),
+            })
+            .ToDictionaryAsync(x => x.LocationId, cancellationToken);
+
+        var ratings = await context.Ratings
+            .Where(r => locationIds.Contains(r.LocationId))
+            .GroupBy(r => r.LocationId)
+            .Select(g => new { LocationId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.LocationId, x => x.Count, cancellationToken);
+
+        return locationIds.Distinct().ToDictionary(
+            id => id,
+            id => new LocationStats(
+                ratings.GetValueOrDefault(id),
+                photos.TryGetValue(id, out var p) ? p.Count : 0,
+                photos.TryGetValue(id, out p) ? p.Cover : null));
+    }
+
+    public async Task<CursorPagedResult<Location>> GetByCityAsync(Guid cityId, CityLocationSort sort, string? cursor, int limit, CancellationToken cancellationToken = default)
+    {
+        var locations = WithCity().Where(l => l.CityId == cityId);
+        List<Location> items;
+
+        switch (sort)
+        {
+            case CityLocationSort.Name:
+                if (CityNameCursor.TryDecode(cursor) is { } byName)
+                    locations = locations.Where(l => l.Name.CompareTo(byName.Name) > 0 || (l.Name == byName.Name && l.Id.CompareTo(byName.Id) > 0));
+                items = await locations.OrderBy(l => l.Name).ThenBy(l => l.Id).Take(limit + 1).ToListAsync(cancellationToken);
+                break;
+
+            case CityLocationSort.Recent:
+                if (CreatedAtCursor.TryDecode(cursor) is { } byDate)
+                    locations = locations.Where(l => l.CreatedAt < byDate.CreatedAt || (l.CreatedAt == byDate.CreatedAt && l.Id.CompareTo(byDate.Id) < 0));
+                items = await locations.OrderByDescending(l => l.CreatedAt).ThenByDescending(l => l.Id).Take(limit + 1).ToListAsync(cancellationToken);
+                break;
+
+            default:
+                if (DecimalCursor.TryDecode(cursor) is { } byRating)
+                    locations = locations.Where(l => l.AvgRating < byRating.Value || (l.AvgRating == byRating.Value && l.Id.CompareTo(byRating.Id) > 0));
+                items = await locations.OrderByDescending(l => l.AvgRating).ThenBy(l => l.Id).Take(limit + 1).ToListAsync(cancellationToken);
+                break;
+        }
+
+        var hasMore = items.Count > limit;
+        var page = items.Take(limit).ToList();
+        var nextCursor = hasMore
+            ? sort switch
+            {
+                CityLocationSort.Name => CityNameCursor.Encode(page[^1].Name, page[^1].Id),
+                CityLocationSort.Recent => CreatedAtCursor.Encode(page[^1].CreatedAt, page[^1].Id),
+                _ => DecimalCursor.Encode(page[^1].AvgRating, page[^1].Id),
+            }
+            : null;
+
+        return new CursorPagedResult<Location>(page, nextCursor, hasMore);
+    }
+
+    public async Task<IReadOnlyList<Location>> GetWithoutCityAsync(int limit, CancellationToken cancellationToken = default) =>
+        await context.Locations
+            .Where(l => l.CityId == null)
+            .OrderByDescending(l => l.CreatedAt)
+            .ThenByDescending(l => l.Id)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
     public async Task AddAsync(Location location, CancellationToken cancellationToken = default)
     {
         await context.Locations.AddAsync(location, cancellationToken);
@@ -171,7 +258,7 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
             .ToListAsync(cancellationToken);
 
         var locationIds = ranked.Select(r => r.LocationId).ToList();
-        var locationsById = await context.Locations
+        var locationsById = await WithCity()
             .Where(l => locationIds.Contains(l.Id))
             .ToDictionaryAsync(l => l.Id, cancellationToken);
 

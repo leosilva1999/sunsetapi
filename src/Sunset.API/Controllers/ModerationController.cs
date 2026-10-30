@@ -22,6 +22,7 @@ public class ModerationController(
     IValidator<AnonymizeUserRequest> anonymizeUserValidator,
     IValidator<UpdateLocationCoordinatesRequest> updateCoordinatesValidator,
     IValidator<MergeLocationsRequest> mergeLocationsValidator,
+    IValidator<ChangeLocationCityRequest> changeLocationCityValidator,
     ICurrentUserService currentUserService) : ControllerBase
 {
     [HttpGet("reports")]
@@ -80,6 +81,21 @@ public class ModerationController(
     {
         await mergeLocationsValidator.ValidateAndThrowAsync(request, cancellationToken);
         var response = await moderationService.MergeLocationsAsync(RequireUserId(), id, request, cancellationToken);
+        return Ok(response);
+    }
+
+    // Locations that no catalog city could be matched to, with what the system worked out about each.
+    [HttpGet("locations/unresolved-city")]
+    public async Task<ActionResult<IReadOnlyList<UnresolvedCityLocationResponse>>> GetUnresolvedCityLocations(
+        [FromQuery] int limit = 20,
+        CancellationToken cancellationToken = default) =>
+        Ok(await moderationService.GetUnresolvedCityLocationsAsync(Math.Clamp(limit, 1, 50), cancellationToken));
+
+    [HttpPatch("locations/{id:guid}/city")]
+    public async Task<ActionResult<LocationResponse>> ChangeLocationCity(Guid id, ChangeLocationCityRequest request, CancellationToken cancellationToken)
+    {
+        await changeLocationCityValidator.ValidateAndThrowAsync(request, cancellationToken);
+        var response = await moderationService.ChangeLocationCityAsync(RequireUserId(), id, request, cancellationToken);
         return Ok(response);
     }
 

@@ -20,10 +20,18 @@ public class PhotoRepository(SunsetDbContext context) : IPhotoRepository
     public Task<int> GetTotalCountAsync(CancellationToken cancellationToken = default) =>
         context.Photos.CountAsync(cancellationToken);
 
-    public async Task<CursorPagedResult<Photo>> GetFeedAsync(PhotoSortOption sort, string? cursor, int limit, CancellationToken cancellationToken = default)
-    {
-        var photos = context.Photos.Include(p => p.User).Include(p => p.Location).AsQueryable();
+    public Task<CursorPagedResult<Photo>> GetFeedAsync(PhotoSortOption sort, string? cursor, int limit, CancellationToken cancellationToken = default) =>
+        PageAsync(context.Photos.Include(p => p.User).Include(p => p.Location).AsQueryable(), sort, cursor, limit, cancellationToken);
 
+    // Location.CityId is always the municipality, so this also covers locations tied to one of its localities.
+    public Task<CursorPagedResult<Photo>> GetByCityIdAsync(Guid cityId, PhotoSortOption sort, string? cursor, int limit, CancellationToken cancellationToken = default) =>
+        PageAsync(
+            context.Photos.Include(p => p.User).Include(p => p.Location).Where(p => p.Location.CityId == cityId),
+            sort, cursor, limit, cancellationToken);
+
+    private static async Task<CursorPagedResult<Photo>> PageAsync(
+        IQueryable<Photo> photos, PhotoSortOption sort, string? cursor, int limit, CancellationToken cancellationToken)
+    {
         if (sort == PhotoSortOption.Top)
         {
             var decoded = TopPhotoCursor.TryDecode(cursor);

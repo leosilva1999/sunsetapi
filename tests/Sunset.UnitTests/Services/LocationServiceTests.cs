@@ -15,11 +15,19 @@ public class LocationServiceTests
     private readonly Mock<ILocationRepository> _locationRepository = new();
     private readonly Mock<IPhotoRepository> _photoRepository = new();
     private readonly Mock<ISunsetTimeService> _sunsetTimeService = new();
+    private readonly Mock<ICityRepository> _cityRepository = new();
     private readonly LocationService _sut;
 
     public LocationServiceTests()
     {
-        _sut = new LocationService(_locationRepository.Object, _photoRepository.Object, _sunsetTimeService.Object);
+        // No cities in the catalog and no counts to report: the plain location behaviour is what these tests cover.
+        _cityRepository.Setup(r => r.FindMunicipalitiesAsync(It.IsAny<string>(), It.IsAny<string?>(), default)).ReturnsAsync([]);
+        _cityRepository.Setup(r => r.FindLocalitiesAsync(It.IsAny<string>(), It.IsAny<string?>(), default)).ReturnsAsync([]);
+        _locationRepository.Setup(r => r.GetStatsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
+            .ReturnsAsync(new Dictionary<Guid, Sunset.Application.DTOs.Locations.LocationStats>());
+
+        _sut = new LocationService(_locationRepository.Object, _photoRepository.Object, _sunsetTimeService.Object,
+            _cityRepository.Object, new Sunset.Application.Cities.CityResolver(_cityRepository.Object));
     }
 
     [Fact]
@@ -35,7 +43,7 @@ public class LocationServiceTests
     {
         var request = new CreateLocationRequest("Praia do Rosa", -28.13, -48.62, "Imbituba");
 
-        var response = await _sut.CreateAsync(request);
+        var response = await _sut.CreateAsync(Guid.NewGuid(), request);
 
         Assert.Equal("Praia do Rosa", response.Name);
         Assert.Equal("Imbituba", response.City);

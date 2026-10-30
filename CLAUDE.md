@@ -65,7 +65,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - `POST /users/:id/follow` / `DELETE /users/:id/follow` (auth), `GET /users/:id/followers`, `GET /users/:id/following`
 
 **Cities** (público)
-- `GET /cities` (busca/autocomplete: `?q=` sem acento, também por nome alternativo; `?kind=municipality|locality|any`, `?state=`, `?sort=population|name`, cursor), `GET /cities/:slug`
+- `GET /cities` (padrão: só cidades com locais, mais locais primeiro; autocomplete: `?q=&kind=any&includeEmpty=true&sort=population`; `?state=`, `?sort=locations|rating|population|name`, cursor), `GET /cities/:slug` (página da cidade: contagens, melhor local, localidades; 404 sem locais), `GET /cities/:slug/locations|photos|sunset`
 
 **Notifications** (auth, sempre "minhas")
 - `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/:id/read`, `POST /notifications/read-all`
@@ -91,6 +91,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 
 **Moderation** (moderador/admin)
 - `DELETE /moderation/locations/:id` (soft delete + esconde as fotos), `POST .../restore`, `GET /moderation/locations/deleted`, `PATCH /moderation/locations/:id/coordinates` (moderador/admin)
+- `GET /moderation/locations/unresolved-city` (fila: locais sem cidade do catálogo, com sugestões), `PATCH /moderation/locations/:id/city` (vincula; aceita município ou localidade)
 - `POST /moderation/locations/:id/merge` (mescla duplicata no local `targetId`: move fotos e avaliações, apaga a duplicata)
 - `POST /locations/:id/reports`, `POST /users/:id/reports` (auth, rate limited — denúncia de local e de usuário; motivo `IncorrectInfo` p/ dados errados)
 - `POST /moderation/users/:id/anonymize` (admin only — apaga os dados da conta; `hideContent` esconde fotos e comentários)
@@ -184,7 +185,17 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   por `(Source, ExternalId)`, nunca apaga (`IsActive=false`). A busca usa `SearchText` (nome + nome de origem + nomes
   alternativos, sem acento) com `tsvector` + GIN, calculado pelo importador — sem depender da extensão `unaccent`.
   Regras por país em `CityImportRules` (só o Brasil). Medido no Neon: 65.401 linhas = 18 MB de tabela + índices = 37 MB.
-  Ainda não há vínculo `Location → City` (próxima etapa).
+- **Local ↔ cidade**: `Location.CityId` (sempre um **município**), `LocalityId` (localidade, opcional; o pai dela é o
+  `CityId`) e `CreatedByUserId` (autoria, **só a moderação vê**; nulo nos locais antigos). `Location.City` (texto) continua e,
+  quando há vínculo, vira `"{Nome} - {UF}"` do município (`Location.ChangeCity`). `POST /locations` aceita `cityId`
+  (município ou localidade; vence o texto) ou só o texto legado: `CityResolver` vincula **só sem dúvida** (um único
+  município com o nome/UF, ou homônimos em que o pino está a ≤60 km e ≥2× mais perto de um) e **nunca** vincula localidade
+  sozinho; o resto fica sem cidade e cai na fila `GET /moderation/locations/unresolved-city` (motivos `match`/`ambiguous`/
+  `locality`/`none`). Contagens (`ratingsCount`, `photosCount`, capa) são **calculadas na leitura** em consultas agrupadas
+  (um round trip por página), não colunas — há muitos caminhos que mexem nelas (apagar/mesclar local, `hideContent`).
+  A lista de cidades ordenada por atividade (`locations`/`rating`) só ranqueia cidades **com** locais e pagina em memória.
+  **Armadilha do EF**: as cidades que o resolvedor devolve (e o `GetActiveByIdAsync`) são lidas **com rastreamento**; com
+  `AsNoTracking` o `Add` do `Location` marcaria a cidade solta como nova e tentaria inseri-la (`duplicate key PK_cities`).
 - **IP do cliente atrás do proxy**: `UseForwardedHeaders` (XFF + XFP, `KnownProxies/Networks` limpos porque o app só é
   alcançável pelo proxy) é o primeiro middleware. `ForwardLimit` = quantas entradas consumir **da direita** do
   `X-Forwarded-For` (o proxy *acrescenta* o endereço que viu; o que está à esquerda o cliente pode forjar) — padrão 1,

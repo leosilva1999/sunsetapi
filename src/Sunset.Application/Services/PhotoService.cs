@@ -26,6 +26,15 @@ public class PhotoService(
         return new CursorPagedResult<PhotoResponse>(items, page.NextCursor, page.HasMore);
     }
 
+    public async Task<CursorPagedResult<PhotoResponse>> GetCityFeedAsync(Guid cityId, PhotoSortOption sort, string? cursor, int limit, Guid? currentUserId, CancellationToken cancellationToken = default)
+    {
+        var page = await photoRepository.GetByCityIdAsync(cityId, sort, cursor, limit, cancellationToken);
+        var likedPhotoIds = await GetLikedPhotoIdsAsync(currentUserId, page.Items, cancellationToken);
+        var items = page.Items.Select(p => p.ToResponse(likedPhotoIds.Contains(p.Id))).ToList();
+
+        return new CursorPagedResult<PhotoResponse>(items, page.NextCursor, page.HasMore);
+    }
+
     public async Task<PhotoCountResponse> GetTotalCountAsync(CancellationToken cancellationToken = default) =>
         new(await photoRepository.GetTotalCountAsync(cancellationToken));
 

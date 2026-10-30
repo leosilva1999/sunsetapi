@@ -302,8 +302,14 @@ namespace Sunset.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<Guid?>("CityId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
@@ -313,6 +319,9 @@ namespace Sunset.Infrastructure.Migrations
 
                     b.Property<double>("Latitude")
                         .HasColumnType("double precision");
+
+                    b.Property<Guid?>("LocalityId")
+                        .HasColumnType("uuid");
 
                     b.Property<double>("Longitude")
                         .HasColumnType("double precision");
@@ -330,6 +339,12 @@ namespace Sunset.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("City");
+
+                    b.HasIndex("CityId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("LocalityId");
 
                     b.HasIndex("SearchVector");
 
@@ -777,6 +792,28 @@ namespace Sunset.Infrastructure.Migrations
                     b.Navigation("Photo");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Sunset.Domain.Entities.Location", b =>
+                {
+                    b.HasOne("Sunset.Domain.Entities.City", "Municipality")
+                        .WithMany()
+                        .HasForeignKey("CityId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Sunset.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Sunset.Domain.Entities.City", "Locality")
+                        .WithMany()
+                        .HasForeignKey("LocalityId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Locality");
+
+                    b.Navigation("Municipality");
                 });
 
             modelBuilder.Entity("Sunset.Domain.Entities.ModerationAction", b =>

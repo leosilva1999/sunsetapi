@@ -45,6 +45,12 @@ these are the diffs to check:
   optional `termsVersion` / `privacyVersion`; every auth response carries a `legalAcceptance` object saying
   whether the user still has something to accept; new `GET` / `POST /users/me/legal-acceptances` — see
   [Terms of Use and Privacy Policy](#terms-of-use-and-privacy-policy).
+- **Locations are tied to cities** (`LocationResponse.citySlug/cityName/state/localitySlug`, `ratingsCount`, `photosCount`,
+  `coverImageUrl`); `POST /locations` takes a `cityId`; `GET /cities` now defaults to *cities that have locations* (sorted
+  by number of locations) — **pass `includeEmpty=true&sort=population` for the registration autocomplete**; new
+  `GET /cities/{slug}/locations`, `/photos`, `/sunset`; `GET /cities/{slug}` is the full city page (404 when it has no
+  locations); moderation gets a review queue for unlinked locations — see [Cities](#cities), [Locations](#locations) and
+  [Moderation](#moderation).
 - **Cities (catalog + search)**: new `GET /cities` (search/autocomplete of municipalities and localities, by
   name or alternate name, ignoring accents) and `GET /cities/{slug}` — see [Cities](#cities). Locations are not
   linked to cities yet (that comes next).
@@ -490,7 +496,8 @@ source of truth for "which city is this?" — users pick from it instead of typi
   "id": "guid", "kind": "Municipality" | "Locality", "name": "Imbituba", "country": "BR", "state": "SC",
   "slug": "imbituba-sc",
   "parent": null,
-  "timeZoneId": "America/Sao_Paulo", "population": 45286, "latitude": -28.19, "longitude": -48.70
+  "timeZoneId": "America/Sao_Paulo", "population": 45286, "latitude": -28.19, "longitude": -48.70,
+  "locationsCount": 12, "photosCount": 143, "ratingsCount": 58, "avgRating": 4.6, "coverImageUrl": "https://.../photos/....jpg"
 }
 ```
 - `slug` is the public key: `{name}-{state}` for a municipality (`imbituba-sc`, `santa-helena-pr` — the state tells the
@@ -500,25 +507,60 @@ source of truth for "which city is this?" — users pick from it instead of typi
   "Goiasminas, Buritis - MG").
 - `name` for a municipality is the official IBGE spelling (`Assú`, not GeoNames' `Açu`).
 - `population` is `0` for most localities.
+- `locationsCount` / `photosCount` / `ratingsCount` are counted when read (visible locations and photos only).
+  For a municipality they include the locations tied to any of its localities; for a locality, only those tied to it.
+- `avgRating` is the average of **all** the ratings of those locations (not the average of the locations' averages);
+  `null` without ratings. `coverImageUrl` is the most liked visible photo (ties: the most recent), `null` without photos.
 
-### `GET /cities?q=&kind=&country=&state=&sort=&cursor=&limit=` 🐌
+### `GET /cities?q=&kind=&country=&state=&sort=&includeEmpty=&cursor=&limit=` 🐌
 Search / list, cursor-paginated (`limit` 1–50, default 20) → `CursorPagedResult<CityResponse>`. Shares the
 location-search rate limit (it is meant for the autocomplete on every keystroke).
+
+> ⚠️ **Defaults changed with the location link:** with no parameters you now get only **cities that have at least one
+> visible location**, most locations first — the right list for the site's "Cities" index. The **registration
+> autocomplete** must ask for the whole catalog: `?q=…&kind=any&includeEmpty=true&sort=population`.
 
 | Param | |
 |---|---|
 | `q` | Matches the **start of each word** of the name **or any alternate name**, ignoring accents and case: `brasil` finds Brasília, `goiaminas` finds Goiasminas, `sao jo` finds São João…, `praia do rosa` finds the locality. All words must match. Minimum 2 characters, else `400` (`errors.Q`). Omit it to list. |
-| `kind` | `municipality` (default) \| `locality` \| `any`. The registration autocomplete will use `any`. |
+| `kind` | `municipality` (default) \| `locality` \| `any`. The registration autocomplete uses `any`. |
 | `country` | 2-letter ISO code (only `BR` has data today). |
 | `state` | State abbreviation, case-insensitive (`sc`, `SC`). |
-| `sort` | `population` (default: most populous first — the right order for an autocomplete) \| `name` (alphabetical). |
+| `sort` | `locations` (default: most locations first) \| `rating` (best average rating first) \| `population` (most populous first — the right order for an autocomplete) \| `name` (alphabetical). `locations` and `rating` only rank cities **that have locations** (a city without any has nothing to rank by), so they ignore `includeEmpty`; cities without ratings come last under `rating`. |
+| `includeEmpty` | `false` (default): only cities with at least one visible location. `true`: the whole catalog (needs `sort=population` or `name`). |
 
 Inactive cities (gone from the dataset) are never listed. The same `cursor` only works with the same filters and `sort`.
 
 ### `GET /cities/{slug}`
-→ `CityResponse` of a **municipality**. `404` for an unknown slug, an inactive city, and (for now) any locality — locality
-pages are not public yet. The slug is matched case-insensitively. Counts of locations/photos, the cover image and the
-city's own locations/photos/sunset time come with the location link (next step).
+The whole city page in **one call**:
+```json
+{
+  "id": "guid", "kind": "Municipality", "name": "Imbituba", "country": "BR", "state": "SC", "slug": "imbituba-sc",
+  "timeZoneId": "America/Sao_Paulo", "population": 45286, "latitude": -28.19, "longitude": -48.70,
+  "locationsCount": 12, "photosCount": 143, "ratingsCount": 58, "avgRating": 4.6, "coverImageUrl": "https://...",
+  "topLocation": { "id": "guid", "name": "Praia do Rosa", "avgRating": 4.9 },
+  "localities": [ { "name": "Praia do Rosa", "slug": "praia-do-rosa-imbituba-sc", "locationsCount": 5 } ]
+}
+```
+- `topLocation`: the best rated location (ties: more ratings, then the most recent); `null` only if none exists.
+- `localities`: the municipality's localities **that have locations**, most locations first, at most 10 — meant for
+  internal links.
+- `404` for an unknown slug, an inactive city, a **locality** (no public pages yet) and a **municipality with no
+  visible location** (so empty, indexable pages never exist). The slug is matched case-insensitively. The same `404`
+  rules apply to the three endpoints below.
+
+### `GET /cities/{slug}/locations?sort=&cursor=&limit=`
+→ `CursorPagedResult<LocationResponse>`: the locations of the municipality (those tied to it directly or through a
+locality). `sort`: `rating` (default, best first) \| `recent` \| `name`. Locations removed by moderation are not listed.
+
+### `GET /cities/{slug}/photos?sort=&cursor=&limit=`
+→ `CursorPagedResult<PhotoResponse>`: the photos of **all** the city's locations in one list (no per-location requests).
+`sort`: `top` (default, most liked) \| `recent`. Send the bearer token when there is one: `likedByCurrentUser` is then
+correct (anonymous: `false`), same as `GET /photos`.
+
+### `GET /cities/{slug}/sunset?date=YYYY-MM-DD`
+→ the same `SunsetTimeResponse` as a location's, computed for the **centre of the city** (`502` if the upstream
+sunrise-sunset service is down, like the location version).
 
 **Operations:** the table is filled by `tools/Sunset.CityImporter` (see its README), never by the API.
 
@@ -567,17 +609,40 @@ rating **within that window** (not the location's all-time `avgRating` field, th
 is still what's returned per location). → plain array of `LocationResponse` (not paginated).
 
 ### `GET /locations/{id}`
-→ `{ "id", "name", "latitude", "longitude", "city", "avgRating", "createdAt", "distanceKm" }`
+→ `{ "id", "name", "latitude", "longitude", "city", "avgRating", "createdAt", "distanceKm", "citySlug", "cityName", "state", "localityName", "localitySlug", "ratingsCount", "photosCount", "coverImageUrl" }`
+(the new fields are described under [`LocationResponse`](#locationresponse-city-and-counts) below)
 (`distanceKm` is always `null` outside the near-me search above). `avgRating` is a
 decimal (e.g. `4.33`), 0 for a location with no ratings yet. `latitude`/`longitude` are exactly
 what a map embed needs (e.g. Google Maps Embed's `q={latitude},{longitude}`) — always validated
 on creation (-90..90 / -180..180), never missing — see `docs/proposal-location-map-embed.md` for
 the frontend spec.
 
+### <a id="locationresponse-city-and-counts"></a>`LocationResponse`: city and counts
+Every endpoint that returns a location now also carries (all additive; nothing was removed or changed in shape):
+- `citySlug`, `cityName`, `state`: the catalog **municipality** the location belongs to — `null` while it is not tied to one.
+  `localityName`, `localitySlug`: the catalog locality inside it, when one was chosen (otherwise `null`).
+- `city` (the old free-text field) stays, with the same type. For a location tied to the catalog it is the canonical
+  `"{cityName} - {state}"` (e.g. `"Imbituba - SC"`); for an untied one, whatever was typed. Clients that only read `city`
+  keep working.
+- `ratingsCount`, `photosCount`: counted when read (visible photos only). `coverImageUrl`: the most liked visible photo
+  (ties: the most recent); `null` without photos. `ratingsCount` is the number Google needs for `aggregateRating`.
+
 ### 🔒 `POST /locations`
-Body: `{ "name": string, "latitude": number, "longitude": number, "city": string }`
-Validation: `name` required ≤150 · `city` required ≤100 · `latitude` ∈ [-90,90] · `longitude` ∈ [-180,180].
+Body: `{ "name": string, "latitude": number, "longitude": number, "cityId"?: guid, "city"?: string }` — **send `cityId`**
+(from `GET /cities`, `includeEmpty=true`); `city` (free text) remains accepted for clients that haven't moved yet.
+Validation: `name` required ≤150 · **`cityId` or `city` is required** · `city` ≤100 · `latitude` ∈ [-90,90] ·
+`longitude` ∈ [-180,180].
 → `201 Created` with `LocationResponse`, `Location` header pointing to `GET /locations/{id}`.
+
+- **`cityId`** may be a **municipality** or a **locality**: a locality is stored as the location's locality and its
+  municipality (the parent) as the location's city. An unknown or inactive id → `400` (`errors.CityId`). When both
+  `cityId` and `city` are sent, `cityId` wins and the text is ignored.
+- **Only the text** (old clients): the API tries to match it to the catalog and links **only when there is no doubt** —
+  a single municipality with that name (and state, when you write `"Name - UF"`), or homonyms where the pin is clearly
+  (within 60 km and at least twice as near) next to one of them. A name that only a *locality* bears is **not** linked
+  on its own (that would change the city shown), and homonyms the pin can't settle stay unlinked; the text is then kept as
+  typed and the location waits in the moderators' review queue. Nothing that worked before breaks.
+- The creator is recorded (visible to moderation only; never in the response). Registering has no rate limit.
 
 ### `GET /locations/{id}/photos?cursor=&limit=`
 Same `likedByCurrentUser`-always-`false` caveat as `/users/{id}/photos` above.
@@ -772,6 +837,7 @@ endpoint follow in this section.
 | **Remove** a user's account (erase personal data, optionally hide their content) | `POST /moderation/users/{id}/anonymize` | **Admin only** | **No** |
 | **Delete** a location (its photos are hidden with it) | `DELETE /moderation/locations/{id}` | Moderator, Admin | **Yes** — `POST .../restore` |
 | List deleted locations (to restore) | `GET /moderation/locations/deleted` | Moderator, Admin | — |
+| **Link a location to a catalog city** (review queue) | `GET /moderation/locations/unresolved-city` · `PATCH /moderation/locations/{id}/city` | Moderator, Admin | Yes (link it again) |
 | **Fix a location's map pin** | `PATCH /moderation/locations/{id}/coordinates` | Moderator, Admin | Edit it again (the old value is in the audit log) |
 | **Merge** a duplicate location into another | `POST /moderation/locations/{id}/merge` | Moderator, Admin | **No** (restoring the duplicate gives an empty location) |
 | Promote / demote a user | `PATCH /moderation/users/{id}/role` | Admin | Yes |
@@ -871,6 +937,32 @@ URL is the duplicate (it is removed), `targetId` is the one that keeps living �
 by searching locations (`GET /locations?q=`), asks for confirmation ("N photos will move to X; this can't be undone")
 and calls the endpoint.
 
+### 🔒🛡️ `GET /moderation/locations/unresolved-city?limit=` (Moderator or Admin)
+The review queue: visible locations **not tied to a catalog city** (created with free text the system couldn't match
+safely), newest first, `limit` 1–50 (default 20). Each item:
+```json
+{
+  "location": { ...LocationResponse... },
+  "createdByUserId": "guid|null",
+  "reason": "match" | "ambiguous" | "locality" | "none",
+  "suggestedCity": CityResponse | null,
+  "suggestedLocality": CityResponse | null,
+  "candidates": [ CityResponse ]
+}
+```
+- `match` — exactly one municipality fits (e.g. it was added to the catalog after the location): confirm `suggestedCity`.
+- `ambiguous` — several municipalities share the name and the pin doesn't settle it: pick one of `candidates` (the
+  3 nearest to the pin).
+- `locality` — only a *locality* bears that name (e.g. "Goiaminas - MG" is a locality of Buritis): `suggestedLocality`
+  and its municipality `suggestedCity`; confirming **changes the city shown** (hence a person decides).
+- `none` — nothing in the catalog matches; search `GET /cities` and choose.
+
+### 🔒🛡️ `PATCH /moderation/locations/{id}/city` (Moderator or Admin)
+Body: `{ "cityId": guid }` — a municipality, or a locality (then its municipality becomes the city) →
+the updated `LocationResponse`. Rewrites the legacy `city` text to the canonical `"{Name} - {State}"`. `400`
+(`errors.CityId`) for an unknown/inactive city, `404` for an unknown location, `403` for a regular user. Audited as
+`LocationCityChanged` (`notes`: `"{before} -> {after}"`, plus `(locality: …)`). One click approves a suggestion.
+
 ### 🔒🛡️ `PATCH /moderation/locations/{id}/coordinates` (Moderator or Admin)
 Corrects a location's map pin. Body: `{ "latitude": number (-90..90), "longitude": number (-180..180) }`
 → the updated `LocationResponse`. `404` for an unknown/deleted location, `400` for out-of-range values,
@@ -934,7 +1026,7 @@ document, changing a role) — newest-first. →
   "id": "guid", "moderatorId": "guid", "moderatorName": "string",
   "actionType": "PhotoDeleted" | "CommentDeleted" | "ReportResolved" | "ReportDismissed" |
     "LegalDocumentUpdated" | "UserRoleChanged" | "UserBanned" | "UserUnbanned" | "UserAnonymized" |
-    "LocationDeleted" | "LocationRestored" | "LocationCoordinatesChanged" | "LocationMerged",
+    "LocationDeleted" | "LocationRestored" | "LocationCoordinatesChanged" | "LocationMerged" | "LocationCityChanged",
   "targetDescription": "string", "notes": "string|null", "createdAt": "date"
 }
 ```
@@ -953,6 +1045,7 @@ carry). `notes` is a human-readable free-text summary, not something to parse:
 | `LocationDeleted` / `LocationRestored` | `{name} ({city}); N photo(s) hidden` / `… restored` |
 | `LocationCoordinatesChanged` | `(oldLat, oldLng) -> (newLat, newLng)` |
 | `LocationMerged` | `{duplicate} merged into {target} [{target id}]; N photo(s) and M rating(s) moved` |
+| `LocationCityChanged` | `{text or city before} -> {canonical city}` (+ ` (locality: {name})`) |
 | the others (`UserUnbanned`, report/photo/comment/legal actions) | `null` |
 
 ### <a id="terms-of-use-and-privacy-policy"></a>Terms and Privacy acceptance

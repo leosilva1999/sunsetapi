@@ -62,7 +62,10 @@ public class LocationsController(
     public async Task<ActionResult<LocationResponse>> Create(CreateLocationRequest request, CancellationToken cancellationToken)
     {
         await createLocationValidator.ValidateAndThrowAsync(request, cancellationToken);
-        var response = await locationService.CreateAsync(request, cancellationToken);
+        var userId = currentUserService.UserId
+            ?? throw new UnauthorizedActionException("User is not authenticated.");
+
+        var response = await locationService.CreateAsync(userId, request, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = response.Id }, response);
     }
 

@@ -1,3 +1,5 @@
+using Sunset.Domain.Enums;
+
 namespace Sunset.Domain.Entities;
 
 public class Location : BaseEntity
@@ -7,6 +9,18 @@ public class Location : BaseEntity
     public double Longitude { get; private set; }
     public string City { get; private set; } = null!;
     public decimal AvgRating { get; private set; }
+
+    /// <summary>The municipality (always a <see cref="CityKind.Municipality"/>) this location belongs to; null until it is matched.</summary>
+    public Guid? CityId { get; private set; }
+
+    /// <summary>The most specific place inside <see cref="CityId"/> (a locality, e.g. a beach village), when known.</summary>
+    public Guid? LocalityId { get; private set; }
+
+    /// <summary>Who registered the location. Null for rows that predate the field. Seen by moderation only.</summary>
+    public Guid? CreatedByUserId { get; private set; }
+
+    public City? Municipality { get; private set; }
+    public City? Locality { get; private set; }
 
     // Moderator soft delete (same pattern as Photo/Comment): hidden everywhere by the query filter
     // in SunsetDbContext, restorable. Its photos are hidden in the same instant - see
@@ -19,7 +33,7 @@ public class Location : BaseEntity
 
     private Location() { }
 
-    public Location(string name, double latitude, double longitude, string city)
+    public Location(string name, double latitude, double longitude, string city, Guid? createdByUserId = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Name is required.", nameof(name));
@@ -32,6 +46,34 @@ public class Location : BaseEntity
         Longitude = longitude;
         City = city;
         AvgRating = 0;
+        CreatedByUserId = createdByUserId;
+    }
+
+    /// <summary>
+    /// Ties the location to a catalog municipality (and optionally a locality inside it) and rewrites the
+    /// legacy <see cref="City"/> text to the canonical "{Name} - {State}", so clients and the text search
+    /// that still read it stay coherent.
+    /// </summary>
+    public void ChangeCity(City municipality, City? locality = null)
+    {
+        ArgumentNullException.ThrowIfNull(municipality);
+        if (municipality.Kind != CityKind.Municipality)
+            throw new ArgumentException("A location's city must be a municipality.", nameof(municipality));
+        if (locality is not null && (locality.Kind != CityKind.Locality || locality.ParentCityId != municipality.Id))
+            throw new ArgumentException("The locality must belong to the municipality.", nameof(locality));
+
+        CityId = municipality.Id;
+        LocalityId = locality?.Id;
+        Municipality = municipality;
+        Locality = locality;
+        City = CanonicalCityText(municipality);
+    }
+
+    /// <summary>"Imbituba - SC": the format the legacy text field settles on once a location is linked.</summary>
+    public static string CanonicalCityText(City municipality)
+    {
+        var text = $"{municipality.Name} - {municipality.AdminArea}";
+        return text.Length <= 100 ? text : text[..100];
     }
 
     public void RecalculateAvgRating(decimal avgRating) => AvgRating = avgRating;

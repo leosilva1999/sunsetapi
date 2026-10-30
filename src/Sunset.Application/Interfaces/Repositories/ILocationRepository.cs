@@ -1,4 +1,5 @@
 using Sunset.Application.Common;
+using Sunset.Application.DTOs.Cities;
 using Sunset.Application.DTOs.Locations;
 using Sunset.Domain.Entities;
 using Sunset.Domain.Enums;
@@ -16,6 +17,15 @@ public interface ILocationRepository
     // Moves the source's ratings to the target, skipping users who already rated the target (the
     // (user, location) pair is unique) - those stay on the source. Returns how many moved.
     Task<int> MoveRatingsAsync(Guid sourceLocationId, Guid targetLocationId, CancellationToken cancellationToken = default);
+
+    /// <summary>Ratings count, visible photos count and cover photo for each location, in one round trip. Missing ids = no data.</summary>
+    Task<IReadOnlyDictionary<Guid, LocationStats>> GetStatsAsync(IReadOnlyCollection<Guid> locationIds, CancellationToken cancellationToken = default);
+
+    /// <summary>The locations of one municipality (those tied to it directly or through a locality).</summary>
+    Task<CursorPagedResult<Location>> GetByCityAsync(Guid cityId, CityLocationSort sort, string? cursor, int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>Visible locations not tied to a catalog city yet, newest first (the moderation review queue).</summary>
+    Task<IReadOnlyList<Location>> GetWithoutCityAsync(int limit, CancellationToken cancellationToken = default);
 
     Task<CursorPagedResult<LocationWithDistance>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default);
     Task AddAsync(Location location, CancellationToken cancellationToken = default);

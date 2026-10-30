@@ -23,6 +23,7 @@ Canal geral de privacidade: sunsetsss.app@outlook.com.
 - Perfil: imagem de perfil e biografia (opcionais).
 - Conteúdo que você publica: fotos, legendas, comentários, respostas, avaliações (nota e comentário), locais que você cadastra (nome, cidade e posição no mapa).
 - Interações: curtidas, pessoas que você segue e que seguem você.
+- Autoria de locais: ao cadastrar um local, guardamos qual conta o cadastrou (um identificador interno), visível apenas para a moderação, para apurar abusos e corrigir informações.
 - Denúncias: o alvo denunciado, o motivo e os detalhes que você escrever.
 - Contato: o conteúdo das mensagens que você nos envia (por exemplo, pedidos de revisão ou de exercício de direitos).
 

@@ -1,7 +1,10 @@
 using Moq;
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Cities;
+using Sunset.Application.DTOs.Locations;
+using Sunset.Application.DTOs.Photos;
 using Sunset.Application.Exceptions;
+using Sunset.Application.Interfaces;
 using Sunset.Application.Interfaces.Repositories;
 using Sunset.Application.Services;
 using Sunset.Application.Validators.Cities;
@@ -100,37 +103,80 @@ public class CityListQueryValidatorTests
     [Fact]
     public void StateIsLimitedInLength() =>
         Assert.False(_sut.Validate(Query(state: new string('x', 11))).IsValid);
+
+    [Theory]
+    [InlineData(CitySortOption.Locations, true)]
+    [InlineData(CitySortOption.Rating, true)]
+    [InlineData(CitySortOption.Population, false)]
+    [InlineData(CitySortOption.Name, false)]
+    public void ActivitySorts_AreTheOnesThatNeedLocations(CitySortOption sort, bool byActivity) =>
+        Assert.Equal(byActivity, new CityListQuery(null, CityKindFilter.Any, null, null, sort, null).SortsByActivity);
 }
 
 public class CityServiceTests
 {
-    private readonly Mock<ICityRepository> _repository = new();
+    private readonly Mock<ICityRepository> _cities = new();
+    private readonly Mock<ILocationRepository> _locations = new();
+    private readonly Mock<IPhotoService> _photos = new();
+    private readonly Mock<ISunsetTimeService> _sunset = new();
     private readonly CityService _sut;
 
-    public CityServiceTests() => _sut = new CityService(_repository.Object);
+    public CityServiceTests()
+    {
+        _locations.Setup(r => r.GetStatsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
+            .ReturnsAsync(new Dictionary<Guid, LocationStats>());
+        _cities.Setup(r => r.GetDetailExtrasAsync(It.IsAny<Guid>(), default))
+            .ReturnsAsync(new CityDetailExtras(null, []));
+        _sut = new CityService(_cities.Object, _locations.Object, _photos.Object, _sunset.Object);
+    }
 
     private static City Municipality() =>
         new(CityKind.Municipality, "Imbituba", "Imbituba", null, "imbituba", "BR", "SC", "imbituba-sc", "geonames", 1, "4207304", null, -28.2, -48.6, "America/Sao_Paulo", 45286);
 
-    [Fact]
-    public async Task GetBySlug_ReturnsTheMunicipality()
+    private City WithLocations(int locations = 2, int photos = 5, int ratings = 3, decimal? avg = 4.5m)
     {
-        _repository.Setup(r => r.GetBySlugAsync("imbituba-sc", default)).ReturnsAsync(Municipality());
+        var city = Municipality();
+        _cities.Setup(r => r.GetBySlugAsync("imbituba-sc", default)).ReturnsAsync(city);
+        _cities.Setup(r => r.GetStatsAsync(city.Id, default)).ReturnsAsync(new CityStats(locations, photos, ratings, avg, "https://img/c.jpg"));
+        return city;
+    }
+
+    [Fact]
+    public async Task GetBySlug_ReturnsTheCityPageInOneCall()
+    {
+        var city = WithLocations();
+        _cities.Setup(r => r.GetDetailExtrasAsync(city.Id, default)).ReturnsAsync(new CityDetailExtras(
+            new CityTopLocationResponse(Guid.NewGuid(), "Praia do Rosa", 4.9m),
+            [new CityLocalityResponse("Praia do Rosa", "praia-do-rosa-imbituba-sc", 2)]));
 
         var response = await _sut.GetBySlugAsync("imbituba-sc");
 
         Assert.Equal("Imbituba", response.Name);
         Assert.Equal("SC", response.State);
         Assert.Equal("America/Sao_Paulo", response.TimeZoneId);
-        Assert.Null(response.Parent);
+        Assert.Equal((2, 5, 3, 4.5m), (response.LocationsCount, response.PhotosCount, response.RatingsCount, response.AvgRating));
+        Assert.Equal("https://img/c.jpg", response.CoverImageUrl);
+        Assert.Equal("Praia do Rosa", response.TopLocation!.Name);
+        Assert.Equal("praia-do-rosa-imbituba-sc", Assert.Single(response.Localities).Slug);
     }
 
     [Fact]
     public async Task GetBySlug_UnknownSlug_IsNotFound()
     {
-        _repository.Setup(r => r.GetBySlugAsync(It.IsAny<string>(), default)).ReturnsAsync((City?)null);
+        _cities.Setup(r => r.GetBySlugAsync(It.IsAny<string>(), default)).ReturnsAsync((City?)null);
 
         await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetBySlugAsync("nada-xx"));
+    }
+
+    [Fact]
+    public async Task AMunicipalityWithoutLocations_HasNoPage_OnAnyOfTheCityEndpoints()
+    {
+        WithLocations(locations: 0, photos: 0, ratings: 0, avg: null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetBySlugAsync("imbituba-sc"));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetLocationsAsync("imbituba-sc", CityLocationSort.Rating, null, 20));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetPhotosAsync("imbituba-sc", PhotoSortOption.Top, null, 20, null));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetSunsetTimeAsync("imbituba-sc", null));
     }
 
     [Fact]
@@ -138,21 +184,65 @@ public class CityServiceTests
     {
         var parent = Municipality();
         var locality = new City(CityKind.Locality, "Praia do Rosa", "Praia do Rosa", null, "praia do rosa", "BR", "SC", "praia-do-rosa-imbituba-sc", "geonames", 2, null, parent.Id, 0, 0, null, 0);
-        _repository.Setup(r => r.GetBySlugAsync("praia-do-rosa-imbituba-sc", default)).ReturnsAsync(locality);
+        _cities.Setup(r => r.GetBySlugAsync("praia-do-rosa-imbituba-sc", default)).ReturnsAsync(locality);
 
         await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetBySlugAsync("praia-do-rosa-imbituba-sc"));
     }
 
     [Fact]
-    public async Task Search_MapsTheCitiesAndKeepsThePaging()
+    public async Task GetLocations_MapsThePageWithCountsAndCity()
     {
-        var query = new CityListQuery("imb", CityKindFilter.Municipality, null, null, CitySortOption.Population, null, 20);
-        _repository.Setup(r => r.SearchAsync(query, default))
-            .ReturnsAsync(new CursorPagedResult<City>([Municipality()], "next", true));
+        var city = WithLocations();
+        var rosa = new Location("Praia do Rosa", -28.13, -48.65, "x");
+        rosa.ChangeCity(city);
+        _locations.Setup(r => r.GetByCityAsync(city.Id, CityLocationSort.Recent, "cur", 5, default))
+            .ReturnsAsync(new CursorPagedResult<Location>([rosa], "next", true));
+        _locations.Setup(r => r.GetStatsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
+            .ReturnsAsync(new Dictionary<Guid, LocationStats> { [rosa.Id] = new(2, 4, "https://img/p.jpg") });
+
+        var page = await _sut.GetLocationsAsync("imbituba-sc", CityLocationSort.Recent, "cur", 5);
+
+        var item = Assert.Single(page.Items);
+        Assert.Equal("imbituba-sc", item.CitySlug);
+        Assert.Equal(4, item.PhotosCount);
+        Assert.Equal("next", page.NextCursor);
+        Assert.True(page.HasMore);
+    }
+
+    [Fact]
+    public async Task GetPhotos_DelegatesToThePhotoFeed_ForTheCurrentUser()
+    {
+        var city = WithLocations();
+        var user = Guid.NewGuid();
+        var expected = new CursorPagedResult<PhotoResponse>([], null, false);
+        _photos.Setup(s => s.GetCityFeedAsync(city.Id, PhotoSortOption.Top, null, 20, user, default)).ReturnsAsync(expected);
+
+        Assert.Same(expected, await _sut.GetPhotosAsync("imbituba-sc", PhotoSortOption.Top, null, 20, user));
+    }
+
+    [Fact]
+    public async Task GetSunsetTime_UsesTheCityCentre()
+    {
+        WithLocations();
+        var expected = new SunsetTimeResponse(new DateOnly(2026, 10, 30), "America/Sao_Paulo", "-03:00", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 40000);
+        _sunset.Setup(s => s.GetSunsetTimeAsync(-28.2, -48.6, new DateOnly(2026, 10, 30), default)).ReturnsAsync(expected);
+
+        Assert.Same(expected, await _sut.GetSunsetTimeAsync("imbituba-sc", new DateOnly(2026, 10, 30)));
+    }
+
+    [Fact]
+    public async Task Search_MapsTheCitiesWithTheirCountsAndKeepsThePaging()
+    {
+        var query = new CityListQuery("imb", CityKindFilter.Municipality, null, null, CitySortOption.Locations, null, 20);
+        _cities.Setup(r => r.SearchAsync(query, default))
+            .ReturnsAsync(new CursorPagedResult<CityWithStats>([new CityWithStats(Municipality(), new CityStats(3, 9, 4, 4.25m, "https://img/c.jpg"))], "next", true));
 
         var page = await _sut.SearchAsync(query);
 
-        Assert.Equal("imbituba-sc", Assert.Single(page.Items).Slug);
+        var item = Assert.Single(page.Items);
+        Assert.Equal("imbituba-sc", item.Slug);
+        Assert.Equal(3, item.LocationsCount);
+        Assert.Equal(4.25m, item.AvgRating);
         Assert.Equal("next", page.NextCursor);
         Assert.True(page.HasMore);
     }

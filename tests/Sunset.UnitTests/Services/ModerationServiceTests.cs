@@ -21,10 +21,14 @@ public class ModerationServiceTests
     private readonly Mock<IBanStatusService> _banStatusService = new();
     private readonly Mock<ILocationRepository> _locationRepository = new();
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
+    private readonly Mock<ICityRepository> _cityRepository = new();
     private readonly ModerationService _sut;
 
     public ModerationServiceTests()
     {
+        _locationRepository.Setup(r => r.GetStatsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
+            .ReturnsAsync(new Dictionary<Guid, Sunset.Application.DTOs.Locations.LocationStats>());
+
         _sut = new ModerationService(
             _reportRepository.Object,
             _moderationActionRepository.Object,
@@ -35,7 +39,9 @@ public class ModerationServiceTests
             _emailSender.Object,
             _banStatusService.Object,
             _locationRepository.Object,
-            _passwordHasher.Object);
+            _passwordHasher.Object,
+            _cityRepository.Object,
+            new Sunset.Application.Cities.CityResolver(_cityRepository.Object));
     }
 
     private static Report CreateReport(Guid reporterId, User reporter, ReportTargetType targetType, Guid targetId, ReportReason reason = ReportReason.Spam)

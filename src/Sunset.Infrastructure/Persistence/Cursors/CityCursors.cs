@@ -52,3 +52,28 @@ internal static class CityNameCursor
         }
     }
 }
+
+/// <summary>Cursor of an order by a decimal value (desc) then id: (value, id). Used for rating / counts.</summary>
+internal static class DecimalCursor
+{
+    public static string Encode(decimal value, Guid id) =>
+        Convert.ToBase64String(Encoding.UTF8.GetBytes($"{value.ToString(CultureInfo.InvariantCulture)}|{id}"));
+
+    public static (decimal Value, Guid Id)? TryDecode(string? cursor)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+            return null;
+
+        try
+        {
+            var parts = Encoding.UTF8.GetString(Convert.FromBase64String(cursor)).Split('|');
+            return parts.Length == 2
+                ? (decimal.Parse(parts[0], CultureInfo.InvariantCulture), Guid.Parse(parts[1]))
+                : null;
+        }
+        catch (Exception ex) when (ex is FormatException or OverflowException)
+        {
+            return null;
+        }
+    }
+}
