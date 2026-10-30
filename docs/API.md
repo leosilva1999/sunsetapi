@@ -275,7 +275,9 @@ search, reports, password reset and password change; now each visitor has their 
   proxyPeer, remainingForwardedFor, forwardLimit }`. `clientIp` is what the limiters key on. The full
   `X-Forwarded-For` chain the proxy sent is `remainingForwardedFor` followed by `clientIp`. Operational
   setting: `ForwardedHeaders:ForwardLimit` (env `ForwardedHeaders__ForwardLimit`, default `1`) is how many
-  trusted proxies sit in front of the API; raise it only after checking this endpoint.
+  trusted proxies sit in front of the API; raise it only after checking this endpoint. **On Render it is `3`**
+  (measured in production: Cloudflare → Render load balancer → an internal hop, so the visitor's address is the
+  third entry from the right; anything further left is client-supplied and ignored).
 
 ### Auth requirement legend
 

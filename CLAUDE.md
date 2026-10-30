@@ -172,7 +172,8 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - **IP do cliente atrás do proxy**: `UseForwardedHeaders` (XFF + XFP, `KnownProxies/Networks` limpos porque o app só é
   alcançável pelo proxy) é o primeiro middleware. `ForwardLimit` = quantas entradas consumir **da direita** do
   `X-Forwarded-For` (o proxy *acrescenta* o endereço que viu; o que está à esquerda o cliente pode forjar) — padrão 1,
-  configurável em `ForwardedHeaders:ForwardLimit`. Sem isso todos os limitadores por IP (Search, Reports, PasswordReset,
+  configurável em `ForwardedHeaders:ForwardLimit` (**no Render é 3**, medido em produção: Cloudflare → balanceador do
+  Render → salto interno; com 1 o "cliente" seria um IP 10.x que muda a cada requisição). Sem isso todos os limitadores por IP (Search, Reports, PasswordReset,
   ChangePassword) dividiam um balde só. `GET /health/client-ip` mostra como a API vê a requisição (para conferir o limite
   em produção). Há CI em `.github/workflows/ci.yml` (build + testes unitários + de integração, o runner tem Docker).
 - **Remoção de EXIF/GPS**: o cliente sobe a imagem direto no S3 (URL pré-assinada), então o servidor limpa **depois**,
