@@ -162,7 +162,7 @@ public class UsersEndpointsTests(SunsetApiFactory factory) : IntegrationTestBase
         var location = await CreateLocationAsync(client);
         var createPhotoResponse = await client.PostAsJsonAsync(
             "/api/v1/photos",
-            new { locationId = location.Id, imageUrl = $"https://sunset-photos-test.s3.amazonaws.com/{Guid.NewGuid():N}.jpg", caption = (string?)null });
+            new { locationId = location.Id, imageUrl = $"http://localhost:4566/sunset-photos-test/photos/{Guid.NewGuid():N}/{Guid.NewGuid():N}.jpg", caption = (string?)null });
         createPhotoResponse.EnsureSuccessStatusCode();
         var photo = await createPhotoResponse.Content.ReadFromJsonAsync<PhotoResponse>();
 
@@ -204,7 +204,7 @@ public class UsersEndpointsTests(SunsetApiFactory factory) : IntegrationTestBase
         var location = await CreateLocationAsync(client);
         var createResponse = await client.PostAsJsonAsync(
             "/api/v1/photos",
-            new { locationId = location.Id, imageUrl = $"https://sunset-photos-test.s3.amazonaws.com/{Guid.NewGuid():N}.jpg", caption = (string?)null });
+            new { locationId = location.Id, imageUrl = $"http://localhost:4566/sunset-photos-test/photos/{Guid.NewGuid():N}/{Guid.NewGuid():N}.jpg", caption = (string?)null });
         createResponse.EnsureSuccessStatusCode();
         var photo = await createResponse.Content.ReadFromJsonAsync<PhotoResponse>();
 

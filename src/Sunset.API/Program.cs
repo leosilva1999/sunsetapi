@@ -163,11 +163,14 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
         }));
 
+    // In the integration suite every request comes from the same address, so the whole suite shares one
+    // bucket - lift the cap there (same as the password policies below).
+    var reportsPermitLimit = builder.Environment.IsEnvironment("Testing") ? int.MaxValue : 10;
     options.AddPolicy(ReportsRateLimitPolicy, httpContext => RateLimitPartition.GetSlidingWindowLimiter(
         partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         factory: _ => new SlidingWindowRateLimiterOptions
         {
-            PermitLimit = 10,
+            PermitLimit = reportsPermitLimit,
             Window = TimeSpan.FromSeconds(60),
             SegmentsPerWindow = 6,
             QueueLimit = 0,

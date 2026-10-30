@@ -42,3 +42,30 @@ jobs:
           name: test-results
           path: "**/TestResults/*.trx"
           if-no-files-found: ignore
+
+      # Failed tests become annotations on the run (readable without logging in), so a red build says
+      # which tests broke and why instead of only "exit code 1".
+      - name: Annotate failed tests
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          def esc(text):
+              return text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+
+          ns = {'t': 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010'}
+          failed = 0
+          for path in glob.glob('**/TestResults/*.trx', recursive=True):
+              for result in ET.parse(path).getroot().iter('{%s}UnitTestResult' % ns['t']):
+                  if result.get('outcome') != 'Failed':
+                      continue
+                  failed += 1
+                  info = result.find('t:Output/t:ErrorInfo', ns)
+                  message = (info.findtext('t:Message', default='', namespaces=ns) if info is not None else '').strip()
+                  stack = (info.findtext('t:StackTrace', default='', namespaces=ns) if info is not None else '').strip()
+                  detail = (message + '\n' + '\n'.join(stack.splitlines()[:4]))[:900]
+                  print('::error title=%s::%s' % (esc(result.get('testName', '?')), esc(detail)))
+          print('%d failed test(s)' % failed)
+          PY
