@@ -16,6 +16,7 @@ public class SitemapService(ISitemapRepository sitemapRepository) : ISitemapServ
         return type switch
         {
             SitemapEntryType.City => sitemapRepository.GetCitiesAsync(cursor, size, cancellationToken),
+            SitemapEntryType.Locality => sitemapRepository.GetLocalitiesAsync(cursor, size, cancellationToken),
             SitemapEntryType.Location => sitemapRepository.GetLocationsAsync(cursor, size, cancellationToken),
             SitemapEntryType.Photo => sitemapRepository.GetPhotosAsync(cursor, size, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown sitemap entry type."),

@@ -52,6 +52,10 @@ these are the diffs to check:
   [Caching and rate limits](#caching-and-rate-limits).
 - **⚠ `POST /locations` can now answer `409` (possible duplicate)** — send `"confirmDistinct": true` to go ahead; the
   site must handle it. See [Duplicate check](#location-duplicates).
+- **Locality pages** (long tail, "Pôr do sol na Praia do Rosa"): `GET /cities/{slug}` (and `/locations`, `/photos`, `/sunset`)
+  now also answer for a **locality**, once one of its locations has a photo; `GET /cities?kind=locality` lists those
+  localities; `GET /sitemap/entries?type=locality` feeds the sitemap — see [Cities](#cities).
+  `CityDetailResponse` gained `parent`.
 - **Nearby locations and regional rankings**: `GET /locations/{idOrSlug}/nearby` (other places around a location),
   `GET /locations/ranking` now also takes `citySlug` and `state`, and `GET /cities/ranking` ranks municipalities by the
   ratings they received in a period — see [Locations](#locations) and [Cities](#cities).
@@ -612,7 +616,7 @@ has the same ceiling as the location search (it is meant for the autocomplete on
 | `country` | 2-letter ISO code (only `BR` has data today). |
 | `state` | State abbreviation, case-insensitive (`sc`, `SC`). |
 | `sort` | `locations` (default: most locations first) \| `rating` (best average rating first) \| `population` (most populous first — the right order for an autocomplete) \| `name` (alphabetical). `locations` and `rating` only rank cities **that have locations** (a city without any has nothing to rank by), so they ignore `includeEmpty`; cities without ratings come last under `rating`. |
-| `includeEmpty` | `false` (default): only cities with at least one visible location. `true`: the whole catalog (needs `sort=population` or `name`). |
+| `includeEmpty` | `false` (default): only cities **with something to show** — a municipality with at least one visible location, a **locality with at least one visible location that has a photo** (the same rule as their pages, so every listed locality has a page). `true`: the whole catalog (needs `sort=population` or `name`). |
 
 Inactive cities (gone from the dataset) are never listed. The same `cursor` only works with the same filters and `sort`.
 
@@ -624,19 +628,25 @@ The whole city page in **one call**:
   "timeZoneId": "America/Sao_Paulo", "population": 45286, "latitude": -28.19, "longitude": -48.70,
   "locationsCount": 12, "photosCount": 143, "ratingsCount": 58, "avgRating": 4.6, "coverImageUrl": "https://...",
   "topLocation": { "id": "guid", "name": "Praia do Rosa", "avgRating": 4.9 },
-  "localities": [ { "name": "Praia do Rosa", "slug": "praia-do-rosa-imbituba-sc", "locationsCount": 5 } ]
+  "localities": [ { "name": "Praia do Rosa", "slug": "praia-do-rosa-imbituba-sc", "locationsCount": 5 } ],
+  "parent": null
 }
 ```
 - `topLocation`: the best rated location (ties: more ratings, then the most recent); `null` only if none exists.
 - `localities`: the municipality's localities **that have locations**, most locations first, at most 10 — meant for
   internal links.
-- `404` for an unknown slug, an inactive city, a **locality** (no public pages yet) and a **municipality with no
-  visible location** (so empty, indexable pages never exist). The slug is matched case-insensitively. The same `404`
-  rules apply to the three endpoints below.
+- **Locality pages.** The same endpoint answers for a **locality** slug (`kind: "Locality"`): `parent` is then its
+  municipality `{ id, name, state, slug }` (use it for the breadcrumb "Início › Cidades › {Município} › {Localidade}"; it is
+  `null` for a municipality), the counts and `topLocation` are those of the locations tied to the locality itself, and
+  `localities` is empty. A locality's `/locations`, `/photos` and `/sunset` work the same way, scoped to it.
+- `404` for an unknown slug, an inactive city, a **municipality with no visible location** and a **locality with no
+  visible location that has a photo** (so empty, indexable pages never exist; there are far more localities than
+  municipalities, and a bare name is not a page). The slug is matched case-insensitively. The same `404` rules apply to the
+  three endpoints below.
 
 ### `GET /cities/{slug}/locations?sort=&cursor=&limit=`
 → `CursorPagedResult<LocationResponse>`: the locations of the municipality (those tied to it directly or through a
-locality). `sort`: `rating` (default, best first) \| `recent` \| `name`. Locations removed by moderation are not listed.
+locality), or — for a locality — those tied to that locality. `sort`: `rating` (default, best first) \| `recent` \| `name`. Locations removed by moderation are not listed.
 
 ### `GET /cities/{slug}/photos?sort=&cursor=&limit=`
 → `CursorPagedResult<PhotoResponse>`: the photos of **all** the city's locations in one list (no per-location requests).
@@ -860,12 +870,13 @@ most one rating per location, so there's nothing to disambiguate.
 
 ## <a id="sitemap"></a>Sitemap
 
-### `GET /sitemap/entries?type=city|location|photo&cursor=&limit=`
+### `GET /sitemap/entries?type=city|locality|location|photo&cursor=&limit=`
 Public, **not** under the search rate limit, cached (1 h; writes evict it). `limit` 1–1000 (default 1000).
 → `{ "items": [ { "id", "slug", "lastModified" } ], "nextCursor", "hasMore" }`
 
 - Ordered by id, so paging is stable while rows are added; follow `nextCursor` until `hasMore` is `false`.
-- Only visible things: cities (municipalities) with ≥ 1 visible location, visible locations, visible photos.
+- Only visible things: cities (municipalities) with ≥ 1 visible location, **localities with ≥ 1 visible location that has a
+  photo** (`type=locality`; their slugs are served at `/cidades/{slug}` like the municipalities'), visible locations, visible photos.
 - `slug` is `null` for photos (addressed by id). `lastModified` (UTC): city = latest change among its locations;
   location = max(creation, latest visible photo, latest rating); photo = creation.
 - Invalid `type` → `400`.

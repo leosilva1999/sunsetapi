@@ -125,7 +125,7 @@ public class CityServiceTests
     {
         _locations.Setup(r => r.GetStatsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
             .ReturnsAsync(new Dictionary<Guid, LocationStats>());
-        _cities.Setup(r => r.GetDetailExtrasAsync(It.IsAny<Guid>(), default))
+        _cities.Setup(r => r.GetDetailExtrasAsync(It.IsAny<Guid>(), It.IsAny<CityKind>(), default))
             .ReturnsAsync(new CityDetailExtras(null, []));
         _sut = new CityService(_cities.Object, _locations.Object, _photos.Object, _sunset.Object);
     }
@@ -145,7 +145,7 @@ public class CityServiceTests
     public async Task GetBySlug_ReturnsTheCityPageInOneCall()
     {
         var city = WithLocations();
-        _cities.Setup(r => r.GetDetailExtrasAsync(city.Id, default)).ReturnsAsync(new CityDetailExtras(
+        _cities.Setup(r => r.GetDetailExtrasAsync(city.Id, CityKind.Municipality, default)).ReturnsAsync(new CityDetailExtras(
             new CityTopLocationResponse(Guid.NewGuid(), "Praia do Rosa", 4.9m),
             [new CityLocalityResponse("Praia do Rosa", "praia-do-rosa-imbituba-sc", 2)]));
 
@@ -179,14 +179,55 @@ public class CityServiceTests
         await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetSunsetTimeAsync("imbituba-sc", null));
     }
 
-    [Fact]
-    public async Task GetBySlug_ALocality_HasNoPublicPageYet()
+    private (City Parent, City Locality) AnImbitubaLocality(int locations, int photos)
     {
         var parent = Municipality();
-        var locality = new City(CityKind.Locality, "Praia do Rosa", "Praia do Rosa", null, "praia do rosa", "BR", "SC", "praia-do-rosa-imbituba-sc", "geonames", 2, null, parent.Id, 0, 0, null, 0);
-        _cities.Setup(r => r.GetBySlugAsync("praia-do-rosa-imbituba-sc", default)).ReturnsAsync(locality);
+        var locality = new City(CityKind.Locality, "Praia do Rosa", "Praia do Rosa", null, "praia do rosa", "BR", "SC", "praia-do-rosa-imbituba-sc", "geonames", 2, null, parent.Id, -28.13, -48.65, "America/Sao_Paulo", 0);
+        typeof(City).GetProperty(nameof(City.ParentCity))!.SetValue(locality, parent);
+        _cities.Setup(r => r.GetBySlugAsync(locality.Slug, default)).ReturnsAsync(locality);
+        _cities.Setup(r => r.GetStatsAsync(locality.Id, default)).ReturnsAsync(new CityStats(locations, photos, 0, null, photos > 0 ? "https://x/p.jpg" : null));
+        return (parent, locality);
+    }
 
-        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetBySlugAsync("praia-do-rosa-imbituba-sc"));
+    [Fact]
+    public async Task ALocality_HasAPage_OnceOneOfItsLocationsHasAPhoto_AndCarriesItsParent()
+    {
+        var (parent, locality) = AnImbitubaLocality(locations: 1, photos: 2);
+        _cities.Setup(r => r.GetDetailExtrasAsync(locality.Id, CityKind.Locality, default)).ReturnsAsync(new CityDetailExtras(null, []));
+
+        var response = await _sut.GetBySlugAsync(locality.Slug);
+
+        Assert.Equal(CityKind.Locality, response.Kind);
+        Assert.Equal(parent.Slug, response.Parent!.Slug);
+        Assert.Equal(2, response.PhotosCount);
+        Assert.Empty(response.Localities);
+    }
+
+    [Fact]
+    public async Task ALocalityWithLocationsButNoPhoto_HasNoPage_OnAnyOfTheCityEndpoints()
+    {
+        var (_, locality) = AnImbitubaLocality(locations: 3, photos: 0);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetBySlugAsync(locality.Slug));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetLocationsAsync(locality.Slug, CityLocationSort.Rating, null, 20));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetPhotosAsync(locality.Slug, PhotoSortOption.Top, null, 20, null));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetSunsetTimeAsync(locality.Slug, null));
+    }
+
+    [Fact]
+    public async Task ALocalitysListsAreFilteredByTheLocalityItself()
+    {
+        var (_, locality) = AnImbitubaLocality(locations: 1, photos: 1);
+        _locations.Setup(r => r.GetByCityAsync(locality.Id, CityLocationSort.Rating, null, 20, default))
+            .ReturnsAsync(new CursorPagedResult<Location>([], null, false));
+        _photos.Setup(p => p.GetCityFeedAsync(locality.Id, PhotoSortOption.Top, null, 20, null, default))
+            .ReturnsAsync(new CursorPagedResult<PhotoResponse>([], null, false));
+
+        await _sut.GetLocationsAsync(locality.Slug, CityLocationSort.Rating, null, 20);
+        await _sut.GetPhotosAsync(locality.Slug, PhotoSortOption.Top, null, 20, null);
+
+        _locations.Verify(r => r.GetByCityAsync(locality.Id, CityLocationSort.Rating, null, 20, default), Times.Once);
+        _photos.Verify(p => p.GetCityFeedAsync(locality.Id, PhotoSortOption.Top, null, 20, null, default), Times.Once);
     }
 
     [Fact]

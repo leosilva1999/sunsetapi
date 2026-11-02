@@ -7,7 +7,8 @@ public enum SitemapEntryType
 {
     City,
     Location,
-    Photo
+    Photo,
+    Locality
 }
 
 /// <param name="Slug">The public URL key; null for photos (they are addressed by id).</param>

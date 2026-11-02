@@ -50,7 +50,7 @@ public class CityService(
     public async Task<CityDetailResponse> GetBySlugAsync(string slug, CancellationToken cancellationToken = default)
     {
         var (city, stats) = await RequirePublicCityAsync(slug, cancellationToken);
-        var extras = await cityRepository.GetDetailExtrasAsync(city.Id, cancellationToken);
+        var extras = await cityRepository.GetDetailExtrasAsync(city.Id, city.Kind, cancellationToken);
 
         return city.ToDetailResponse(stats, extras);
     }
@@ -79,16 +79,17 @@ public class CityService(
         return await sunsetTimeService.GetSunsetTimeAsync(city.Latitude, city.Longitude, date, cancellationToken);
     }
 
-    // A page exists only for an active municipality that has at least one visible location: an empty page
-    // would be a thin, indexable URL. Localities have no public pages yet.
+    // A page exists only for an active place that has something to show, since an empty page would be a thin,
+    // indexable URL: a municipality needs at least one visible location, a locality at least one visible location
+    // WITH a photo (there are far more localities than municipalities, and a bare list of names is not a page).
     private async Task<(City City, CityStats Stats)> RequirePublicCityAsync(string slug, CancellationToken cancellationToken)
     {
-        var city = await cityRepository.GetBySlugAsync(slug, cancellationToken);
-        if (city is null || city.Kind != CityKind.Municipality)
-            throw new NotFoundException("City not found.");
+        var city = await cityRepository.GetBySlugAsync(slug, cancellationToken)
+            ?? throw new NotFoundException("City not found.");
 
         var stats = await cityRepository.GetStatsAsync(city.Id, cancellationToken);
-        if (stats.LocationsCount == 0)
+        var hasContent = city.Kind == CityKind.Municipality ? stats.LocationsCount > 0 : stats.PhotosCount > 0;
+        if (!hasContent)
             throw new NotFoundException("City not found.");
 
         return (city, stats);

@@ -17,5 +17,6 @@ public static class CityExtensions
         new(
             city.Id, city.Kind, city.Name, city.Country, city.AdminArea, city.Slug, city.TimeZoneId, city.Population,
             city.Latitude, city.Longitude, stats.LocationsCount, stats.PhotosCount, stats.RatingsCount, stats.AvgRating,
-            stats.CoverImageUrl, extras.TopLocation, extras.Localities);
+            stats.CoverImageUrl, extras.TopLocation, extras.Localities,
+            city.ParentCity is { } parent ? new CityParentResponse(parent.Id, parent.Name, parent.AdminArea, parent.Slug) : null);
 }

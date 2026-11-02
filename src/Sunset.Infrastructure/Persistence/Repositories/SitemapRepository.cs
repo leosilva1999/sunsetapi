@@ -14,34 +14,58 @@ namespace Sunset.Infrastructure.Persistence.Repositories;
 /// </summary>
 public class SitemapRepository(SunsetDbContext context) : ISitemapRepository
 {
-    public async Task<CursorPagedResult<SitemapEntryResponse>> GetCitiesAsync(string? cursor, int limit, CancellationToken cancellationToken = default)
-    {
-        var cities = context.Cities.AsNoTracking()
-            .Where(c => c.IsActive && c.Kind == CityKind.Municipality && context.Locations.Any(l => l.CityId == c.Id));
-        if (GuidCursor.TryDecode(cursor) is { } after)
-            cities = cities.Where(c => c.Id.CompareTo(after) > 0);
+    public Task<CursorPagedResult<SitemapEntryResponse>> GetCitiesAsync(string? cursor, int limit, CancellationToken cancellationToken = default) =>
+        GetPlacesAsync(CityKind.Municipality, cursor, limit, cancellationToken);
 
-        var rows = await cities.OrderBy(c => c.Id).Take(limit + 1).Select(c => new { c.Id, c.Slug }).ToListAsync(cancellationToken);
+    public Task<CursorPagedResult<SitemapEntryResponse>> GetLocalitiesAsync(string? cursor, int limit, CancellationToken cancellationToken = default) =>
+        GetPlacesAsync(CityKind.Locality, cursor, limit, cancellationToken);
+
+    // (place, location) pairs: a location belongs to its municipality (CityId) or to its locality (LocalityId).
+    // A class with member initializers, like the pairs in CityRepository (EF cannot build a record through its constructor here).
+    private sealed class PlaceLocation
+    {
+        public Guid Key { get; init; }
+        public Guid LocationId { get; init; }
+        public DateTime CreatedAt { get; init; }
+    }
+
+    private IQueryable<PlaceLocation> PairsOf(CityKind kind, IReadOnlyCollection<Guid> ids) =>
+        kind == CityKind.Municipality
+            ? context.Locations.Where(l => l.CityId != null && ids.Contains(l.CityId.Value))
+                .Select(l => new PlaceLocation { Key = l.CityId!.Value, LocationId = l.Id, CreatedAt = l.CreatedAt })
+            : context.Locations.Where(l => l.LocalityId != null && ids.Contains(l.LocalityId.Value))
+                .Select(l => new PlaceLocation { Key = l.LocalityId!.Value, LocationId = l.Id, CreatedAt = l.CreatedAt });
+
+    // A municipality is listed when it has a visible location; a locality when it has a visible location WITH a photo
+    // (the same rule as their public pages).
+    private async Task<CursorPagedResult<SitemapEntryResponse>> GetPlacesAsync(CityKind kind, string? cursor, int limit, CancellationToken cancellationToken)
+    {
+        var places = context.Cities.AsNoTracking().Where(c => c.IsActive && c.Kind == kind);
+        places = kind == CityKind.Municipality
+            ? places.Where(c => context.Locations.Any(l => l.CityId == c.Id))
+            : places.Where(c => context.Locations.Any(l => l.LocalityId == c.Id && context.Photos.Any(p => p.LocationId == l.Id)));
+        if (GuidCursor.TryDecode(cursor) is { } after)
+            places = places.Where(c => c.Id.CompareTo(after) > 0);
+
+        var rows = await places.OrderBy(c => c.Id).Take(limit + 1).Select(c => new { c.Id, c.Slug }).ToListAsync(cancellationToken);
         var (page, hasMore) = Trim(rows, limit);
         var ids = page.Select(r => r.Id).ToList();
 
-        var locationDates = await context.Locations
-            .Where(l => l.CityId != null && ids.Contains(l.CityId.Value))
-            .GroupBy(l => l.CityId!.Value)
-            .Select(g => new { Key = g.Key, At = g.Max(l => l.CreatedAt) })
+        var pairs = PairsOf(kind, ids);
+
+        var locationDates = await pairs.GroupBy(k => k.Key)
+            .Select(g => new { Key = g.Key, At = g.Max(k => k.CreatedAt) })
             .ToDictionaryAsync(x => x.Key, x => x.At, cancellationToken);
 
-        var photoDates = await (from l in context.Locations
-                                where l.CityId != null && ids.Contains(l.CityId.Value)
-                                join p in context.Photos on l.Id equals p.LocationId
-                                group p by l.CityId!.Value into g
+        var photoDates = await (from k in pairs
+                                join p in context.Photos on k.LocationId equals p.LocationId
+                                group p by k.Key into g
                                 select new { Key = g.Key, At = g.Max(p => p.CreatedAt) })
             .ToDictionaryAsync(x => x.Key, x => x.At, cancellationToken);
 
-        var ratingDates = await (from l in context.Locations
-                                 where l.CityId != null && ids.Contains(l.CityId.Value)
-                                 join r in context.Ratings on l.Id equals r.LocationId
-                                 group r by l.CityId!.Value into g
+        var ratingDates = await (from k in pairs
+                                 join r in context.Ratings on k.LocationId equals r.LocationId
+                                 group r by k.Key into g
                                  select new { Key = g.Key, At = g.Max(r => r.CreatedAt) })
             .ToDictionaryAsync(x => x.Key, x => x.At, cancellationToken);
 

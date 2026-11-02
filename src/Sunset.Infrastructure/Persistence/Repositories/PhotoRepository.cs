@@ -23,10 +23,11 @@ public class PhotoRepository(SunsetDbContext context) : IPhotoRepository
     public Task<CursorPagedResult<Photo>> GetFeedAsync(PhotoSortOption sort, string? cursor, int limit, CancellationToken cancellationToken = default) =>
         PageAsync(context.Photos.Include(p => p.User).Include(p => p.Location).AsQueryable(), sort, cursor, limit, cancellationToken);
 
-    // Location.CityId is always the municipality, so this also covers locations tied to one of its localities.
+    // Location.CityId is always the municipality, so this also covers locations tied to one of its localities;
+    // a locality's id matches Location.LocalityId (ids never collide across kinds).
     public Task<CursorPagedResult<Photo>> GetByCityIdAsync(Guid cityId, PhotoSortOption sort, string? cursor, int limit, CancellationToken cancellationToken = default) =>
         PageAsync(
-            context.Photos.Include(p => p.User).Include(p => p.Location).Where(p => p.Location.CityId == cityId),
+            context.Photos.Include(p => p.User).Include(p => p.Location).Where(p => p.Location.CityId == cityId || p.Location.LocalityId == cityId),
             sort, cursor, limit, cancellationToken);
 
     private static async Task<CursorPagedResult<Photo>> PageAsync(

@@ -11,8 +11,9 @@ public interface ICityService
     Task<CursorPagedResult<CityResponse>> SearchAsync(CityListQuery query, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Public page of a municipality in one call. An unknown slug, an inactive city, a locality (no public
-    /// pages yet) and a municipality with no visible location are all 404.
+    /// Public page of a municipality or a locality in one call. An unknown slug, an inactive city, a municipality with no
+    /// visible location and a locality with no visible location that has a photo are all 404. A locality's page carries its
+    /// <c>parent</c> municipality.
     /// </summary>
     Task<CityDetailResponse> GetBySlugAsync(string slug, CancellationToken cancellationToken = default);
 

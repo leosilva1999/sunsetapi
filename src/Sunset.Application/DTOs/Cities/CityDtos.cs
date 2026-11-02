@@ -52,7 +52,8 @@ public sealed record CityDetailResponse(
     decimal? AvgRating,
     string? CoverImageUrl,
     CityTopLocationResponse? TopLocation,
-    IReadOnlyList<CityLocalityResponse> Localities);
+    IReadOnlyList<CityLocalityResponse> Localities,
+    CityParentResponse? Parent = null);
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum CityKindFilter

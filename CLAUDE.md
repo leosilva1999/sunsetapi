@@ -210,6 +210,13 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   cliente reenvia com `confirmDistinct: true`, que pula a checagem (sempre respeitado — é consultivo; a mesclagem da moderação cobre o que
   escapar). **Mudança de contrato**: o site precisa tratar o 409 (nos testes de integração todo `CreateLocationRequest` que cria
   locais próximos/homônimos passa `ConfirmDistinct: true`).
+- **Páginas de localidade**: `RequirePublicCityAsync` aceita `Kind = Locality` quando a localidade tem **≥1 local com foto** (município:
+  ≥1 local visível) — localidades são ~12× mais numerosas e um nome sem conteúdo é página fina. A lista (`kind=locality`, sem
+  `includeEmpty`) aplica a **mesma regra**, para todo item listado ter página (ordenações por coluna via `Any` com `Photos.Any`; por
+  atividade, descartando as sem foto em memória). Mesmo id serve a município e localidade (GUIDs únicos): `GetByCityAsync`/
+  `GetByCityIdAsync` filtram `CityId == id || LocalityId == id`; `GetDetailExtrasAsync(id, kind)` escolhe o melhor local entre os da
+  localidade e não lista sub-localidades; `CityDetailResponse.Parent` (município-pai) só vem em localidade. Sitemap ganhou
+  `type=locality` (mesma regra; `lastModified` por `LocalityId`).
 - **Locais próximos e rankings por região**: `GET /locations/{idOrSlug}/nearby` reaproveita `SearchAsync` ("perto de mim") centrado
   no local, pedindo `limit+1` porque o próprio local aparece a distância 0 e é descartado (raio padrão 30 km, máx. 200; limite
   máx. 12). `GET /locations/ranking?citySlug=&state=`: `RankingFilter` (município → `CityId`, localidade → `LocalityId`, estado →

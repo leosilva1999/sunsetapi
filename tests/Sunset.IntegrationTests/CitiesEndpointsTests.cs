@@ -278,8 +278,9 @@ public class CitiesEndpointsTests(SunsetApiFactory factory) : IntegrationTestBas
         var city = await SeedAsync($"Cidade{tag}", state, slug: $"cidade-{tag}-l");
         var locality = await SeedAsync($"Praia{tag}", state, kind: CityKind.Locality, parentId: city.Id, slug: $"praia-{tag}-l");
         var (_, user) = await RegisterAndAuthenticateAsync();
-        await PostLocationAsync(user, locality.Id);   // tied to the locality (and through it, to the city)
-        await PostLocationAsync(user, city.Id);       // tied to the city only
+        var inLocality = await PostLocationAsync(user, locality.Id);   // tied to the locality (and through it, to the city)
+        await PostLocationAsync(user, city.Id);                        // tied to the city only
+        await CreatePhotoAsync(user, inLocality.Id);                   // a locality is listed once one of its locations has a photo
 
         var cityItem = Assert.Single((await ListAsync($"state={state}")).Items);
         var localityItem = Assert.Single((await ListAsync($"state={state}&kind=locality")).Items);
@@ -330,7 +331,7 @@ public class CitiesEndpointsTests(SunsetApiFactory factory) : IntegrationTestBas
     }
 
     [Fact]
-    public async Task ALocality_OrAnUnknownSlug_IsNotFound()
+    public async Task ALocalityWithoutPhotos_OrAnUnknownSlug_IsNotFound()
     {
         var tag = Tag();
         var city = await SeedAsync($"Pai{tag}", "T8");

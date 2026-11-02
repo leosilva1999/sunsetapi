@@ -23,8 +23,11 @@ public interface ICityRepository
 
     Task<CityStats> GetStatsAsync(Guid cityId, CancellationToken cancellationToken = default);
 
-    /// <summary>The best rated location and the localities that have locations (by count, at most 10).</summary>
-    Task<CityDetailExtras> GetDetailExtrasAsync(Guid municipalityId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// The best rated location of the place and — for a municipality only — its localities that have locations
+    /// (by count, at most 10). A locality's best location is chosen among those tied to the locality itself.
+    /// </summary>
+    Task<CityDetailExtras> GetDetailExtrasAsync(Guid cityId, CityKind kind, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// The nearest active places (localities and municipalities) to a point, nearest first, by exact great-circle

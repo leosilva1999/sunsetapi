@@ -241,7 +241,8 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
 
     public async Task<CursorPagedResult<Location>> GetByCityAsync(Guid cityId, CityLocationSort sort, string? cursor, int limit, CancellationToken cancellationToken = default)
     {
-        var locations = WithCity().Where(l => l.CityId == cityId);
+        // A municipality (Location.CityId, which also covers its localities) or a locality (Location.LocalityId); ids never collide.
+        var locations = WithCity().Where(l => l.CityId == cityId || l.LocalityId == cityId);
         List<Location> items;
 
         switch (sort)

@@ -66,8 +66,12 @@ public class CityRepository(SunsetDbContext context) : ICityRepository
     // ---- ordered by a column (population / name): paged in SQL
     private async Task<CursorPagedResult<CityWithStats>> SearchByColumnAsync(IQueryable<City> cities, CityListQuery query, CancellationToken cancellationToken)
     {
+        // "Has something to show": a municipality needs a location, a locality a location that has a photo
+        // (the same rule the public page applies).
         if (!query.IncludeEmpty)
-            cities = cities.Where(c => context.Locations.Any(l => l.CityId == c.Id || l.LocalityId == c.Id));
+            cities = cities.Where(c => c.Kind == CityKind.Municipality
+                ? context.Locations.Any(l => l.CityId == c.Id)
+                : context.Locations.Any(l => l.LocalityId == c.Id && context.Photos.Any(p => p.LocationId == l.Id)));
 
         List<City> items;
         if (query.Sort == CitySortOption.Name)
@@ -114,6 +118,17 @@ public class CityRepository(SunsetDbContext context) : ICityRepository
         var ids = activity.Keys.ToList();
 
         var candidates = await cities.Where(c => ids.Contains(c.Id)).Include(c => c.ParentCity).ToListAsync(cancellationToken);
+
+        // Localities are listed only once one of their locations has a photo (see SearchByColumnAsync).
+        var localityIds = candidates.Where(c => c.Kind == CityKind.Locality).Select(c => c.Id).ToList();
+        if (localityIds.Count > 0)
+        {
+            var withPhotos = await (from l in context.Locations
+                                    where l.LocalityId != null && localityIds.Contains(l.LocalityId.Value)
+                                          && context.Photos.Any(p => p.LocationId == l.Id)
+                                    select l.LocalityId!.Value).Distinct().ToListAsync(cancellationToken);
+            candidates = candidates.Where(c => c.Kind != CityKind.Locality || withPhotos.Contains(c.Id)).ToList();
+        }
 
         decimal SortKey(City c) => query.Sort == CitySortOption.Locations
             ? activity[c.Id].LocationsCount
@@ -182,18 +197,22 @@ public class CityRepository(SunsetDbContext context) : ICityRepository
     public async Task<CityStats> GetStatsAsync(Guid cityId, CancellationToken cancellationToken = default) =>
         (await GetStatsByCityAsync([cityId], cancellationToken)).GetValueOrDefault(cityId, CityStats.Empty);
 
-    public async Task<CityDetailExtras> GetDetailExtrasAsync(Guid municipalityId, CancellationToken cancellationToken = default)
+    public async Task<CityDetailExtras> GetDetailExtrasAsync(Guid cityId, CityKind kind, CancellationToken cancellationToken = default)
     {
+        // Ids are unique across kinds, so one test covers a municipality (Location.CityId) and a locality (Location.LocalityId).
         var top = await context.Locations
-            .Where(l => l.CityId == municipalityId)
+            .Where(l => l.CityId == cityId || l.LocalityId == cityId)
             .OrderByDescending(l => l.AvgRating)
             .ThenByDescending(l => l.Ratings.Count)
             .ThenByDescending(l => l.CreatedAt)
             .Select(l => new CityTopLocationResponse(l.Id, l.Name, l.AvgRating))
             .FirstOrDefaultAsync(cancellationToken);
 
+        if (kind == CityKind.Locality)
+            return new CityDetailExtras(top, []);
+
         var counts = await context.Locations
-            .Where(l => l.CityId == municipalityId && l.LocalityId != null)
+            .Where(l => l.CityId == cityId && l.LocalityId != null)
             .GroupBy(l => l.LocalityId!.Value)
             .Select(g => new { LocalityId = g.Key, Count = g.Count() })
             .OrderByDescending(x => x.Count)
