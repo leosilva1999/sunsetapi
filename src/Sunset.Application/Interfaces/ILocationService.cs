@@ -15,6 +15,18 @@ public interface ILocationService
     Task<LocationResponse> CreateAsync(Guid userId, CreateLocationRequest request, CancellationToken cancellationToken = default);
     Task<CursorPagedResult<PhotoResponse>> GetPhotosAsync(Guid locationId, string? cursor, int limit, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<LocationResponse>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The ranking narrowed to a city (a municipality or locality slug) and/or a state. An unknown or inactive
+    /// <paramref name="citySlug"/> is a 404; a malformed <paramref name="state"/> is a 400.
+    /// </summary>
+    Task<IReadOnlyList<LocationResponse>> GetRankingAsync(RankingPeriod period, int limit, string? citySlug, string? state, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Other locations within <paramref name="radiusKm"/> of this one (id or slug), nearest first, each with its
+    /// <c>distanceKm</c>. The location itself is left out. Unknown location: 404; radius outside (0, 200]: 400.
+    /// </summary>
+    Task<IReadOnlyList<LocationResponse>> GetNearbyAsync(string idOrSlug, double radiusKm, int limit, CancellationToken cancellationToken = default);
     Task<RatingResponse> RateAsync(Guid userId, Guid locationId, CreateRatingRequest request, CancellationToken cancellationToken = default);
     Task<CursorPagedResult<RatingResponse>> GetRatingsAsync(Guid locationId, string? cursor, int limit, CancellationToken cancellationToken = default);
     Task<RatingResponse> GetMyRatingAsync(Guid userId, Guid locationId, CancellationToken cancellationToken = default);

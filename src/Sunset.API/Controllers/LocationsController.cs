@@ -10,6 +10,7 @@ using Sunset.Application.DTOs.Moderation;
 using Sunset.Application.DTOs.Photos;
 using Sunset.Application.Exceptions;
 using Sunset.Application.Interfaces;
+using Sunset.Application.Services;
 using Sunset.Domain.Enums;
 
 namespace Sunset.API.Controllers;
@@ -48,11 +49,23 @@ public class LocationsController(
     public async Task<ActionResult<IReadOnlyList<LocationResponse>>> GetRanking(
         [FromQuery] RankingPeriod period = RankingPeriod.All,
         [FromQuery] int limit = 20,
+        [FromQuery] string? citySlug = null,
+        [FromQuery] string? state = null,
         CancellationToken cancellationToken = default)
     {
-        var ranking = await locationService.GetRankingAsync(period, Math.Clamp(limit, 1, 50), cancellationToken);
+        var ranking = await locationService.GetRankingAsync(period, Math.Clamp(limit, 1, 50), citySlug, state, cancellationToken);
         return Ok(ranking);
     }
+
+    // "Other places near this one": the near-me search around the location itself, minus the location.
+    [OutputCache(PolicyName = PublicCaching.LocationsPolicy)]
+    [HttpGet("{idOrSlug}/nearby")]
+    public async Task<ActionResult<IReadOnlyList<LocationResponse>>> GetNearby(
+        string idOrSlug,
+        [FromQuery] double radiusKm = LocationService.DefaultNearbyRadiusKm,
+        [FromQuery] int limit = LocationService.MaxNearbyLimit,
+        CancellationToken cancellationToken = default) =>
+        Ok(await locationService.GetNearbyAsync(idOrSlug, radiusKm, limit, cancellationToken));
 
     [OutputCache(PolicyName = PublicCaching.LocationsPolicy)]
     // The id (a GUID) or the public slug - a literal route such as "ranking" still wins over this one.

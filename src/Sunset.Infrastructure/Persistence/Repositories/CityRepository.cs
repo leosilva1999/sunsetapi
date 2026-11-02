@@ -133,6 +133,40 @@ public class CityRepository(SunsetDbContext context) : ICityRepository
             page.Select(c => new CityWithStats(c, stats.GetValueOrDefault(c.Id, CityStats.Empty))).ToList(), nextCursor, hasMore);
     }
 
+    public async Task<IReadOnlyList<CityRankingEntry>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default)
+    {
+        var since = period switch
+        {
+            RankingPeriod.Week => DateTime.UtcNow.AddDays(-7),
+            RankingPeriod.Month => DateTime.UtcNow.AddMonths(-1),
+            _ => DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
+        };
+
+        // Ratings of visible locations tied to a municipality, grouped by that municipality. A locality's
+        // locations count for its municipality too (Location.CityId is always the municipality).
+        var ranked = await (from r in context.Ratings
+                            where r.CreatedAt >= since
+                            join l in context.Locations on r.LocationId equals l.Id
+                            where l.CityId != null
+                            group r by l.CityId!.Value into g
+                            select new { CityId = g.Key, Avg = g.Average(x => (double)x.Score), Count = g.Count() })
+            .OrderByDescending(x => x.Avg).ThenByDescending(x => x.Count).ThenBy(x => x.CityId)
+            .Take(limit * 2)   // a little slack: inactive cities are dropped below
+            .ToListAsync(cancellationToken);
+
+        var ids = ranked.Select(x => x.CityId).ToList();
+        var cities = await context.Cities.AsNoTracking()
+            .Where(c => ids.Contains(c.Id) && c.IsActive && c.Kind == CityKind.Municipality)
+            .ToDictionaryAsync(c => c.Id, cancellationToken);
+        var stats = await GetStatsByCityAsync(ids, cancellationToken);
+
+        return ranked
+            .Where(x => cities.ContainsKey(x.CityId))
+            .Take(limit)
+            .Select(x => new CityRankingEntry(cities[x.CityId], stats.GetValueOrDefault(x.CityId, CityStats.Empty), Math.Round((decimal)x.Avg, 2), x.Count))
+            .ToList();
+    }
+
     public Task<City?> GetBySlugAsync(string slug, CancellationToken cancellationToken = default) =>
         context.Cities.AsNoTracking()
             .Include(c => c.ParentCity)

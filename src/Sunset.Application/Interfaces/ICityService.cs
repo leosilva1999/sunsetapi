@@ -26,6 +26,9 @@ public interface ICityService
     /// </summary>
     Task<NearbyCitiesResponse> GetNearbyAsync(NearbyCitiesQuery query, CancellationToken cancellationToken = default);
 
+    /// <summary>Municipalities ranked by the ratings their locations received in the period.</summary>
+    Task<IReadOnlyList<CityRankingResponse>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default);
+
     /// <summary>Sunset time at the city's centre.</summary>
     Task<SunsetTimeResponse> GetSunsetTimeAsync(string slug, DateOnly? date, CancellationToken cancellationToken = default);
 }

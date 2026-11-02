@@ -24,6 +24,12 @@ public class CityService(
         return new CursorPagedResult<CityResponse>(items, page.NextCursor, page.HasMore);
     }
 
+    public async Task<IReadOnlyList<CityRankingResponse>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default)
+    {
+        var entries = await cityRepository.GetRankingAsync(period, limit, cancellationToken);
+        return entries.Select(e => new CityRankingResponse(e.City.ToResponse(e.Stats), e.PeriodAvgRating, e.PeriodRatingsCount)).ToList();
+    }
+
     public async Task<NearbyCitiesResponse> GetNearbyAsync(NearbyCitiesQuery query, CancellationToken cancellationToken = default)
     {
         var (lat, lng) = (query.Latitude!.Value, query.Longitude!.Value);

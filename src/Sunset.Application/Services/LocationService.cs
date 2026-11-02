@@ -36,7 +36,10 @@ public class LocationService(
         return await locationRepository.ToResponseAsync(location, cancellationToken: cancellationToken);
     }
 
-    public async Task<LocationResponse> GetByIdOrSlugAsync(string idOrSlug, CancellationToken cancellationToken = default)
+    public async Task<LocationResponse> GetByIdOrSlugAsync(string idOrSlug, CancellationToken cancellationToken = default) =>
+        await locationRepository.ToResponseAsync(await RequireByIdOrSlugAsync(idOrSlug, cancellationToken), cancellationToken: cancellationToken);
+
+    private async Task<Location> RequireByIdOrSlugAsync(string idOrSlug, CancellationToken cancellationToken)
     {
         var key = idOrSlug.Trim();
         var location = Guid.TryParse(key, out var id)
@@ -45,10 +48,26 @@ public class LocationService(
                 ? await locationRepository.GetBySlugAsync(key.ToLowerInvariant(), cancellationToken)
                 : null;
 
-        if (location is null)
-            throw new NotFoundException("Location not found.");
+        return location ?? throw new NotFoundException("Location not found.");
+    }
 
-        return await locationRepository.ToResponseAsync(location, cancellationToken: cancellationToken);
+    public const int MaxNearbyLimit = 12;
+    public const double DefaultNearbyRadiusKm = 30;
+
+    public async Task<IReadOnlyList<LocationResponse>> GetNearbyAsync(string idOrSlug, double radiusKm, int limit, CancellationToken cancellationToken = default)
+    {
+        if (double.IsNaN(radiusKm) || radiusKm <= 0 || radiusKm > LocationSearchQuery.MaxRadiusKm)
+            throw new ValidationException([new ValidationFailure("radiusKm", $"'radiusKm' must be greater than 0 and at most {LocationSearchQuery.MaxRadiusKm}.")]);
+
+        var location = await RequireByIdOrSlugAsync(idOrSlug, cancellationToken);
+        var size = Math.Clamp(limit, 1, MaxNearbyLimit);
+
+        // The same "near me" search as GET /locations?lat=&lng=; one extra row because the location finds itself (distance 0).
+        var page = await locationRepository.SearchAsync(
+            new LocationSearchQuery(null, location.Latitude, location.Longitude, radiusKm, null, size + 1), cancellationToken);
+
+        var others = page.Items.Where(i => i.Location.Id != location.Id).Take(size).Select(i => (i.Location, i.DistanceKm)).ToList();
+        return await locationRepository.ToResponsesAsync(others, cancellationToken);
     }
 
     public async Task<LocationResponse> CreateAsync(Guid userId, CreateLocationRequest request, CancellationToken cancellationToken = default)
@@ -108,6 +127,40 @@ public class LocationService(
     {
         var locations = await locationRepository.GetRankingAsync(period, limit, cancellationToken);
         return await locationRepository.ToResponsesAsync(locations.Select(l => (l, (double?)null)).ToList(), cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<LocationResponse>> GetRankingAsync(RankingPeriod period, int limit, string? citySlug, string? state, CancellationToken cancellationToken = default)
+    {
+        var filter = await BuildRankingFilterAsync(citySlug, state, cancellationToken);
+        if (filter.IsEmpty)
+            return await GetRankingAsync(period, limit, cancellationToken);
+
+        var locations = await locationRepository.GetRankingAsync(period, limit, filter, cancellationToken);
+        return await locationRepository.ToResponsesAsync(locations.Select(l => (l, (double?)null)).ToList(), cancellationToken);
+    }
+
+    private async Task<RankingFilter> BuildRankingFilterAsync(string? citySlug, string? state, CancellationToken cancellationToken)
+    {
+        string? upperState = null;
+        if (!string.IsNullOrWhiteSpace(state))
+        {
+            upperState = state.Trim().ToUpperInvariant();
+            if (upperState.Length > 10 || !upperState.All(char.IsLetter))
+                throw new ValidationException([new ValidationFailure("state", "'state' must be a state code such as SC.")]);
+        }
+
+        Guid? cityId = null, localityId = null;
+        if (!string.IsNullOrWhiteSpace(citySlug))
+        {
+            var city = await cityRepository.GetBySlugAsync(citySlug.Trim().ToLowerInvariant(), cancellationToken)
+                ?? throw new NotFoundException("City not found.");
+            if (city.Kind == CityKind.Locality)
+                localityId = city.Id;
+            else
+                cityId = city.Id;
+        }
+
+        return new RankingFilter(cityId, localityId, upperState);
     }
 
     public async Task<RatingResponse> RateAsync(Guid userId, Guid locationId, CreateRatingRequest request, CancellationToken cancellationToken = default)

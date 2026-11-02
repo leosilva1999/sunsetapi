@@ -203,6 +203,13 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   Render → salto interno; com 1 o "cliente" seria um IP 10.x que muda a cada requisição). Sem isso todos os limitadores por IP (Search, Reports, PasswordReset,
   ChangePassword) dividiam um balde só. `GET /health/client-ip` mostra como a API vê a requisição (para conferir o limite
   em produção). Há CI em `.github/workflows/ci.yml` (build + testes unitários + de integração, o runner tem Docker).
+- **Locais próximos e rankings por região**: `GET /locations/{idOrSlug}/nearby` reaproveita `SearchAsync` ("perto de mim") centrado
+  no local, pedindo `limit+1` porque o próprio local aparece a distância 0 e é descartado (raio padrão 30 km, máx. 200; limite
+  máx. 12). `GET /locations/ranking?citySlug=&state=`: `RankingFilter` (município → `CityId`, localidade → `LocalityId`, estado →
+  `Municipality.AdminArea`, tudo AND) aplicado **antes** do `Take`, via `Where(r => locations.Any(l => l.Id == r.LocationId))` — o
+  que também impede um local removido de ocupar vaga no top N (antes ele era descartado depois do corte). Sem filtros mantém a
+  consulta original. `GET /cities/ranking`: média das notas **dadas no período** por município (locais de localidade contam
+  para o município pai), desempate por mais notas; devolve `CityResponse` (contagens totais) + `periodAvgRating`/`periodRatingsCount`.
 - **Cidade sugerida pelo pino (`GET /geo/cities`)**: `CityRepository.GetNearestAsync` — Haversine exato no SQL atrás de uma
   caixa envolvente que usa o índice `(Latitude, Longitude)` de `cities`; alarga o raio (15 → 60 → 250 km) até achar `limit`
   lugares (tudo dentro do raio está na caixa, então os `limit` primeiros são os mais próximos de verdade). Mistura localidades e

@@ -50,6 +50,9 @@ these are the diffs to check:
   made through the API show up at once), `GET /locations` and `GET /cities` without `q`/`lat`/`lng` no longer
   count against the search limit, and the site's server can send `X-Service-Key` for a bucket of its own — see
   [Caching and rate limits](#caching-and-rate-limits).
+- **Nearby locations and regional rankings**: `GET /locations/{idOrSlug}/nearby` (other places around a location),
+  `GET /locations/ranking` now also takes `citySlug` and `state`, and `GET /cities/ranking` ranks municipalities by the
+  ratings they received in a period — see [Locations](#locations) and [Cities](#cities).
 - **`GET /geo/cities?lat=&lng=`**: the catalog places nearest to a map pin, to suggest a city while a location is being
   registered, plus a "pin is far from the city you chose" check — see [Nearest places to a pin](#geo-cities).
 - **`LocationResponse.description` / `category`** (both `null` when not given): `description` is up to 1000 characters of
@@ -250,8 +253,8 @@ Pass `nextCursor` back as `?cursor=` to get the next page. Treat the cursor as a
 don't parse or construct it. `?limit=` is accepted on all of them, default `20`, clamped to
 `1–50` server-side (accepted `?limit=200` will silently become `50`, no error).
 
-`GET /locations/ranking` is the one list endpoint that is **not** paginated — it returns a plain
-array, capped by `?limit=` (default 20, same 1–50 clamp).
+`GET /locations/ranking`, `GET /cities/ranking` and `GET /locations/{idOrSlug}/nearby` are the list endpoints that are
+**not** paginated — each returns a plain array, capped by `?limit=` (ranking: default 20, 1–50 clamp; nearby: see its section).
 
 ### Error format
 
@@ -638,6 +641,17 @@ locality). `sort`: `rating` (default, best first) \| `recent` \| `name`. Locatio
 `sort`: `top` (default, most liked) \| `recent`. Send the bearer token when there is one: `likedByCurrentUser` is then
 correct (anonymous: `false`), same as `GET /photos`.
 
+### `GET /cities/ranking?period=all&limit=20`
+Municipalities ranked by the **average of the ratings their locations received within the period** (`week` | `month` |
+`all`, default `all`; ties: more ratings first). A locality's locations count for its municipality. Only municipalities
+with at least one rating in the period appear. → plain array (not paginated, `limit` 1–50):
+
+```json
+[ { "city": { "...": "a CityResponse, with its usual all-time counts" }, "periodAvgRating": 4.75, "periodRatingsCount": 12 } ]
+```
+
+`periodAvgRating`/`periodRatingsCount` are what ranks the city; `city.avgRating` etc. stay the all-time figures. Public, cached 60 s.
+
 ### `GET /cities/{slug}/sunset?date=YYYY-MM-DD`
 → the same `SunsetTimeResponse` as a location's, computed for the **centre of the city** (`502` if the upstream
 sunrise-sunset service is down, like the location version).
@@ -713,6 +727,18 @@ or bypassed, so don't rely on 429s as your only signal to slow down; debounce fi
 `period` is one of `week` | `month` | `all` (case-insensitive; default `all`), ranking by average
 rating **within that window** (not the location's all-time `avgRating` field, though that field
 is still what's returned per location). → plain array of `LocationResponse` (not paginated).
+
+Optional filters (both additive; combined they apply together, AND):
+- `citySlug` — a **municipality** slug (its locations, including those tied to one of its localities) or a **locality**
+  slug (only that locality's). An unknown or inactive slug → `404`.
+- `state` — a state code such as `SC` (case-insensitive); anything that is not letters (≤ 10) → `400`.
+Removed locations never take a place in the ranking, filtered or not.
+
+### `GET /locations/{idOrSlug}/nearby?radiusKm=30&limit=12`
+Other locations within `radiusKm` of this one, **nearest first**, for the "other places nearby" block. The location itself is
+left out. `radiusKm` must be greater than 0 and at most 200 (default 30) → otherwise `400`; `limit` 1–12 (default 12).
+→ plain array of `LocationResponse`, each with `distanceKm` filled (km from this location). Unknown or removed location → `404`.
+It is the same search as `GET /locations?lat=&lng=&radius=`, centred on the location; public and cached for 60 s.
 
 ### `GET /locations/{idOrSlug}`
 `idOrSlug` is the location's GUID or its public slug (case-insensitive); anything else, or a removed location, is `404`.

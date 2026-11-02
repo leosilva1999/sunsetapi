@@ -1,6 +1,7 @@
 using Sunset.Application.Common;
 using Sunset.Application.DTOs.Cities;
 using Sunset.Domain.Entities;
+using Sunset.Domain.Enums;
 
 namespace Sunset.Application.Interfaces.Repositories;
 
@@ -8,6 +9,12 @@ public interface ICityRepository
 {
     /// <summary>Active cities only; the parent municipality is loaded for localities, and every item carries its counts.</summary>
     Task<CursorPagedResult<CityWithStats>> SearchAsync(CityListQuery query, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Active municipalities ranked by the average of the ratings their locations received within the period
+    /// (ties: more ratings first). Only municipalities with at least one rating in the period appear.
+    /// </summary>
+    Task<IReadOnlyList<CityRankingEntry>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default);
 
     Task<City?> GetBySlugAsync(string slug, CancellationToken cancellationToken = default);
 

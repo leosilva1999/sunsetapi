@@ -249,7 +249,10 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Location>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<Location>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default) =>
+        GetRankingAsync(period, limit, new RankingFilter(), cancellationToken);
+
+    public async Task<IReadOnlyList<Location>> GetRankingAsync(RankingPeriod period, int limit, RankingFilter filter, CancellationToken cancellationToken = default)
     {
         var since = period switch
         {
@@ -258,8 +261,19 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
             _ => DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
 
+        // Joined with the (visible) locations so a removed one cannot take a place in the top N, and so the
+        // place filter applies before the limit.
+        var locations = context.Locations.AsQueryable();
+        if (filter.CityId is { } cityId)
+            locations = locations.Where(l => l.CityId == cityId);
+        if (filter.LocalityId is { } localityId)
+            locations = locations.Where(l => l.LocalityId == localityId);
+        if (filter.State is { } state)
+            locations = locations.Where(l => l.Municipality!.AdminArea == state);
+
         var ranked = await context.Ratings
             .Where(r => r.CreatedAt >= since)
+            .Where(r => locations.Any(l => l.Id == r.LocationId))
             .GroupBy(r => r.LocationId)
             .Select(g => new { LocationId = g.Key, AvgScore = g.Average(r => r.Score), Count = g.Count() })
             .OrderByDescending(g => g.AvgScore)

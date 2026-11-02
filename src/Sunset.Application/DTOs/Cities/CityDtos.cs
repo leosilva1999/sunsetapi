@@ -110,4 +110,12 @@ public sealed record CityStats(int LocationsCount, int PhotosCount, int RatingsC
 
 public sealed record CityWithStats(City City, CityStats Stats);
 
+/// <summary>A municipality's standing in a period: its ratings given then, plus its all-time figures.</summary>
+public sealed record CityRankingEntry(City City, CityStats Stats, decimal PeriodAvgRating, int PeriodRatingsCount);
+
+/// <param name="City">The municipality, with its usual (all-time) counts.</param>
+/// <param name="PeriodAvgRating">Average of the ratings given to its locations within the period (what ranks it).</param>
+/// <param name="PeriodRatingsCount">How many ratings that average is made of.</param>
+public sealed record CityRankingResponse(CityResponse City, decimal PeriodAvgRating, int PeriodRatingsCount);
+
 public sealed record CityDetailExtras(CityTopLocationResponse? TopLocation, IReadOnlyList<CityLocalityResponse> Localities);

@@ -41,6 +41,15 @@ public class CitiesController(
         return Ok(await cityService.SearchAsync(query, cancellationToken));
     }
 
+    // Declared before "{slug}"; a literal segment wins over the route parameter anyway.
+    [OutputCache(PolicyName = PublicCaching.CitiesPolicy)]
+    [HttpGet("ranking")]
+    public async Task<ActionResult<IReadOnlyList<CityRankingResponse>>> GetRanking(
+        [FromQuery] RankingPeriod period = RankingPeriod.All,
+        [FromQuery] int limit = 20,
+        CancellationToken cancellationToken = default) =>
+        Ok(await cityService.GetRankingAsync(period, Math.Clamp(limit, 1, 50), cancellationToken));
+
     [OutputCache(PolicyName = PublicCaching.CitiesPolicy)]
     [HttpGet("{slug}")]
     public async Task<ActionResult<CityDetailResponse>> GetBySlug(string slug, CancellationToken cancellationToken) =>

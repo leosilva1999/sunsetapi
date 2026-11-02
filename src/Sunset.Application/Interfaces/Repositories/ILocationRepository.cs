@@ -36,6 +36,9 @@ public interface ILocationRepository
     Task<CursorPagedResult<LocationWithDistance>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default);
     Task AddAsync(Location location, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Location>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>The ranking narrowed to a place (see <see cref="RankingFilter"/>).</summary>
+    Task<IReadOnlyList<Location>> GetRankingAsync(RankingPeriod period, int limit, RankingFilter filter, CancellationToken cancellationToken = default);
     Task<Rating?> GetRatingAsync(Guid userId, Guid locationId, CancellationToken cancellationToken = default);
     Task AddRatingAsync(Rating rating, CancellationToken cancellationToken = default);
     Task RemoveRatingAsync(Rating rating, CancellationToken cancellationToken = default);
