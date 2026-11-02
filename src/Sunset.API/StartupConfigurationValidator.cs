@@ -50,6 +50,15 @@ public static class StartupConfigurationValidator
         else if (serviceKey.Length < 32)
             problems.Add("Service:ApiKey is too short (at least 32 characters; generate one with: openssl rand -base64 32).");
 
+        // Both optional (empty = the site / IndexNow are simply not notified), but a half-set pair or a malformed key
+        // would fail silently later, so they are checked here when present.
+        var revalidateSecret = configuration["Frontend:RevalidateSecret"];
+        if (!string.IsNullOrWhiteSpace(revalidateSecret) && revalidateSecret.Length < 16)
+            problems.Add("Frontend:RevalidateSecret is too short (at least 16 characters; env var Frontend__RevalidateSecret).");
+        var indexNowKey = configuration["IndexNow:Key"];
+        if (!string.IsNullOrWhiteSpace(indexNowKey) && !System.Text.RegularExpressions.Regex.IsMatch(indexNowKey, "^[A-Za-z0-9-]{8,128}$"))
+            problems.Add("IndexNow:Key must be 8-128 characters: letters, digits and hyphens (env var IndexNow__Key).");
+
         Require(configuration, problems, "ConnectionStrings:DefaultConnection", "ConnectionStrings__DefaultConnection");
         Require(configuration, problems, "Frontend:BaseUrl", "Frontend__BaseUrl");
 

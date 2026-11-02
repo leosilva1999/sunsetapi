@@ -203,6 +203,16 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   Render → salto interno; com 1 o "cliente" seria um IP 10.x que muda a cada requisição). Sem isso todos os limitadores por IP (Search, Reports, PasswordReset,
   ChangePassword) dividiam um balde só. `GET /health/client-ip` mostra como a API vê a requisição (para conferir o limite
   em produção). Há CI em `.github/workflows/ci.yml` (build + testes unitários + de integração, o runner tem Docker).
+- **Avisar o site (revalidação + IndexNow)**: `ISiteNotifier.Enqueue` (Application) é fire-and-forget: fila `Channel` em
+  memória (256, descarta o mais antigo) → `SiteNotifierWorker` espera ~2 s, junta o que chegou (união das tags, caminhos
+  distintos) → `SiteNotificationSender` faz `POST {Frontend:BaseUrl}/api/revalidate` com `X-Revalidate-Secret`
+  (`{paths, tags}`) e, para páginas **novas**, o ping do IndexNow. 2 tentativas, falha só logada (nunca o segredo), nunca
+  derruba a requisição. Gancho único: `OutputCacheInvalidator` — **toda** invalidação do cache da API também avisa o
+  site (só tags); `InvalidateAsync(tags, SiteChange, ct)` acrescenta os caminhos exatos (`SitePages.ForLocation`) e
+  `Index=true` onde a página é nova: criar e restaurar local (foto nova só revalida). Sem `Frontend:RevalidateSecret`
+  e sem `IndexNow:Key` o notificador é no-op. Rotas do site assumidas: `/locations/{slug}` e `/cidades/{slug}`
+  (`SitePages`). Testes em `SiteNotificationTests` (sem banco). O site precisa implementar `/api/revalidate` e servir
+  `/{chave}.txt`.
 - **Tamanho da foto**: `Photo.Width/Height` (`int?`, ambos ou nenhum), preenchidos em `POST /photos` por
   `IUploadedImageSanitizer.SanitizeAndMeasureAsync` (o `SanitizeAsync` do avatar segue igual): `ImageDimensionReader` lê o
   cabeçalho do arquivo **já limpo** (SOF do JPEG / IHDR do PNG), sem decodificar. JPEG com orientação EXIF 5–8 tem

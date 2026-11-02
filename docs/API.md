@@ -50,6 +50,8 @@ these are the diffs to check:
   made through the API show up at once), `GET /locations` and `GET /cities` without `q`/`lat`/`lng` no longer
   count against the search limit, and the site's server can send `X-Service-Key` for a bucket of its own — see
   [Caching and rate limits](#caching-and-rate-limits).
+- **The API now tells the site when data changes** (on-demand revalidation + IndexNow) — the site must implement
+  `POST /api/revalidate` and host the IndexNow key file; see [Site notifications](#site-notifications).
 - **`PhotoResponse.width` / `height`** (`int|null`): the image's pixel size **as displayed** (a portrait phone shot
   stored sideways is already swapped), read from the file on `POST /photos`. Use them to reserve the space (no layout
   jump) and for `ImageObject` JSON-LD. `null` on photos uploaded before this change — treat as unknown.
@@ -300,6 +302,35 @@ search, reports, password reset and password change; now each visitor has their 
   trusted proxies sit in front of the API; raise it only after checking this endpoint. **On Render it is `3`**
   (measured in production: Cloudflare → Render load balancer → an internal hop, so the visitor's address is the
   third entry from the right; anything further left is client-supplied and ignored).
+
+### <a id="site-notifications"></a>Site notifications (what the site must implement)
+
+When public data changes (a location, rating or photo is created/removed, a location is restored, merged, moved or
+re-tied to a city, a user's content is hidden) the API **calls the site**, so pages refresh at once instead of waiting
+for their revalidation window. Fire-and-forget: it never delays or fails the request that caused the change.
+
+**`POST {Frontend:BaseUrl}/api/revalidate`** (the site's route), header `X-Revalidate-Secret: <secret>`, JSON body:
+
+```json
+{ "paths": ["/locations/praia-do-rosa-imbituba-sc", "/cidades/imbituba-sc"], "tags": ["locations", "photos", "cities"] }
+```
+
+- `tags` — which groups of API data changed: `locations` (search/ranking/detail), `photos` (feed and photo lists),
+  `cities` (city lists/pages, counts, covers). Always present; call `revalidateTag` for each (tag your API `fetch`es
+  with the group they read).
+- `paths` — the exact pages, **when the API knows them** (a new/restored location, a new photo): the location's
+  `/locations/{slug}` and, if its city was at hand, `/cidades/{slug}`. May be empty; the tags still cover everything.
+  Call `revalidatePath` for each. Paths use the site's routes; ignore any you don't serve.
+- Validate the secret (constant-time compare) and answer `2xx`. Anything else is retried once, then dropped (logged).
+- Notifications are **batched**: a burst of changes arrives as one call (≈2 s window), tags merged, paths de-duplicated.
+
+**IndexNow.** For pages that are *new* (a created or restored location and its city) the API also pings
+`https://api.indexnow.org/indexnow` with `{ host, key, keyLocation: "{site}/{key}.txt", urlList: [...] }`. The site must
+serve the key file at `/{key}.txt` (its content is the key). Changes to existing pages are not pushed (the sitemap's
+`lastModified` covers them).
+
+**Configuration** (both optional; empty = off, which is the case in development and tests): `Frontend__RevalidateSecret`
+(≥ 16 chars, the same value in the site's server environment) and `IndexNow__Key` (8–128 chars: letters, digits, hyphens).
 
 ### <a id="caching-and-rate-limits"></a>Caching and rate limits
 

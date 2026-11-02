@@ -11,6 +11,7 @@ using Sunset.Infrastructure.ExternalServices;
 using Sunset.Infrastructure.Persistence;
 using Sunset.Infrastructure.Persistence.Repositories;
 using Sunset.Infrastructure.Security;
+using Sunset.Infrastructure.SiteNotifications;
 using Sunset.Infrastructure.Storage;
 
 namespace Sunset.Infrastructure;
@@ -33,6 +34,15 @@ public static class DependencyInjection
         services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.SectionName));
         services.Configure<HostingerMailOptions>(configuration.GetSection(HostingerMailOptions.SectionName));
         services.Configure<FrontendOptions>(configuration.GetSection(FrontendOptions.SectionName));
+        services.Configure<RevalidationOptions>(configuration.GetSection(RevalidationOptions.SectionName));
+        services.Configure<IndexNowOptions>(configuration.GetSection(IndexNowOptions.SectionName));
+
+        // Tells the public site (revalidation) and IndexNow when something it shows changes; fire-and-forget.
+        services.AddHttpClient(SiteNotificationSender.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
+        services.AddSingleton<SiteNotifier>();
+        services.AddSingleton<ISiteNotifier>(sp => sp.GetRequiredService<SiteNotifier>());
+        services.AddSingleton<SiteNotificationSender>();
+        services.AddHostedService<SiteNotifierWorker>();
 
         services.AddHttpContextAccessor();
         services.AddMemoryCache();

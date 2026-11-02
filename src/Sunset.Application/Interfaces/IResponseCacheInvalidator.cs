@@ -26,4 +26,15 @@ public enum ResponseCacheTag
 public interface IResponseCacheInvalidator
 {
     Task InvalidateAsync(ResponseCacheTag tags, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Same, and tells the site which pages changed (revalidation) and, when <see cref="SiteChange.Index"/> is set,
+    /// that they are new or newly visible (IndexNow). Used where the exact pages are at hand.
+    /// </summary>
+    Task InvalidateAsync(ResponseCacheTag tags, SiteChange change, CancellationToken cancellationToken = default);
 }
+
+/// <summary>Pages of the public site touched by a change.</summary>
+/// <param name="Paths">Site paths ("/locations/praia-do-rosa-imbituba-sc", "/cidades/imbituba-sc").</param>
+/// <param name="Index">True when the pages are new or have come back, so search engines should hear about them.</param>
+public sealed record SiteChange(IReadOnlyCollection<string> Paths, bool Index = false);

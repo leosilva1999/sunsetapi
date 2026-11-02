@@ -60,10 +60,11 @@ public class PhotoService(
 
         var photo = new Photo(userId, request.LocationId, request.ImageUrl, request.Caption, size.Width, size.Height);
         await photoRepository.AddAsync(photo, cancellationToken);
-        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.All, cancellationToken);
 
         var created = await photoRepository.GetByIdAsync(photo.Id, cancellationToken)
             ?? throw new NotFoundException("Photo not found.");
+        // The location page gains a photo: refresh it (the photo itself has no page of its own on the site).
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.All, SitePages.ForLocation(created.Location, indexable: false), cancellationToken);
 
         return created.ToResponse();
     }

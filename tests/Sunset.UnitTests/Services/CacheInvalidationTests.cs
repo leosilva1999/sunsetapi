@@ -39,11 +39,15 @@ public class LocationCacheInvalidationTests
     {
         var order = new List<string>();
         _locations.Setup(r => r.AddAsync(It.IsAny<Location>(), default)).Callback(() => order.Add("save")).Returns(Task.CompletedTask);
-        _cache.Setup(c => c.InvalidateAsync(LocationsAndCities, default)).Callback(() => order.Add("evict")).Returns(Task.CompletedTask);
+        SiteChange? told = null;
+        _cache.Setup(c => c.InvalidateAsync(LocationsAndCities, It.IsAny<SiteChange>(), default))
+            .Callback((ResponseCacheTag _, SiteChange change, CancellationToken _) => { order.Add("evict"); told = change; }).Returns(Task.CompletedTask);
 
-        await _sut.CreateAsync(Guid.NewGuid(), new CreateLocationRequest("Praia", -28, -48, "Imbituba"));
+        var created = await _sut.CreateAsync(Guid.NewGuid(), new CreateLocationRequest("Praia", -28, -48, "Imbituba"));
 
         Assert.Equal(["save", "evict"], order);
+        Assert.True(told!.Index);                                  // a new page: search engines should hear about it
+        Assert.Contains($"/locations/{created.Slug}", told.Paths);
     }
 
     [Fact]
@@ -107,7 +111,7 @@ public class PhotoCacheInvalidationTests
         var order = new List<string>();
         _photos.Setup(r => r.AddAsync(It.IsAny<Photo>(), default)).Callback(() => order.Add("save")).Returns(Task.CompletedTask);
         _photos.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync(PhotoOf(user, location));
-        _cache.Setup(c => c.InvalidateAsync(ResponseCacheTag.All, default)).Callback(() => order.Add("evict")).Returns(Task.CompletedTask);
+        _cache.Setup(c => c.InvalidateAsync(ResponseCacheTag.All, It.IsAny<SiteChange>(), default)).Callback(() => order.Add("evict")).Returns(Task.CompletedTask);
 
         await _sut.CreateAsync(user.Id, new CreatePhotoRequest(location.Id, "https://x/p.jpg", null));
 
@@ -194,7 +198,8 @@ public class ModerationCacheInvalidationTests
         var target = Visible();
         await _sut.MergeLocationsAsync(moderator, source.Id, new MergeLocationsRequest(target.Id));
 
-        _cache.Verify(c => c.InvalidateAsync(ResponseCacheTag.All, default), Times.Exactly(3));
+        _cache.Verify(c => c.InvalidateAsync(ResponseCacheTag.All, default), Times.Exactly(2));   // delete and merge
+        _cache.Verify(c => c.InvalidateAsync(ResponseCacheTag.All, It.Is<SiteChange>(ch => ch.Index), default), Times.Once);   // restore: back in the index
     }
 
     [Fact]

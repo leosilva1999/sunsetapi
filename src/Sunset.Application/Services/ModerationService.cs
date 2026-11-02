@@ -156,7 +156,7 @@ public class ModerationService(
         await locationRepository.SaveChangesAsync(cancellationToken);
         var photosRestored = await photoRepository.RestoreAllByLocationAsync(locationId, deletedAt, cancellationToken);
 
-        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.All, cancellationToken);
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.All, SitePages.ForLocation(location, indexable: true), cancellationToken);
         await moderationActionRepository.AddAsync(
             new ModerationAction(moderatorId, ModerationActionType.LocationRestored, $"Location:{locationId}",
                 $"{location.Name} ({location.City}); {photosRestored} photo(s) restored"),

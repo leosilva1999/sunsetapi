@@ -58,9 +58,22 @@ public static class PublicCaching
 }
 
 /// <summary>Evicts by tag. A failure is logged and swallowed: the time-to-live bounds the staleness anyway.</summary>
-public sealed class OutputCacheInvalidator(IOutputCacheStore store, ILogger<OutputCacheInvalidator> logger) : IResponseCacheInvalidator
+public sealed class OutputCacheInvalidator(IOutputCacheStore store, ISiteNotifier siteNotifier, ILogger<OutputCacheInvalidator> logger) : IResponseCacheInvalidator
 {
-    public async Task InvalidateAsync(ResponseCacheTag tags, CancellationToken cancellationToken = default)
+    public Task InvalidateAsync(ResponseCacheTag tags, SiteChange change, CancellationToken cancellationToken = default)
+    {
+        siteNotifier.Enqueue(tags, change);
+        return EvictAsync(tags, cancellationToken);
+    }
+
+    public Task InvalidateAsync(ResponseCacheTag tags, CancellationToken cancellationToken = default)
+    {
+        // The site's own cached pages go stale on exactly the same changes as this API's cache.
+        siteNotifier.Enqueue(tags);
+        return EvictAsync(tags, cancellationToken);
+    }
+
+    private async Task EvictAsync(ResponseCacheTag tags, CancellationToken cancellationToken)
     {
         try
         {

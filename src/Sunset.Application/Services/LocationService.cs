@@ -87,7 +87,8 @@ public class LocationService(
         location.AssignSlug(slug);
 
         await locationRepository.AddAsync(location, cancellationToken);
-        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.Locations | ResponseCacheTag.Cities, cancellationToken);
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.Locations | ResponseCacheTag.Cities,
+            SitePages.ForLocation(location, indexable: true), cancellationToken);
 
         return location.ToResponse();
     }
