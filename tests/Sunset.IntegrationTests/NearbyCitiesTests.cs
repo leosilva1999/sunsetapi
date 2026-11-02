@@ -25,7 +25,7 @@ public class NearbyCitiesTests(SunsetApiFactory factory) : IntegrationTestBase(f
             db.Cities.Add(town);
             await db.SaveChangesAsync();
             var village = new City(CityKind.Locality, $"Praia{tag}", $"Praia{tag}", null, $"praia{tag}", "XX", "ZN", $"praia{tag}-vila{tag}-zn", "test", null, null, town.Id, lat + 0.009, lng, "UTC", 0);   // ~1 km
-            var faraway = new City(CityKind.Municipality, $"Longe{tag}", $"Longe{tag}", null, $"longe{tag}", "XX", "ZN", $"longe{tag}-zn", "test", null, null, null, lat + 3, lng, "UTC", 0);   // ~330 km
+            var faraway = new City(CityKind.Municipality, $"Longe{tag}", $"Longe{tag}", null, $"longe{tag}", "XX", "ZN", $"longe{tag}-zn", "test", null, null, null, lat + 1.5, lng, "UTC", 0);   // ~167 km: past the 150 km warning, inside the widest (250 km) search
             db.Cities.AddRange(village, faraway);
             await db.SaveChangesAsync();
             return (lat, lng, town, village, faraway);
@@ -74,7 +74,7 @@ public class NearbyCitiesTests(SunsetApiFactory factory) : IntegrationTestBase(f
 
         Assert.False(near.ChosenCity!.FarAway);
         Assert.True(far.ChosenCity!.FarAway);
-        Assert.InRange(far.ChosenCity.DistanceKm, 300, 360);
+        Assert.InRange(far.ChosenCity.DistanceKm, 160, 175);
     }
 
     [Fact]
