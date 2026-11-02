@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Sunset.Domain.Enums;
+
 namespace Sunset.Application.DTOs.Locations;
 
 /// <param name="Slug">The public URL key, assigned at registration and never changed ("praia-do-rosa-imbituba-sc").</param>
@@ -24,7 +27,9 @@ public sealed record LocationResponse(
     int RatingsCount = 0,
     int PhotosCount = 0,
     string? CoverImageUrl = null,
-    string? Slug = null);
+    string? Slug = null,
+    string? Description = null,
+    [property: JsonConverter(typeof(JsonStringEnumConverter))] LocationCategory? Category = null);
 
 /// <summary>Counts and cover of one location, computed from its ratings and visible photos.</summary>
 public sealed record LocationStats(int RatingsCount, int PhotosCount, string? CoverImageUrl)

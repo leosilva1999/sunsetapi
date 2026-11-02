@@ -15,5 +15,6 @@ public enum ModerationActionType
     LocationCoordinatesChanged,
     UserAnonymized,
     LocationMerged,
-    LocationCityChanged
+    LocationCityChanged,
+    LocationDetailsChanged
 }

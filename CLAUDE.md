@@ -203,6 +203,12 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   Render → salto interno; com 1 o "cliente" seria um IP 10.x que muda a cada requisição). Sem isso todos os limitadores por IP (Search, Reports, PasswordReset,
   ChangePassword) dividiam um balde só. `GET /health/client-ip` mostra como a API vê a requisição (para conferir o limite
   em produção). Há CI em `.github/workflows/ci.yml` (build + testes unitários + de integração, o runner tem Docker).
+- **Descrição e categoria do local**: `Location.Description` (≤1000, texto puro, aparado; vazio = nenhum) e
+  `Location.Category` (`LocationCategory?`: `Beach|Viewpoint|Mountain|Lake|River|Urban|Other`, nulo = não informado), ambos
+  opcionais em `POST /locations` e expostos em `LocationResponse`. Edição só por moderação:
+  `PATCH /moderation/locations/{id}` (parcial: campo ausente fica como está; `description: ""` limpa), auditada como
+  `LocationDetailsChanged` **sem copiar o texto** (só os tamanhos / a categoria antiga→nova). Nome e cidade seguem sem
+  edição (o slug é imutável). Edição pelo próprio autor fica para depois (`CreatedByUserId` já existe).
 - **Avisar o site (revalidação + IndexNow)**: `ISiteNotifier.Enqueue` (Application) é fire-and-forget: fila `Channel` em
   memória (256, descarta o mais antigo) → `SiteNotifierWorker` espera ~2 s, junta o que chegou (união das tags, caminhos
   distintos) → `SiteNotificationSender` faz `POST {Frontend:BaseUrl}/api/revalidate` com `X-Revalidate-Secret`

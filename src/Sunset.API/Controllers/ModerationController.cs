@@ -21,6 +21,7 @@ public class ModerationController(
     IValidator<BanUserRequest> banUserValidator,
     IValidator<AnonymizeUserRequest> anonymizeUserValidator,
     IValidator<UpdateLocationCoordinatesRequest> updateCoordinatesValidator,
+    IValidator<UpdateLocationDetailsRequest> updateDetailsValidator,
     IValidator<MergeLocationsRequest> mergeLocationsValidator,
     IValidator<ChangeLocationCityRequest> changeLocationCityValidator,
     ICurrentUserService currentUserService) : ControllerBase
@@ -96,6 +97,14 @@ public class ModerationController(
     {
         await changeLocationCityValidator.ValidateAndThrowAsync(request, cancellationToken);
         var response = await moderationService.ChangeLocationCityAsync(RequireUserId(), id, request, cancellationToken);
+        return Ok(response);
+    }
+
+    [HttpPatch("locations/{id:guid}")]
+    public async Task<ActionResult<LocationResponse>> UpdateLocationDetails(Guid id, UpdateLocationDetailsRequest request, CancellationToken cancellationToken)
+    {
+        await updateDetailsValidator.ValidateAndThrowAsync(request, cancellationToken);
+        var response = await moderationService.UpdateLocationDetailsAsync(RequireUserId(), id, request, cancellationToken);
         return Ok(response);
     }
 

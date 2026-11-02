@@ -400,6 +400,45 @@ public class ModerationServiceTests
     }
 
     [Fact]
+    public async Task UpdateLocationDetailsAsync_ChangesOnlyWhatWasSent_AndAuditsWithoutCopyingTheText()
+    {
+        var location = new Location("Praia do Rosa", -28.1, -48.6, "Imbituba", description: "Antiga", category: LocationCategory.Beach);
+        _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
+
+        var response = await _sut.UpdateLocationDetailsAsync(Guid.NewGuid(), location.Id, new UpdateLocationDetailsRequest(Description: "  Pôr do sol sobre a lagoa.  "));
+
+        Assert.Equal("Pôr do sol sobre a lagoa.", response.Description);
+        Assert.Equal(LocationCategory.Beach, response.Category);   // not sent: untouched
+        _moderationActionRepository.Verify(
+            r => r.AddAsync(It.Is<ModerationAction>(a =>
+                a.ActionType == ModerationActionType.LocationDetailsChanged &&
+                a.Notes == "description 6 -> 25 chars"), default),
+            Times.Once);
+        _cache.Verify(c => c.InvalidateAsync(ResponseCacheTag.Locations | ResponseCacheTag.Cities, It.IsAny<SiteChange>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateLocationDetailsAsync_AnEmptyDescriptionClears_AndACategoryReplaces()
+    {
+        var location = new Location("Praia", -28, -48, "Imbituba", description: "Algo");
+        _locationRepository.Setup(r => r.GetByIdAsync(location.Id, default)).ReturnsAsync(location);
+
+        var response = await _sut.UpdateLocationDetailsAsync(Guid.NewGuid(), location.Id, new UpdateLocationDetailsRequest("", LocationCategory.Viewpoint));
+
+        Assert.Null(response.Description);
+        Assert.Equal(LocationCategory.Viewpoint, response.Category);
+    }
+
+    [Fact]
+    public async Task UpdateLocationDetailsAsync_WithUnknownLocation_ThrowsNotFoundException()
+    {
+        _locationRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Location?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _sut.UpdateLocationDetailsAsync(Guid.NewGuid(), Guid.NewGuid(), new UpdateLocationDetailsRequest("x")));
+    }
+
+    [Fact]
     public async Task AnonymizeUserAsync_ErasesAccountBansRevokesAuditsAndNotifiesOriginalAddress()
     {
         var admin = SetupUser(UserRole.Admin);

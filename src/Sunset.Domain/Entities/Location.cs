@@ -10,6 +10,13 @@ public class Location : BaseEntity
     public string City { get; private set; } = null!;
     public decimal AvgRating { get; private set; }
 
+    public const int DescriptionMaxLength = 1000;
+
+    /// <summary>A few sentences about the place (plain text), written when it is registered or by moderation.</summary>
+    public string? Description { get; private set; }
+
+    public LocationCategory? Category { get; private set; }
+
     /// <summary>
     /// Public URL key ("praia-do-rosa-imbituba-sc"). Assigned ONCE when the location is registered and never
     /// changed (it ends up in indexed URLs), not even when a moderator later ties the location to a city or the
@@ -40,7 +47,7 @@ public class Location : BaseEntity
 
     private Location() { }
 
-    public Location(string name, double latitude, double longitude, string city, Guid? createdByUserId = null)
+    public Location(string name, double latitude, double longitude, string city, Guid? createdByUserId = null, string? description = null, LocationCategory? category = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Name is required.", nameof(name));
@@ -54,6 +61,30 @@ public class Location : BaseEntity
         City = city;
         AvgRating = 0;
         CreatedByUserId = createdByUserId;
+        SetDescription(description);
+        SetCategory(category);
+    }
+
+    /// <summary>Trims the text; blank clears it.</summary>
+    public void SetDescription(string? description)
+    {
+        var text = description?.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            Description = null;
+            return;
+        }
+
+        if (text.Length > DescriptionMaxLength)
+            throw new ArgumentException($"Description is at most {DescriptionMaxLength} characters.", nameof(description));
+        Description = text;
+    }
+
+    public void SetCategory(LocationCategory? category)
+    {
+        if (category is { } value && !Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(nameof(category), "Unknown category.");
+        Category = category;
     }
 
     /// <summary>

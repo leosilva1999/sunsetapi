@@ -297,6 +297,9 @@ namespace Sunset.Infrastructure.Migrations
                         .HasPrecision(3, 2)
                         .HasColumnType("numeric(3,2)");
 
+                    b.Property<int?>("Category")
+                        .HasColumnType("integer");
+
                     b.Property<string>("City")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -316,6 +319,10 @@ namespace Sunset.Infrastructure.Migrations
 
                     b.Property<Guid?>("DeletedByUserId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<double>("Latitude")
                         .HasColumnType("double precision");

@@ -50,6 +50,10 @@ these are the diffs to check:
   made through the API show up at once), `GET /locations` and `GET /cities` without `q`/`lat`/`lng` no longer
   count against the search limit, and the site's server can send `X-Service-Key` for a bucket of its own — see
   [Caching and rate limits](#caching-and-rate-limits).
+- **`LocationResponse.description` / `category`** (both `null` when not given): `description` is up to 1000 characters of
+  plain text; `category` is one of `Beach`, `Viewpoint`, `Mountain`, `Lake`, `River`, `Urban`, `Other` (sent as a string).
+  Both are optional on `POST /locations`; moderators edit them with `PATCH /moderation/locations/{id}` — see
+  [Locations](#locations) and [Moderation](#moderation).
 - **The API now tells the site when data changes** (on-demand revalidation + IndexNow) — the site must implement
   `POST /api/revalidate` and host the IndexNow key file; see [Site notifications](#site-notifications).
 - **`PhotoResponse.width` / `height`** (`int|null`): the image's pixel size **as displayed** (a portrait phone shot
@@ -684,7 +688,7 @@ is still what's returned per location). → plain array of `LocationResponse` (n
 
 ### `GET /locations/{idOrSlug}`
 `idOrSlug` is the location's GUID or its public slug (case-insensitive); anything else, or a removed location, is `404`.
-→ `{ "id", "name", "latitude", "longitude", "city", "avgRating", "createdAt", "distanceKm", "citySlug", "cityName", "state", "localityName", "localitySlug", "ratingsCount", "photosCount", "coverImageUrl", "slug" }`
+→ `{ "id", "name", "latitude", "longitude", "city", "avgRating", "createdAt", "distanceKm", "citySlug", "cityName", "state", "localityName", "localitySlug", "ratingsCount", "photosCount", "coverImageUrl", "slug", "description", "category" }`
 
 - `slug`: `{name}-{municipality slug}` (just the name when the location has no city), `-2`, `-3`... on a clash.
   **Immutable** — moving the pin to another city later does not change it — and a removed location's slug is never
@@ -707,10 +711,11 @@ Every endpoint that returns a location now also carries (all additive; nothing w
   (ties: the most recent); `null` without photos. `ratingsCount` is the number Google needs for `aggregateRating`.
 
 ### 🔒 `POST /locations`
-Body: `{ "name": string, "latitude": number, "longitude": number, "cityId"?: guid, "city"?: string }` — **send `cityId`**
+Body: `{ "name": string, "latitude": number, "longitude": number, "cityId"?: guid, "city"?: string, "description"?: string, "category"?: string }` — **send `cityId`**
 (from `GET /cities`, `includeEmpty=true`); `city` (free text) remains accepted for clients that haven't moved yet.
 Validation: `name` required ≤150 · **`cityId` or `city` is required** · `city` ≤100 · `latitude` ∈ [-90,90] ·
-`longitude` ∈ [-180,180].
+`longitude` ∈ [-180,180] · `description` ≤1000 characters (plain text) · `category` ∈ `Beach|Viewpoint|Mountain|Lake|River|Urban|Other`
+(an unknown value → `400`). Both are optional and come back, `null` when not given, in every `LocationResponse`.
 → `201 Created` with `LocationResponse`, `Location` header pointing to `GET /locations/{id}`.
 
 - **`cityId`** may be a **municipality** or a **locality**: a locality is stored as the location's locality and its
@@ -1053,6 +1058,13 @@ Body: `{ "cityId": guid }` — a municipality, or a locality (then its municipal
 the updated `LocationResponse`. Rewrites the legacy `city` text to the canonical `"{Name} - {State}"`. `400`
 (`errors.CityId`) for an unknown/inactive city, `404` for an unknown location, `403` for a regular user. Audited as
 `LocationCityChanged` (`notes`: `"{before} -> {after}"`, plus `(locality: …)`). One click approves a suggestion.
+
+### 🔒🛡️ `PATCH /moderation/locations/{id}` (Moderator or Admin)
+Edits the location's text details. Body (partial — what you leave out stays as it is, and at least one is required):
+`{ "description"?: string, "category"?: "Beach"|"Viewpoint"|"Mountain"|"Lake"|"River"|"Urban"|"Other" }`. An empty
+`description` (`""`) clears it. → the updated `LocationResponse`. `404` for an unknown/deleted location, `400` for a too-long
+description / unknown category / empty body, `403` for a regular user. Audited (`LocationDetailsChanged`: sizes and the
+old → new category, never the text itself). The name and the city are **not** editable here (the slug is immutable).
 
 ### 🔒🛡️ `PATCH /moderation/locations/{id}/coordinates` (Moderator or Admin)
 Corrects a location's map pin. Body: `{ "latitude": number (-90..90), "longitude": number (-180..180) }`

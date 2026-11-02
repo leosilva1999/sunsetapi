@@ -31,6 +31,11 @@ public class LocationConfiguration : IEntityTypeConfiguration<Location>
         builder.HasIndex(l => l.Slug)
             .IsUnique();
 
+        builder.Property(l => l.Description)
+            .HasMaxLength(Location.DescriptionMaxLength);
+
+        builder.Property(l => l.Category);
+
         builder.Property(l => l.Latitude)
             .IsRequired();
 

@@ -75,7 +75,7 @@ public class LocationService(
         }
 
         var cityText = municipality is not null ? Location.CanonicalCityText(municipality) : request.City!.Trim();
-        var location = new Location(request.Name, request.Latitude, request.Longitude, cityText, userId);
+        var location = new Location(request.Name, request.Latitude, request.Longitude, cityText, userId, request.Description, request.Category);
         if (municipality is not null)
             location.ChangeCity(municipality, locality);
 

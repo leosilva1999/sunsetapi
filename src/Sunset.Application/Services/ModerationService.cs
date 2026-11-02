@@ -202,6 +202,37 @@ public class ModerationService(
         return await locationRepository.ToResponseAsync(target, cancellationToken: cancellationToken);
     }
 
+    public async Task<LocationResponse> UpdateLocationDetailsAsync(Guid moderatorId, Guid locationId, UpdateLocationDetailsRequest request, CancellationToken cancellationToken = default)
+    {
+        var location = await locationRepository.GetByIdAsync(locationId, cancellationToken)
+            ?? throw new NotFoundException("Location not found.");
+
+        // The audit line says WHAT changed without copying the text itself (it can be long).
+        var changes = new List<string>();
+        if (request.Description is not null)
+        {
+            var before = location.Description?.Length ?? 0;
+            location.SetDescription(request.Description);
+            changes.Add($"description {before} -> {location.Description?.Length ?? 0} chars");
+        }
+
+        if (request.Category is { } category)
+        {
+            changes.Add($"category {location.Category?.ToString() ?? "none"} -> {category}");
+            location.SetCategory(category);
+        }
+
+        await locationRepository.SaveChangesAsync(cancellationToken);
+
+        await cacheInvalidator.InvalidateAsync(ResponseCacheTag.Locations | ResponseCacheTag.Cities,
+            SitePages.ForLocation(location, indexable: false), cancellationToken);
+        await moderationActionRepository.AddAsync(
+            new ModerationAction(moderatorId, ModerationActionType.LocationDetailsChanged, $"Location:{locationId}", string.Join("; ", changes)),
+            cancellationToken);
+
+        return await locationRepository.ToResponseAsync(location, cancellationToken: cancellationToken);
+    }
+
     public async Task<LocationResponse> UpdateLocationCoordinatesAsync(Guid moderatorId, Guid locationId, UpdateLocationCoordinatesRequest request, CancellationToken cancellationToken = default)
     {
         var location = await locationRepository.GetByIdAsync(locationId, cancellationToken)

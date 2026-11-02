@@ -1,5 +1,6 @@
 using FluentValidation;
 using Sunset.Application.DTOs.Locations;
+using Sunset.Domain.Entities;
 
 namespace Sunset.Application.Validators.Locations;
 
@@ -24,6 +25,14 @@ public class CreateLocationRequestValidator : AbstractValidator<CreateLocationRe
         RuleFor(x => x.CityId)
             .NotEqual(Guid.Empty)
             .When(x => x.CityId is not null);
+
+        RuleFor(x => x.Description)
+            .MaximumLength(Location.DescriptionMaxLength)
+            .When(x => x.Description is not null);
+
+        RuleFor(x => x.Category)
+            .IsInEnum()
+            .When(x => x.Category is not null);
 
         RuleFor(x => x.Latitude)
             .InclusiveBetween(-90, 90);
