@@ -15,7 +15,7 @@ public class LocationDetailsTests(SunsetApiFactory factory) : IntegrationTestBas
         var (_, client) = await RegisterAndAuthenticateAsync();
 
         var created = await client.PostAsJsonAsync("/api/v1/locations",
-            new CreateLocationRequest($"Detalhes {Guid.NewGuid():N}"[..20], -20, -40, "Vitoria", Description: "Vista aberta para o mar.", Category: LocationCategory.Viewpoint));
+            new CreateLocationRequest($"Detalhes {Guid.NewGuid():N}"[..20], -20, -40, "Vitoria", Description: "Vista aberta para o mar.", Category: LocationCategory.Viewpoint, ConfirmDistinct: true));
         created.EnsureSuccessStatusCode();
         var body = await created.Content.ReadAsStringAsync();
         Assert.Contains("\"category\":\"Viewpoint\"", body);   // by name, not by number
@@ -31,7 +31,7 @@ public class LocationDetailsTests(SunsetApiFactory factory) : IntegrationTestBas
     {
         var (_, client) = await RegisterAndAuthenticateAsync();
 
-        var tooLong = await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest("Longa", -20, -40, "Vitoria", Description: new string('a', 1001)));
+        var tooLong = await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest("Longa", -20, -40, "Vitoria", Description: new string('a', 1001), ConfirmDistinct: true));
         var unknown = await client.PostAsync("/api/v1/locations", JsonContent.Create(new { name = "Estranha", latitude = -20, longitude = -40, city = "Vitoria", category = "Spaceport" }));
 
         Assert.Equal(HttpStatusCode.BadRequest, tooLong.StatusCode);

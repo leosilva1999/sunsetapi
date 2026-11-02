@@ -29,7 +29,7 @@ public class PublicCacheAndRateLimitTests(SunsetApiFactory factory) : Integratio
     private async Task<(LocationResponse Location, string Name)> NewLocationAsync(HttpClient client)
     {
         var name = $"Cache {Tag()}";
-        var created = (await (await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest(name, -20, -40, "Florianopolis")))
+        var created = (await (await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest(name, -20, -40, "Florianopolis", ConfirmDistinct: true)))
             .Content.ReadFromJsonAsync<LocationResponse>())!;
         return (created, name);
     }
@@ -153,7 +153,7 @@ public class PublicCacheAndRateLimitTests(SunsetApiFactory factory) : Integratio
             return created;
         });
         var (_, owner) = await RegisterAndAuthenticateAsync();
-        var created = (await (await owner.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest($"Local {tag}", -20, -40, CityId: city.Id))).Content.ReadFromJsonAsync<LocationResponse>())!;
+        var created = (await (await owner.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest($"Local {tag}", -20, -40, CityId: city.Id, ConfirmDistinct: true))).Content.ReadFromJsonAsync<LocationResponse>())!;
 
         var before = (await (await GetAsync($"/api/v1/cities/{city.Slug}", cache: true)).Content.ReadFromJsonAsync<CityDetailResponse>())!;
         Assert.Equal(0, before.PhotosCount);

@@ -24,7 +24,7 @@ public class NearbyAndRankingTests(SunsetApiFactory factory) : IntegrationTestBa
         });
 
     private static async Task<LocationResponse> CreateAsync(HttpClient client, string name, City city, double lat, double lng) =>
-        (await (await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest(name, lat, lng, CityId: city.Id))).Content.ReadFromJsonAsync<LocationResponse>())!;
+        (await (await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest(name, lat, lng, CityId: city.Id, ConfirmDistinct: true))).Content.ReadFromJsonAsync<LocationResponse>())!;
 
     private static async Task RateAsync(HttpClient client, Guid locationId, int score) =>
         (await client.PostAsJsonAsync($"/api/v1/locations/{locationId}/ratings", new CreateRatingRequest(score, null))).EnsureSuccessStatusCode();

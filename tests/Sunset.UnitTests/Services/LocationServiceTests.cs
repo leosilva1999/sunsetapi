@@ -24,6 +24,7 @@ public class LocationServiceTests
         // No cities in the catalog and no counts to report: the plain location behaviour is what these tests cover.
         _cityRepository.Setup(r => r.FindMunicipalitiesAsync(It.IsAny<string>(), It.IsAny<string?>(), default)).ReturnsAsync([]);
         _cityRepository.Setup(r => r.FindLocalitiesAsync(It.IsAny<string>(), It.IsAny<string?>(), default)).ReturnsAsync([]);
+        _locationRepository.Setup(r => r.FindDuplicateCandidateIdsAsync(It.IsAny<string>(), It.IsAny<double>(), It.IsAny<double>(), It.IsAny<Guid?>(), It.IsAny<double>(), It.IsAny<int>(), default)).ReturnsAsync([]);   // nothing similar registered yet
         _locationRepository.Setup(r => r.GetStatsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
             .ReturnsAsync(new Dictionary<Guid, Sunset.Application.DTOs.Locations.LocationStats>());
 

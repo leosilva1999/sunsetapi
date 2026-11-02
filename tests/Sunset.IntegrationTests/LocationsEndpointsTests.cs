@@ -28,7 +28,7 @@ public class LocationsEndpointsTests(SunsetApiFactory factory) : IntegrationTest
     {
         var client = CreateClient();
 
-        var response = await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest("Praia", -27, -48, "Floripa"));
+        var response = await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest("Praia", -27, -48, "Floripa", ConfirmDistinct: true));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -38,7 +38,7 @@ public class LocationsEndpointsTests(SunsetApiFactory factory) : IntegrationTest
     {
         var (_, client) = await RegisterAndAuthenticateAsync();
 
-        var response = await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest("Praia", 999, -48, "Floripa"));
+        var response = await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest("Praia", 999, -48, "Floripa", ConfirmDistinct: true));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -134,7 +134,7 @@ public class LocationsEndpointsTests(SunsetApiFactory factory) : IntegrationTest
     // up there) so rows from other tests sharing the container can't leak into the radius.
     private static async Task<LocationResponse> CreateLocationAtAsync(HttpClient client, double lat, double lng)
     {
-        var response = await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest($"Nearby {Guid.NewGuid():N}", lat, lng, "Nearby City"));
+        var response = await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest($"Nearby {Guid.NewGuid():N}", lat, lng, "Nearby City", ConfirmDistinct: true));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<LocationResponse>())!;
     }
@@ -258,7 +258,7 @@ public class LocationsEndpointsTests(SunsetApiFactory factory) : IntegrationTest
 
     private static async Task<LocationResponse> CreateNamedLocationAtAsync(HttpClient client, string name, double lat, double lng)
     {
-        var response = await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest(name, lat, lng, "Nearby City"));
+        var response = await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest(name, lat, lng, "Nearby City", ConfirmDistinct: true));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<LocationResponse>())!;
     }

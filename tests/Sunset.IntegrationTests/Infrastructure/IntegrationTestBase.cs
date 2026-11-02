@@ -43,7 +43,7 @@ public abstract class IntegrationTestBase(SunsetApiFactory factory)
 
     protected static async Task<LocationResponse> CreateLocationAsync(HttpClient authenticatedClient, string? name = null)
     {
-        var request = new CreateLocationRequest(name ?? $"Location {Guid.NewGuid():N}", -27.6, -48.5, "Florianopolis");
+        var request = new CreateLocationRequest(name ?? $"Location {Guid.NewGuid():N}", -27.6, -48.5, "Florianopolis", ConfirmDistinct: true);
         var response = await authenticatedClient.PostAsJsonAsync("/api/v1/locations", request);
         response.EnsureSuccessStatusCode();
 

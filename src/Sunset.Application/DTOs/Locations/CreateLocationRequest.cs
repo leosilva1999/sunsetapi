@@ -7,6 +7,7 @@ namespace Sunset.Application.DTOs.Locations;
 /// <param name="CityId">A catalog city (GET /cities): a municipality, or a locality inside one. Preferred.</param>
 /// <param name="Description">Optional, up to 1000 characters of plain text.</param>
 /// <param name="Category">Optional kind of place; sent as its name ("Beach", "Viewpoint"...).</param>
+/// <param name="ConfirmDistinct">Send true after a 409 listing similar locations, to say "it really is a different place".</param>
 public sealed record CreateLocationRequest(
     string Name,
     double Latitude,
@@ -14,4 +15,5 @@ public sealed record CreateLocationRequest(
     string? City = null,
     Guid? CityId = null,
     string? Description = null,
-    [property: JsonConverter(typeof(JsonStringEnumConverter))] LocationCategory? Category = null);
+    [property: JsonConverter(typeof(JsonStringEnumConverter))] LocationCategory? Category = null,
+    bool ConfirmDistinct = false);

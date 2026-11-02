@@ -44,7 +44,7 @@ public class LocationCityEndpointsTests(SunsetApiFactory factory) : IntegrationT
         var city = await SeedAsync($"Cidade{tag}", "ZA");
         var (auth, user) = await RegisterAndAuthenticateAsync();
 
-        var location = await CreatedAsync(await PostAsync(user, new CreateLocationRequest($"Praia {tag}", -20, -40, "texto antigo", city.Id)));
+        var location = await CreatedAsync(await PostAsync(user, new CreateLocationRequest($"Praia {tag}", -20, -40, "texto antigo", city.Id, ConfirmDistinct: true)));
 
         Assert.Equal($"Cidade{tag} - ZA", location.City);
         Assert.Equal(city.Slug, location.CitySlug);
@@ -67,7 +67,7 @@ public class LocationCityEndpointsTests(SunsetApiFactory factory) : IntegrationT
         var locality = await SeedAsync($"Vila{tag}", "ZB", kind: CityKind.Locality, parentId: city.Id);
         var (_, user) = await RegisterAndAuthenticateAsync();
 
-        var location = await CreatedAsync(await PostAsync(user, new CreateLocationRequest($"Ponto {tag}", -20, -40, CityId: locality.Id)));
+        var location = await CreatedAsync(await PostAsync(user, new CreateLocationRequest($"Ponto {tag}", -20, -40, CityId: locality.Id, ConfirmDistinct: true)));
 
         Assert.Equal(city.Slug, location.CitySlug);
         Assert.Equal(locality.Slug, location.LocalitySlug);
@@ -89,8 +89,8 @@ public class LocationCityEndpointsTests(SunsetApiFactory factory) : IntegrationT
         });
         var (_, user) = await RegisterAndAuthenticateAsync();
 
-        var unknown = await PostAsync(user, new CreateLocationRequest("X", -20, -40, CityId: Guid.NewGuid()));
-        var inactive = await PostAsync(user, new CreateLocationRequest("X", -20, -40, CityId: gone.Id));
+        var unknown = await PostAsync(user, new CreateLocationRequest("X", -20, -40, CityId: Guid.NewGuid(), ConfirmDistinct: true));
+        var inactive = await PostAsync(user, new CreateLocationRequest("X", -20, -40, CityId: gone.Id, ConfirmDistinct: true));
 
         Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
         Assert.Contains("CityId", await unknown.Content.ReadAsStringAsync());
@@ -102,7 +102,7 @@ public class LocationCityEndpointsTests(SunsetApiFactory factory) : IntegrationT
     {
         var (_, user) = await RegisterAndAuthenticateAsync();
 
-        var response = await PostAsync(user, new CreateLocationRequest("Praia", -20, -40));
+        var response = await PostAsync(user, new CreateLocationRequest("Praia", -20, -40, ConfirmDistinct: true));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -114,8 +114,8 @@ public class LocationCityEndpointsTests(SunsetApiFactory factory) : IntegrationT
         var city = await SeedAsync($"Unica{tag}", "ZD");
         var (_, user) = await RegisterAndAuthenticateAsync();
 
-        var withState = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("A", -20, -40, $"unica{tag} - zd")));
-        var withoutState = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("B", -20, -40, $"Única{tag}")));
+        var withState = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("A", -20, -40, $"unica{tag} - zd", ConfirmDistinct: true)));
+        var withoutState = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("B", -20, -40, $"Única{tag}", ConfirmDistinct: true)));
 
         Assert.All(new[] { withState, withoutState }, l =>
         {
@@ -132,8 +132,8 @@ public class LocationCityEndpointsTests(SunsetApiFactory factory) : IntegrationT
         await SeedAsync($"Homonima{tag}", "ZF", lat: -40, lng: -70);
         var (_, user) = await RegisterAndAuthenticateAsync();
 
-        var near = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("Perto", 10.1, 10.1, $"Homonima{tag}")));
-        var lost = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("Perdido", -20, -20, $"Homonima{tag}")));
+        var near = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("Perto", 10.1, 10.1, $"Homonima{tag}", ConfirmDistinct: true)));
+        var lost = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("Perdido", -20, -20, $"Homonima{tag}", ConfirmDistinct: true)));
 
         Assert.Equal(north.Slug, near.CitySlug);          // clearly nearer to one of them
         Assert.Null(lost.CitySlug);                        // near neither: a person decides
@@ -148,7 +148,7 @@ public class LocationCityEndpointsTests(SunsetApiFactory factory) : IntegrationT
         await SeedAsync($"Filha{tag}", "ZG", lat: 5, lng: 5, kind: CityKind.Locality, parentId: city.Id);
         var (_, user) = await RegisterAndAuthenticateAsync();
 
-        var location = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("Ponto", 5, 5, $"Filha{tag} - ZG")));
+        var location = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("Ponto", 5, 5, $"Filha{tag} - ZG", ConfirmDistinct: true)));
 
         Assert.Null(location.CitySlug);
         Assert.Equal($"Filha{tag} - ZG", location.City);
@@ -159,7 +159,7 @@ public class LocationCityEndpointsTests(SunsetApiFactory factory) : IntegrationT
     {
         var (_, user) = await RegisterAndAuthenticateAsync();
 
-        var location = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("Praia", -27, -48, "Floripa")));
+        var location = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("Praia", -27, -48, "Floripa", ConfirmDistinct: true)));
 
         Assert.Equal("Floripa", location.City);
         Assert.Null(location.CitySlug);
@@ -173,7 +173,7 @@ public class LocationCityEndpointsTests(SunsetApiFactory factory) : IntegrationT
         var tag = Tag();
         var city = await SeedAsync($"Leitura{tag}", "ZH");
         var (_, user) = await RegisterAndAuthenticateAsync();
-        var created = await CreatedAsync(await PostAsync(user, new CreateLocationRequest($"Praia {tag}", -20, -40, CityId: city.Id)));
+        var created = await CreatedAsync(await PostAsync(user, new CreateLocationRequest($"Praia {tag}", -20, -40, CityId: city.Id, ConfirmDistinct: true)));
         var photo = await CreatePhotoAsync(user, created.Id);
         var (_, rater) = await RegisterAndAuthenticateAsync();
         (await rater.PostAsJsonAsync($"/api/v1/locations/{created.Id}/ratings", new CreateRatingRequest(4))).EnsureSuccessStatusCode();
@@ -203,9 +203,9 @@ public class LocationCityEndpointsTests(SunsetApiFactory factory) : IntegrationT
         var parent = await SeedAsync($"Dona{tag}", "ZK", lat: 3, lng: 3);
         var village = await SeedAsync($"Aldeia{tag}", "ZK", lat: 3, lng: 3, kind: CityKind.Locality, parentId: parent.Id);
 
-        var none = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("N", 0, 0, $"Nada{tag}")));
-        var ambiguous = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("A", -20, -20, $"Casa{tag}")));
-        var viaLocality = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("L", 3, 3, $"Aldeia{tag} - ZK")));
+        var none = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("N", 0, 0, $"Nada{tag}", ConfirmDistinct: true)));
+        var ambiguous = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("A", -20, -20, $"Casa{tag}", ConfirmDistinct: true)));
+        var viaLocality = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("L", 3, 3, $"Aldeia{tag} - ZK", ConfirmDistinct: true)));
         var (_, moderator) = await RegisterAndAuthenticateWithRoleAsync(UserRole.Moderator);
 
         var queue = (await moderator.GetFromJsonAsync<List<UnresolvedCityLocationResponse>>("/api/v1/moderation/locations/unresolved-city?limit=50"))!;
@@ -241,7 +241,7 @@ public class LocationCityEndpointsTests(SunsetApiFactory factory) : IntegrationT
         var city = await SeedAsync($"Destino{tag}", "ZL");
         var village = await SeedAsync($"Vila{tag}", "ZL", kind: CityKind.Locality, parentId: city.Id);
         var (_, user) = await RegisterAndAuthenticateAsync();
-        var location = await CreatedAsync(await PostAsync(user, new CreateLocationRequest($"Ponto {tag}", 0, 0, $"Texto{tag}")));
+        var location = await CreatedAsync(await PostAsync(user, new CreateLocationRequest($"Ponto {tag}", 0, 0, $"Texto{tag}", ConfirmDistinct: true)));
         var (_, moderator) = await RegisterAndAuthenticateWithRoleAsync(UserRole.Moderator);
 
         var toMunicipality = await moderator.PatchAsJsonAsync($"/api/v1/moderation/locations/{location.Id}/city", new ChangeLocationCityRequest(city.Id));
@@ -272,7 +272,7 @@ public class LocationCityEndpointsTests(SunsetApiFactory factory) : IntegrationT
         var tag = Tag();
         var city = await SeedAsync($"Alvo{tag}", "ZM");
         var (_, user) = await RegisterAndAuthenticateAsync();
-        var location = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("P", 0, 0, $"X{tag}")));
+        var location = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("P", 0, 0, $"X{tag}", ConfirmDistinct: true)));
         var (_, moderator) = await RegisterAndAuthenticateWithRoleAsync(UserRole.Moderator);
 
         Assert.Equal(HttpStatusCode.Forbidden,
@@ -292,8 +292,8 @@ public class LocationCityEndpointsTests(SunsetApiFactory factory) : IntegrationT
         var first = await SeedAsync($"Primeira{tag}", "ZN");
         var second = await SeedAsync($"Segunda{tag}", "ZN");
         var (_, user) = await RegisterAndAuthenticateAsync();
-        var duplicate = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("Dup", -20, -40, CityId: first.Id)));
-        var target = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("Alvo", -20, -40, CityId: second.Id)));
+        var duplicate = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("Dup", -20, -40, CityId: first.Id, ConfirmDistinct: true)));
+        var target = await CreatedAsync(await PostAsync(user, new CreateLocationRequest("Alvo", -20, -40, CityId: second.Id, ConfirmDistinct: true)));
         var (_, moderator) = await RegisterAndAuthenticateWithRoleAsync(UserRole.Moderator);
 
         var merged = (await (await moderator.PostAsJsonAsync($"/api/v1/moderation/locations/{duplicate.Id}/merge", new MergeLocationsRequest(target.Id)))

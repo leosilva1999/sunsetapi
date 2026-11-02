@@ -51,6 +51,10 @@ public class LocationService(
         return location ?? throw new NotFoundException("Location not found.");
     }
 
+    /// <summary>Another location this close (150 m) to a new one is probably the same place.</summary>
+    public const double DuplicateRadiusKm = 0.15;
+    public const int MaxDuplicateCandidates = 5;
+
     public const int MaxNearbyLimit = 12;
     public const double DefaultNearbyRadiusKm = 30;
 
@@ -91,6 +95,19 @@ public class LocationService(
             var resolution = await cityResolver.ResolveAsync(request.City, request.Latitude, request.Longitude, cancellationToken);
             if (resolution.Kind == CityResolutionKind.Linked)
                 municipality = resolution.Municipality;
+        }
+
+        // Is this place already registered? Said once, with the candidates; "confirmDistinct" lets the person go on.
+        if (!request.ConfirmDistinct)
+        {
+            var candidates = await locationRepository.FindDuplicateCandidateIdsAsync(
+                NameNormalizer.Normalize(request.Name), request.Latitude, request.Longitude, municipality?.Id,
+                DuplicateRadiusKm, MaxDuplicateCandidates, cancellationToken);
+
+            if (candidates.Count > 0)
+                throw new ConflictException(
+                    "A similar location is already registered. Check the candidates, or resend with 'confirmDistinct': true if this is a different place.",
+                    new Dictionary<string, string[]> { ["candidateLocationIds"] = candidates.Select(id => id.ToString()).ToArray() });
         }
 
         var cityText = municipality is not null ? Location.CanonicalCityText(municipality) : request.City!.Trim();

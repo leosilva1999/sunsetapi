@@ -23,7 +23,7 @@ public class LocationSlugAndSitemapTests(SunsetApiFactory factory) : Integration
         });
 
     private static async Task<LocationResponse> CreateAsync(HttpClient client, string name, Guid cityId) =>
-        (await (await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest(name, -20, -40, CityId: cityId)))
+        (await (await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest(name, -20, -40, CityId: cityId, ConfirmDistinct: true)))
             .Content.ReadFromJsonAsync<LocationResponse>())!;
 
     [Fact]

@@ -55,7 +55,7 @@ public class CitiesEndpointsTests(SunsetApiFactory factory) : IntegrationTestBas
     private static async Task<LocationResponse> PostLocationAsync(HttpClient client, Guid cityId, string? name = null)
     {
         var response = await client.PostAsJsonAsync("/api/v1/locations",
-            new CreateLocationRequest(name ?? $"Local {Tag()}", -20, -40, CityId: cityId));
+            new CreateLocationRequest(name ?? $"Local {Tag()}", -20, -40, CityId: cityId, ConfirmDistinct: true));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<LocationResponse>())!;
     }

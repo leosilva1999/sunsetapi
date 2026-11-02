@@ -11,7 +11,7 @@ public class PhotoDimensionsTests(SunsetApiFactory factory) : IntegrationTestBas
     public async Task ANewPhoto_ComesBackWithItsSize_OnCreateDetailAndFeed()
     {
         var (_, client) = await RegisterAndAuthenticateAsync();
-        var location = (await (await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest($"Tamanho {Guid.NewGuid():N}"[..20], -20, -40, "Vitoria")))
+        var location = (await (await client.PostAsJsonAsync("/api/v1/locations", new CreateLocationRequest($"Tamanho {Guid.NewGuid():N}"[..20], -20, -40, "Vitoria", ConfirmDistinct: true)))
             .Content.ReadFromJsonAsync<LocationResponse>())!;
 
         var created = await CreatePhotoAsync(client, location.Id);   // the suite's fake storage reports 1200 x 800

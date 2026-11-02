@@ -212,6 +212,7 @@ public class LocationServiceCityTests
 
     public LocationServiceCityTests()
     {
+        _locations.Setup(r => r.FindDuplicateCandidateIdsAsync(It.IsAny<string>(), It.IsAny<double>(), It.IsAny<double>(), It.IsAny<Guid?>(), It.IsAny<double>(), It.IsAny<int>(), default)).ReturnsAsync([]);   // nothing similar registered yet
         _locations.Setup(r => r.GetStatsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
             .ReturnsAsync(new Dictionary<Guid, LocationStats>());
         _sut = new LocationService(_locations.Object, new Mock<IPhotoRepository>().Object, new Mock<ISunsetTimeService>().Object,
@@ -315,6 +316,7 @@ public class LocationServiceCityTests
         var location = new Location("Praia do Rosa", -28.13, -48.65, "Imbituba - SC");
         _locations.Setup(r => r.SearchAsync(It.IsAny<LocationSearchQuery>(), default))
             .ReturnsAsync(new Sunset.Application.Common.CursorPagedResult<LocationWithDistance>([new LocationWithDistance(location, 1.234)], null, false));
+        _locations.Setup(r => r.FindDuplicateCandidateIdsAsync(It.IsAny<string>(), It.IsAny<double>(), It.IsAny<double>(), It.IsAny<Guid?>(), It.IsAny<double>(), It.IsAny<int>(), default)).ReturnsAsync([]);   // nothing similar registered yet
         _locations.Setup(r => r.GetStatsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
             .ReturnsAsync(new Dictionary<Guid, LocationStats> { [location.Id] = new(3, 7, "https://img/cover.jpg") });
 

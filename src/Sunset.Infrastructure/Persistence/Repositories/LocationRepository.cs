@@ -83,6 +83,54 @@ public class LocationRepository(SunsetDbContext context) : ILocationRepository
             page.Select(l => new LocationWithDistance(l, null)).ToList(), nextCursor, hasMore);
     }
 
+    public async Task<IReadOnlyList<Guid>> FindDuplicateCandidateIdsAsync(
+        string normalizedName, double latitude, double longitude, Guid? municipalityId, double radiusKm, int max, CancellationToken cancellationToken = default)
+    {
+        const double EarthRadiusKm = 6371.0;
+        const double DegToRad = Math.PI / 180.0;
+        var latRad = latitude * DegToRad;
+        var cosLat = Math.Cos(latRad);
+        var latDelta = radiusKm / 111.0;
+        var lngDelta = radiusKm / (111.0 * Math.Max(cosLat, 0.01));
+
+        // By position: bounding box first (the (Latitude, Longitude) index), exact Haversine second.
+        var byDistance = await context.Locations.AsNoTracking()
+            .Where(l => l.Latitude >= latitude - latDelta && l.Latitude <= latitude + latDelta
+                        && l.Longitude >= longitude - lngDelta && l.Longitude <= longitude + lngDelta)
+            .Select(l => new
+            {
+                l.Id,
+                DistanceKm = 2 * EarthRadiusKm * Math.Asin(Math.Min(1.0, Math.Sqrt(
+                    Math.Sin((l.Latitude * DegToRad - latRad) / 2) * Math.Sin((l.Latitude * DegToRad - latRad) / 2) +
+                    cosLat * Math.Cos(l.Latitude * DegToRad) *
+                    Math.Sin((l.Longitude - longitude) * DegToRad / 2) * Math.Sin((l.Longitude - longitude) * DegToRad / 2))))
+            })
+            .Where(x => x.DistanceKm <= radiusKm)
+            .OrderBy(x => x.DistanceKm).ThenBy(x => x.Id)
+            .Take(max)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        var found = new List<Guid>(byDistance);
+
+        // By name inside the municipality: compared in memory with the same normalization the slugs and the
+        // search use (accents and punctuation ignored), so "Praia do Rosa" and "praia  do rosa!" are one name.
+        if (municipalityId is { } cityId && normalizedName.Length > 0 && found.Count < max)
+        {
+            var names = await context.Locations.AsNoTracking()
+                .Where(l => l.CityId == cityId)
+                .Select(l => new { l.Id, l.Name })
+                .ToListAsync(cancellationToken);
+
+            found.AddRange(names
+                .Where(n => NameNormalizer.Normalize(n.Name) == normalizedName && !found.Contains(n.Id))
+                .Select(n => n.Id)
+                .Take(max - found.Count));
+        }
+
+        return found;
+    }
+
     // "Near me": exact great-circle (Haversine) distance computed in SQL, filtered to the radius and
     // ordered nearest-first. A bounding box runs first so the (Latitude, Longitude) index can discard
     // most rows before the trigonometry is evaluated; the Haversine check then trims the box's corners.

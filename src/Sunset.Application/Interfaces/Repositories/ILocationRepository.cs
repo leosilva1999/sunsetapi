@@ -33,6 +33,13 @@ public interface ILocationRepository
     /// <summary>Visible locations not tied to a catalog city yet, newest first (the moderation review queue).</summary>
     Task<IReadOnlyList<Location>> GetWithoutCityAsync(int limit, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Visible locations that may be the same place as one being registered: within <paramref name="radiusKm"/> of the
+    /// point (nearest first), then — when the municipality is known — those of that municipality whose normalized
+    /// name equals <paramref name="normalizedName"/>. Distinct ids, at most <paramref name="max"/>.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> FindDuplicateCandidateIdsAsync(string normalizedName, double latitude, double longitude, Guid? municipalityId, double radiusKm, int max, CancellationToken cancellationToken = default);
+
     Task<CursorPagedResult<LocationWithDistance>> SearchAsync(LocationSearchQuery query, CancellationToken cancellationToken = default);
     Task AddAsync(Location location, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Location>> GetRankingAsync(RankingPeriod period, int limit, CancellationToken cancellationToken = default);

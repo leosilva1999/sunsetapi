@@ -203,6 +203,13 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   Render → salto interno; com 1 o "cliente" seria um IP 10.x que muda a cada requisição). Sem isso todos os limitadores por IP (Search, Reports, PasswordReset,
   ChangePassword) dividiam um balde só. `GET /health/client-ip` mostra como a API vê a requisição (para conferir o limite
   em produção). Há CI em `.github/workflows/ci.yml` (build + testes unitários + de integração, o runner tem Docker).
+- **Duplicados no cadastro**: `POST /locations` consulta `ILocationRepository.FindDuplicateCandidateIdsAsync` antes de gravar:
+  locais **visíveis** a ≤150 m do pino (qualquer cidade; caixa envolvente + Haversine, mais próximo primeiro) e, com município
+  conhecido, os do mesmo município com o **mesmo nome normalizado** (`NameNormalizer`, comparado em memória). Havendo candidatos
+  (máx. 5) → `ConflictException` (agora com `Errors`) → **409** `{ title, errors: { candidateLocationIds }, requestId }`; o
+  cliente reenvia com `confirmDistinct: true`, que pula a checagem (sempre respeitado — é consultivo; a mesclagem da moderação cobre o que
+  escapar). **Mudança de contrato**: o site precisa tratar o 409 (nos testes de integração todo `CreateLocationRequest` que cria
+  locais próximos/homônimos passa `ConfirmDistinct: true`).
 - **Locais próximos e rankings por região**: `GET /locations/{idOrSlug}/nearby` reaproveita `SearchAsync` ("perto de mim") centrado
   no local, pedindo `limit+1` porque o próprio local aparece a distância 0 e é descartado (raio padrão 30 km, máx. 200; limite
   máx. 12). `GET /locations/ranking?citySlug=&state=`: `RankingFilter` (município → `CityId`, localidade → `LocalityId`, estado →

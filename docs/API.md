@@ -50,6 +50,8 @@ these are the diffs to check:
   made through the API show up at once), `GET /locations` and `GET /cities` without `q`/`lat`/`lng` no longer
   count against the search limit, and the site's server can send `X-Service-Key` for a bucket of its own — see
   [Caching and rate limits](#caching-and-rate-limits).
+- **⚠ `POST /locations` can now answer `409` (possible duplicate)** — send `"confirmDistinct": true` to go ahead; the
+  site must handle it. See [Duplicate check](#location-duplicates).
 - **Nearby locations and regional rankings**: `GET /locations/{idOrSlug}/nearby` (other places around a location),
   `GET /locations/ranking` now also takes `citySlug` and `state`, and `GET /cities/ranking` ranks municipalities by the
   ratings they received in a period — see [Locations](#locations) and [Cities](#cities).
@@ -734,6 +736,24 @@ Optional filters (both additive; combined they apply together, AND):
 - `state` — a state code such as `SC` (case-insensitive); anything that is not letters (≤ 10) → `400`.
 Removed locations never take a place in the ranking, filtered or not.
 
+#### <a id="location-duplicates"></a>Duplicate check on `POST /locations`
+Before saving, the API looks for **visible** locations that may be the same place:
+- any location **within 150 m** of the pin, in any city; and
+- when the location's municipality is known, any location **of that municipality with the same name** (accents, case,
+  punctuation and extra spaces ignored: "Praia do Pôr" = "praia  do por!").
+
+If it finds some, nothing is saved and the answer is `409`:
+
+```json
+{ "title": "A similar location is already registered. ...", "errors": { "candidateLocationIds": ["guid", "guid"] }, "requestId": "..." }
+```
+
+`candidateLocationIds` are at most 5, the ones by position first (nearest first), then the ones by name. Show them to the
+person (`GET /locations/{id}` for each) and either send them to the existing location or **resend the same body with
+`"confirmDistinct": true`**, which skips the check and creates the location. Removed locations are never candidates.
+The check is advisory by design: `confirmDistinct` is always honoured, and duplicates that slip through can still be merged by
+moderation (`POST /moderation/locations/{id}/merge`).
+
 ### `GET /locations/{idOrSlug}/nearby?radiusKm=30&limit=12`
 Other locations within `radiusKm` of this one, **nearest first**, for the "other places nearby" block. The location itself is
 left out. `radiusKm` must be greater than 0 and at most 200 (default 30) → otherwise `400`; `limit` 1–12 (default 12).
@@ -772,6 +792,8 @@ Validation: `name` required ≤150 · **`cityId` or `city` is required** · `cit
 (an unknown value → `400`). Both are optional and come back, `null` when not given, in every `LocationResponse`.
 → `201 Created` with `LocationResponse`, `Location` header pointing to `GET /locations/{id}`.
 
+- **Duplicate check** — see [below](#location-duplicates). A location that looks like one already registered is answered
+  `409` until the client resends the same body with `"confirmDistinct": true`.
 - **`cityId`** may be a **municipality** or a **locality**: a locality is stored as the location's locality and its
   municipality (the parent) as the location's city. An unknown or inactive id → `400` (`errors.CityId`). When both
   `cityId` and `city` are sent, `cityId` wins and the text is ignored.

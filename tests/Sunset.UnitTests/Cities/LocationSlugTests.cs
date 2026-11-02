@@ -67,6 +67,7 @@ public class LocationSlugServiceTests
 
     public LocationSlugServiceTests()
     {
+        _locations.Setup(r => r.FindDuplicateCandidateIdsAsync(It.IsAny<string>(), It.IsAny<double>(), It.IsAny<double>(), It.IsAny<Guid?>(), It.IsAny<double>(), It.IsAny<int>(), default)).ReturnsAsync([]);   // nothing similar registered yet
         _locations.Setup(r => r.GetStatsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
             .ReturnsAsync(new Dictionary<Guid, LocationStats>());
         _sut = new LocationService(_locations.Object, new Mock<IPhotoRepository>().Object, new Mock<ISunsetTimeService>().Object,
