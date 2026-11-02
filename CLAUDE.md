@@ -203,6 +203,12 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   Render → salto interno; com 1 o "cliente" seria um IP 10.x que muda a cada requisição). Sem isso todos os limitadores por IP (Search, Reports, PasswordReset,
   ChangePassword) dividiam um balde só. `GET /health/client-ip` mostra como a API vê a requisição (para conferir o limite
   em produção). Há CI em `.github/workflows/ci.yml` (build + testes unitários + de integração, o runner tem Docker).
+- **Locais de lançamento (`tools/Sunset.LocationSeeder`)**: carga manual de uma lista curada (`data/launch-locations.json`, 25 locais
+  de pôr do sol de guias/rankings de viagem; coordenadas do OpenStreetMap conferidas contra o catálogo) pelo **próprio
+  `LocationService`** (slug, vínculo município/localidade e checagem de duplicados idênticos aos de um usuário). Simulação por padrão
+  (transação desfeita); `--apply` grava. Idempotente (o que já existe vira "duplicado" e é pulado) e aborta tudo se qualquer item tiver
+  problema. Os locais pertencem à conta admin (`CreatedByUserId`) e **não têm foto**: municípios com local ganham página, localidades só
+  quando surgir foto.
 - **Duplicados no cadastro**: `POST /locations` consulta `ILocationRepository.FindDuplicateCandidateIdsAsync` antes de gravar:
   locais **visíveis** a ≤150 m do pino (qualquer cidade; caixa envolvente + Haversine, mais próximo primeiro) e, com município
   conhecido, os do mesmo município com o **mesmo nome normalizado** (`NameNormalizer`, comparado em memória). Havendo candidatos

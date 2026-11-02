@@ -1,0 +1,202 @@
+{
+  "_comment": "Locais de lançamento, escolhidos por aparecerem repetidamente em guias e rankings de viagem como bons pontos de pôr do sol. Coordenadas do OpenStreetMap (Nominatim), conferidas contra o catálogo de cidades. Textos escritos para o Sunset (não copiados).",
+  "references": [
+    "https://www.quintoandar.com.br/guias/?p=2469482",
+    "https://www.quintoandar.com.br/guias/?p=2470672",
+    "https://catracalivre.com.br/viagem-livre/5-destinos-ver-por-do-sol-brasil/",
+    "https://catracalivre.com.br/viagem-livre/esta-cidade-no-ceara-tem-o-por-do-sol-mais-aplaudido-do-brasil/",
+    "https://www.opovo.com.br/noticias/economia/2022/08/04/jericoacoara-entre-os-melhores-lugares-do-mundo-para-ver-por-do-sol.html",
+    "https://www.lonelyplanet.com/articles/the-best-spots-to-catch-a-sunset-in-rio-de-janeiro",
+    "https://www.essemundoenosso.com.br/?p=27117",
+    "https://www.salvadordabahia.com/?p=26268",
+    "https://www.viajenaviagem.com/5-lugares-para-ver-o-por-do-sol-em-salvador/",
+    "https://www.bahianoticias.com.br/bnhall/noticia/3320-vamos-ver-o-por-do-sol-conheca-lugares-para-assistir-ao-entardecer-em-salvador",
+    "https://www.buenasdicas.com/gasometro-o-por-do-sol-mais-bonito-do-brasil-segundo-os-gauchos-3627/",
+    "https://www.correiobraziliense.com.br/cbradar/o-por-do-sol-mais-famoso-do-sul-do-pais-cai-sobre-o-guaiba-e-ilumina-a-chamine-de-117-metros-da-usina-do-gasometro/",
+    "https://www.nsctotal.com.br/?p=7166610",
+    "https://www.bemparana.com.br/noticia/pesquisa-aponta-as-cidades-preferidas-para-assistir-o-por-do-sol",
+    "https://curtamais.com.br/brasilia/2026/03/21/5-locais-incriveis-para-apreciar-o-por-do-sol-em-brasilia-2/",
+    "https://guia.melhoresdestinos.com.br/brasilia-por-do-sol.html",
+    "https://www.gazetasp.com.br/turismo/descubra-7-lugares-lindos-em-sao-paulo-para-ver-o-por-do-sol/1152776/",
+    "https://abcdoabc.com.br/melhores-lugares-por-do-sol-baixada-santista/",
+    "https://portalamazonia.com/amazonas/por-do-sol-de-milhoes-onde-apreciar-o-entardecer-em-manaus/",
+    "https://www.cvc.com.br/dicas-de-viagem/brasil/nordeste/pernambuco/por-do-sol-em-porto-de-galinhas/"
+  ],
+  "locations": [
+    {
+      "name": "Arpoador",
+      "category": "Viewpoint",
+      "latitude": -22.99039, "longitude": -43.19040,
+      "city": "rio-de-janeiro-rj",
+      "description": "Pedra que separa as praias de Ipanema e Copacabana. No fim da tarde, moradores e turistas se reúnem nas rochas para ver o sol se pôr, às vezes com aplausos. É o ponto mais tradicional do Rio para o entardecer."
+    },
+    {
+      "name": "Mureta da Urca",
+      "category": "Urban",
+      "latitude": -22.94855, "longitude": -43.16376,
+      "city": "rio-de-janeiro-rj", "locality": "urca-rio-de-janeiro-rj",
+      "description": "Mureta à beira da Baía de Guanabara, na Urca, onde os cariocas costumam se sentar no fim do dia para ver a luz mudar sobre a água com o Pão de Açúcar ao lado."
+    },
+    {
+      "name": "Pão de Açúcar",
+      "category": "Mountain",
+      "latitude": -22.94948, "longitude": -43.15615,
+      "city": "rio-de-janeiro-rj", "locality": "urca-rio-de-janeiro-rj",
+      "description": "Morro-símbolo do Rio. A vista do alto, no fim da tarde, é muito procurada para o pôr do sol: a cidade, a baía e o Cristo Redentor aparecem de uma só vez."
+    },
+    {
+      "name": "Praia de Geribá",
+      "category": "Beach",
+      "latitude": -22.78036, "longitude": -41.91362,
+      "city": "armacao-dos-buzios-rj",
+      "description": "Uma das praias de Búzios citadas em guias como ponto para acompanhar o pôr do sol, com o mar e os barcos ao fundo."
+    },
+    {
+      "name": "Orla Bardot",
+      "category": "Beach",
+      "latitude": -22.74601, "longitude": -41.88141,
+      "city": "armacao-dos-buzios-rj",
+      "description": "Calçadão à beira-mar no centro de Búzios, junto à Praia dos Ossos, um dos lugares mais famosos da cidade para o entardecer."
+    },
+    {
+      "name": "Praça do Pôr do Sol",
+      "category": "Urban",
+      "latitude": -23.55332, "longitude": -46.70349,
+      "city": "sao-paulo-sp",
+      "description": "Praça no Alto de Pinheiros, em São Paulo, que ganhou o nome por ser um dos lugares preferidos da cidade para ver o fim de tarde, com o céu aberto sobre os prédios."
+    },
+    {
+      "name": "Ponta da Praia",
+      "category": "Beach",
+      "latitude": -23.98559, "longitude": -46.30966,
+      "city": "santos-sp",
+      "description": "Extremo da orla de Santos, onde o porto e os morros formam a moldura do pôr do sol."
+    },
+    {
+      "name": "Mirante das Mangabeiras (Praça do Papa)",
+      "category": "Viewpoint",
+      "latitude": -19.95746, "longitude": -43.91460,
+      "city": "belo-horizonte-mg",
+      "description": "Mirante na região das Mangabeiras, em Belo Horizonte, com vista ampla da cidade e da Serra do Curral. Procurado no fim da tarde para ver o sol se pôr."
+    },
+    {
+      "name": "Orla de Santo Antônio de Lisboa",
+      "category": "Urban",
+      "latitude": -27.50615, "longitude": -48.51886,
+      "city": "florianopolis-sc", "locality": "santo-antonio-de-lisboa-florianopolis-sc",
+      "description": "Vila histórica na baía norte de Florianópolis, de águas calmas, bares e restaurantes na beira d'água. Seu pôr do sol é citado como um dos mais bonitos da ilha."
+    },
+    {
+      "name": "Mirante da Lagoa da Conceição",
+      "category": "Viewpoint",
+      "latitude": -27.60091, "longitude": -48.48130,
+      "city": "florianopolis-sc", "locality": "lagoa-da-conceicao-florianopolis-sc",
+      "description": "Mirante sobre a Lagoa da Conceição, cercada de morros. No fim da tarde reúne moradores, esportistas e turistas para ver o sol baixar."
+    },
+    {
+      "name": "Praia do Cacupé",
+      "category": "Beach",
+      "latitude": -27.54257, "longitude": -48.52454,
+      "city": "florianopolis-sc", "locality": "cacupe-florianopolis-sc",
+      "description": "Orla voltada para a baía norte de Florianópolis, apontada em guias como um bom lugar para apreciar o entardecer."
+    },
+    {
+      "name": "Usina do Gasômetro",
+      "category": "Urban",
+      "latitude": -30.03408, "longitude": -51.24109,
+      "city": "porto-alegre-rs",
+      "description": "O pôr do sol mais famoso do Sul do país: o sol desce sobre o Lago Guaíba, atrás da chaminé da antiga usina. O atracadouro e a orla enchem de gente no fim da tarde."
+    },
+    {
+      "name": "Pontão do Lago Sul",
+      "category": "Urban",
+      "latitude": -15.82553, "longitude": -47.87153,
+      "city": "brasilia-df",
+      "description": "Complexo de bares e restaurantes à beira do Lago Paranoá, em Brasília, com vista aberta para o pôr do sol."
+    },
+    {
+      "name": "Ponte JK",
+      "category": "Urban",
+      "latitude": -15.82378, "longitude": -47.82945,
+      "city": "brasilia-df",
+      "description": "Ponte sobre o Lago Paranoá, em Brasília, que serve de moldura para o entardecer; passeios de barco no fim da tarde passam por ela."
+    },
+    {
+      "name": "Torre de TV de Brasília",
+      "category": "Viewpoint",
+      "latitude": -15.79071, "longitude": -47.89297,
+      "city": "brasilia-df",
+      "description": "O mirante da torre dá uma vista de 360 graus da cidade e do céu aberto de Brasília, bom para acompanhar o fim da tarde."
+    },
+    {
+      "name": "Farol da Barra",
+      "category": "Viewpoint",
+      "latitude": -13.01033, "longitude": -38.53291,
+      "city": "salvador-ba",
+      "description": "Na entrada da Baía de Todos os Santos, é o lugar mais concorrido de Salvador para o pôr do sol, visto do gramado em volta do farol ou de dentro do mar."
+    },
+    {
+      "name": "Porto da Barra",
+      "category": "Beach",
+      "latitude": -13.00316, "longitude": -38.53285,
+      "city": "salvador-ba",
+      "description": "Praia de Salvador voltada para o oeste, uma das poucas do litoral brasileiro em que o sol se põe sobre o mar."
+    },
+    {
+      "name": "Ponta do Humaitá",
+      "category": "Viewpoint",
+      "latitude": -12.92858, "longitude": -38.51951,
+      "city": "salvador-ba",
+      "description": "Mirante no Monte Serrat com vista da Baía de Todos os Santos. Para muita gente, tem a melhor vista do pôr do sol da cidade."
+    },
+    {
+      "name": "Forte do Boldró",
+      "category": "Viewpoint",
+      "latitude": -3.846666, "longitude": -32.43144,
+      "city": "fernando-de-noronha-pe",
+      "description": "Fortim em Fernando de Noronha de onde se vê o sol cair no mar perto do Morro Dois Irmãos; um dos pontos mais famosos da ilha para o entardecer."
+    },
+    {
+      "name": "Duna do Pôr do Sol",
+      "category": "Other",
+      "latitude": -2.803591, "longitude": -40.51879,
+      "city": "jijoca-de-jericoacoara-ce", "locality": "jericoacoara-jijoca-de-jericoacoara-ce",
+      "description": "Duna ao lado da vila de Jericoacoara onde, por volta das 17h, visitantes do mundo todo se reúnem para o ritual do fim de tarde. A subida é curta."
+    },
+    {
+      "name": "Pedra Furada",
+      "category": "Other",
+      "latitude": -2.788482, "longitude": -40.49173,
+      "city": "jijoca-de-jericoacoara-ce", "locality": "jericoacoara-jijoca-de-jericoacoara-ce",
+      "description": "Arco de pedra sobre o mar a cerca de meia hora a pé da vila de Jericoacoara. Em julho o sol se alinha com o arco, formando um dos cartões-postais da região."
+    },
+    {
+      "name": "Mirante Dedo de Deus (Coqueirinho)",
+      "category": "Viewpoint",
+      "latitude": -7.323792, "longitude": -34.79916,
+      "city": "conde-pb",
+      "description": "Mirante com vista panorâmica da Praia de Coqueirinho, na Paraíba, apontado como um dos melhores pontos do estado para ver o pôr do sol."
+    },
+    {
+      "name": "Ponta do Cururu",
+      "category": "River",
+      "latitude": -2.474569, "longitude": -54.97574,
+      "city": "santarem-pa", "locality": "alter-do-chao-santarem-pa",
+      "description": "Língua de areia que avança pelo Rio Tapajós, em frente a Alter do Chão. É o ponto mais citado da região para o pôr do sol, geralmente alcançado de catraia (barquinho típico)."
+    },
+    {
+      "name": "Praia da Ponta Negra",
+      "category": "River",
+      "latitude": -3.063869, "longitude": -60.10161,
+      "city": "manaus-am",
+      "description": "Orla de Manaus à beira do Rio Negro, com calçadão e anfiteatro. O ponto alto da visita é o pôr do sol dourado sobre o rio."
+    },
+    {
+      "name": "Dunas do Jalapão",
+      "category": "Other",
+      "latitude": -10.55529, "longitude": -46.65684,
+      "city": "mateiros-to",
+      "description": "Dunas de cerca de 40 metros no Parque Estadual do Jalapão, no Tocantins. A cor da areia se intensifica no entardecer, e o local é muito procurado por quem busca o pôr do sol."
+    }
+  ]
+}
