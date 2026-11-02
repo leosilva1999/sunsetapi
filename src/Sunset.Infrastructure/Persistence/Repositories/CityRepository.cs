@@ -178,6 +178,53 @@ public class CityRepository(SunsetDbContext context) : ICityRepository
                 .ToList());
     }
 
+    // Exact Haversine in SQL (like the locations' "near me"), behind a bounding box that the (Latitude, Longitude)
+    // index can use. The box is widened until enough places are inside the radius: everything within the radius
+    // is in the box, so once `limit` places qualify they are the true nearest.
+    private static readonly double[] NearestRadiiKm = [15, 60, 250];
+
+    public async Task<IReadOnlyList<NearbyCityResponse>> GetNearestAsync(double latitude, double longitude, int limit, CancellationToken cancellationToken = default)
+    {
+        const double EarthRadiusKm = 6371.0;
+        const double DegToRad = Math.PI / 180.0;
+        var latRad = latitude * DegToRad;
+        var cosLat = Math.Cos(latRad);
+
+        List<NearbyCityResponse> found = [];
+        foreach (var radiusKm in NearestRadiiKm)
+        {
+            var latDelta = radiusKm / 111.0;
+            var lngDelta = radiusKm / (111.0 * Math.Max(cosLat, 0.01));
+
+            var rows = await context.Cities.AsNoTracking()
+                .Where(c => c.IsActive
+                            && c.Latitude >= latitude - latDelta && c.Latitude <= latitude + latDelta
+                            && c.Longitude >= longitude - lngDelta && c.Longitude <= longitude + lngDelta)
+                .Select(c => new
+                {
+                    c.Id, c.Kind, c.Name, c.AdminArea, c.Slug,
+                    ParentId = (Guid?)c.ParentCity!.Id, ParentName = c.ParentCity.Name, ParentState = c.ParentCity.AdminArea, ParentSlug = c.ParentCity.Slug,
+                    DistanceKm = 2 * EarthRadiusKm * Math.Asin(Math.Min(1.0, Math.Sqrt(
+                        Math.Sin((c.Latitude * DegToRad - latRad) / 2) * Math.Sin((c.Latitude * DegToRad - latRad) / 2) +
+                        cosLat * Math.Cos(c.Latitude * DegToRad) *
+                        Math.Sin((c.Longitude - longitude) * DegToRad / 2) * Math.Sin((c.Longitude - longitude) * DegToRad / 2))))
+                })
+                .Where(x => x.DistanceKm <= radiusKm)
+                .OrderBy(x => x.DistanceKm).ThenBy(x => x.Id)
+                .Take(limit)
+                .ToListAsync(cancellationToken);
+
+            found = rows.Select(x => new NearbyCityResponse(
+                x.Id, x.Kind, x.Name, x.AdminArea, x.Slug, Math.Round(x.DistanceKm, 2),
+                x.ParentId is { } pid ? new CityParentResponse(pid, x.ParentName!, x.ParentState!, x.ParentSlug!) : null)).ToList();
+
+            if (found.Count >= limit)
+                break;
+        }
+
+        return found;
+    }
+
     // Both Find* are TRACKED on purpose: what they return is assigned to a new Location's navigation, and
     // adding that Location would otherwise mark an untracked (detached) City in its graph as Added and try
     // to INSERT a city that already exists.

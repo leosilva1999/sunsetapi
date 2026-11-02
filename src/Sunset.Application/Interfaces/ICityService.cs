@@ -20,6 +20,12 @@ public interface ICityService
 
     Task<CursorPagedResult<PhotoResponse>> GetPhotosAsync(string slug, PhotoSortOption sort, string? cursor, int limit, Guid? currentUserId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Places nearest to a pin, to suggest a city while a location is being registered; with a chosen city, also how
+    /// far the pin is from it. An unknown/inactive chosen city is a 404.
+    /// </summary>
+    Task<NearbyCitiesResponse> GetNearbyAsync(NearbyCitiesQuery query, CancellationToken cancellationToken = default);
+
     /// <summary>Sunset time at the city's centre.</summary>
     Task<SunsetTimeResponse> GetSunsetTimeAsync(string slug, DateOnly? date, CancellationToken cancellationToken = default);
 }

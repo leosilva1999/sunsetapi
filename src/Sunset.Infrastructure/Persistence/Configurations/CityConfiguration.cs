@@ -36,6 +36,9 @@ public class CityConfiguration : IEntityTypeConfiguration<City>
 
         builder.HasIndex(c => new { c.Country, c.AdminArea, c.Name });
         builder.HasIndex(c => c.ParentCityId);
+
+        // Backs the bounding-box prefilter of "the places nearest to a pin" (GET /geo/cities).
+        builder.HasIndex(c => new { c.Latitude, c.Longitude });
         builder.HasIndex(c => c.NationalCode);
 
         // Backs the most-populous-first order of the autocomplete.

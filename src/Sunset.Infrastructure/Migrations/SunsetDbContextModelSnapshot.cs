@@ -117,6 +117,8 @@ namespace Sunset.Infrastructure.Migrations
                     b.HasIndex("Slug")
                         .IsUnique();
 
+                    b.HasIndex("Latitude", "Longitude");
+
                     b.HasIndex("Source", "ExternalId")
                         .IsUnique();
 

@@ -24,6 +24,23 @@ public class CityService(
         return new CursorPagedResult<CityResponse>(items, page.NextCursor, page.HasMore);
     }
 
+    public async Task<NearbyCitiesResponse> GetNearbyAsync(NearbyCitiesQuery query, CancellationToken cancellationToken = default)
+    {
+        var (lat, lng) = (query.Latitude!.Value, query.Longitude!.Value);
+        var items = await cityRepository.GetNearestAsync(lat, lng, Math.Clamp(query.Limit, 1, NearbyCitiesQuery.MaxLimit), cancellationToken);
+
+        ChosenCityCheckResponse? chosen = null;
+        if (query.CityId is { } cityId)
+        {
+            var city = await cityRepository.GetActiveByIdAsync(cityId, cancellationToken)
+                ?? throw new NotFoundException("City not found.");
+            var distance = GeoMath.DistanceKm(lat, lng, city.Latitude, city.Longitude);
+            chosen = new ChosenCityCheckResponse(city.Id, city.Name, city.AdminArea, Math.Round(distance, 1), distance > NearbyCitiesResponse.FarAwayKm);
+        }
+
+        return new NearbyCitiesResponse(items, chosen);
+    }
+
     public async Task<CityDetailResponse> GetBySlugAsync(string slug, CancellationToken cancellationToken = default)
     {
         var (city, stats) = await RequirePublicCityAsync(slug, cancellationToken);

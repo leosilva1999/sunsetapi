@@ -50,6 +50,8 @@ these are the diffs to check:
   made through the API show up at once), `GET /locations` and `GET /cities` without `q`/`lat`/`lng` no longer
   count against the search limit, and the site's server can send `X-Service-Key` for a bucket of its own — see
   [Caching and rate limits](#caching-and-rate-limits).
+- **`GET /geo/cities?lat=&lng=`**: the catalog places nearest to a map pin, to suggest a city while a location is being
+  registered, plus a "pin is far from the city you chose" check — see [Nearest places to a pin](#geo-cities).
 - **`LocationResponse.description` / `category`** (both `null` when not given): `description` is up to 1000 characters of
   plain text; `category` is one of `Beach`, `Viewpoint`, `Mountain`, `Lake`, `River`, `Urban`, `Other` (sent as a string).
   Both are optional on `POST /locations`; moderators edit them with `PATCH /moderation/locations/{id}` — see
@@ -641,6 +643,32 @@ correct (anonymous: `false`), same as `GET /photos`.
 sunrise-sunset service is down, like the location version).
 
 **Operations:** the table is filled by `tools/Sunset.CityImporter` (see its README), never by the API.
+
+### <a id="geo-cities"></a>`GET /geo/cities?lat=&lng=&limit=3&cityId=` 🐌
+Public. The **localities and municipalities nearest to a point**, nearest first, for the "which city is this?" step of
+registering a location (call it when the pin is placed/moved, then offer the first result as the default `cityId`).
+`lat` ∈ [-90, 90] and `lng` ∈ [-180, 180] are required (`400` otherwise); `limit` 1–10 (default 3).
+
+```json
+{
+  "items": [
+    { "id": "guid", "kind": "Locality", "name": "Praia do Rosa", "state": "SC", "slug": "praia-do-rosa-imbituba-sc",
+      "distanceKm": 0.37, "parent": { "id": "guid", "name": "Imbituba", "state": "SC", "slug": "imbituba-sc" } },
+    { "id": "guid", "kind": "Municipality", "name": "Imbituba", "state": "SC", "slug": "imbituba-sc", "distanceKm": 11.2, "parent": null }
+  ],
+  "chosenCity": { "id": "guid", "name": "Imbituba", "state": "SC", "distanceKm": 11.2, "farAway": false }
+}
+```
+
+- `kind` is `Locality` or `Municipality`; a locality's `parent` is its municipality (the value to send as the
+  location's city — or just send the locality's own `id` as `cityId`, the API resolves its municipality).
+- Distances are straight-line (Haversine) to each place's **centre point**, not to a boundary: it is a good suggestion,
+  not a legal "which municipality is this inside". The search widens (15 → 60 → 250 km) until `limit` places are found,
+  so far from any catalog place it can return fewer than `limit`, or none.
+- `chosenCity` appears only when you send `cityId` (the city the person picked): `distanceKm` from the pin to its centre
+  and `farAway: true` beyond **150 km**. It is a **warning to show, never a block** — the API still accepts the location.
+  An unknown or inactive `cityId` → `404`.
+- Counts as a search for the rate limit (shares the `Search` bucket) and is cached for 60 s like the other public reads.
 
 ## Locations
 

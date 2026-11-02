@@ -203,6 +203,12 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   Render → salto interno; com 1 o "cliente" seria um IP 10.x que muda a cada requisição). Sem isso todos os limitadores por IP (Search, Reports, PasswordReset,
   ChangePassword) dividiam um balde só. `GET /health/client-ip` mostra como a API vê a requisição (para conferir o limite
   em produção). Há CI em `.github/workflows/ci.yml` (build + testes unitários + de integração, o runner tem Docker).
+- **Cidade sugerida pelo pino (`GET /geo/cities`)**: `CityRepository.GetNearestAsync` — Haversine exato no SQL atrás de uma
+  caixa envolvente que usa o índice `(Latitude, Longitude)` de `cities`; alarga o raio (15 → 60 → 250 km) até achar `limit`
+  lugares (tudo dentro do raio está na caixa, então os `limit` primeiros são os mais próximos de verdade). Mistura localidades e
+  municípios (distância ao **ponto central**, não a um limite — é sugestão, não "dentro de qual município"). Com `cityId`,
+  devolve `chosenCity.distanceKm` e `farAway` (> 150 km, `NearbyCitiesResponse.FarAwayKm`): **aviso, nunca bloqueio**; `POST /locations`
+  não mudou. Usa a política `Search` (lat/lng contam como busca) e o cache `Cities`.
 - **Descrição e categoria do local**: `Location.Description` (≤1000, texto puro, aparado; vazio = nenhum) e
   `Location.Category` (`LocationCategory?`: `Beach|Viewpoint|Mountain|Lake|River|Urban|Other`, nulo = não informado), ambos
   opcionais em `POST /locations` e expostos em `LocationResponse`. Edição só por moderação:
