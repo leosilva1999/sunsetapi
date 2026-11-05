@@ -96,6 +96,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - `POST /locations/:id/reports`, `POST /users/:id/reports` (auth, rate limited — denúncia de local e de usuário; motivo `IncorrectInfo` p/ dados errados)
 - `POST /moderation/users/:id/anonymize` (admin only — apaga os dados da conta; `hideContent` esconde fotos e comentários)
 - `POST /moderation/users/:id/ban` / `DELETE /moderation/users/:id/ban` (banir/desbanir; moderador só bane `User`, admin bane também moderador)
+- `GET /moderation/stats/growth` (`?granularity=day|week|month&from=&to=&metrics=users,locations,photos,ratings` — séries de crescimento para o painel; só moderação/admin)
 - `GET /moderation/reports` (`?status=Pending|Resolved|Dismissed`, paginado)
 - `PATCH /moderation/reports/:id` (resolver/dispensar)
 - `PATCH /moderation/users/:id/role` (admin only — promove/rebaixa)
@@ -203,6 +204,13 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   Render → salto interno; com 1 o "cliente" seria um IP 10.x que muda a cada requisição). Sem isso todos os limitadores por IP (Search, Reports, PasswordReset,
   ChangePassword) dividiam um balde só. `GET /health/client-ip` mostra como a API vê a requisição (para conferir o limite
   em produção). Há CI em `.github/workflows/ci.yml` (build + testes unitários + de integração, o runner tem Docker).
+- **Estatísticas de crescimento (moderação)**: `GET /moderation/stats/growth` — `StatsService` monta os períodos (dia; semana começando na
+  segunda; mês no dia 1) e preenche os vazios com zero; `StatsRepository` conta por data de criação com **SQL cru** (`date_trunc` em
+  `America/Sao_Paulo`, só tabela/granularidade de listas fixas, valores como parâmetros). SQL cru **ignora o `HasQueryFilter`**, então locais e
+  fotos escondidos são excluídos à mão (`DeletedAt IS NULL`). `total` = acumulado incluindo o que existia antes de `from`. Usuários: toda
+  conta já criada conta (anonimizar mantém a linha); `summary` separa ativas/removidas **hoje** — a data da remoção não é gravada
+  (`AnonymizedAt` seria uma migration simples se um dia se quiser desenhar remoções). Máx. 400 pontos por métrica; sem cache (chamada
+  autenticada nunca entra no OutputCache) — a consulta é barata. Sem migration; se as tabelas crescerem muito, índice em `CreatedAt`.
 - **Locais de lançamento (`tools/Sunset.LocationSeeder`)**: carga manual de uma lista curada (`data/launch-locations.json`, 25 locais
   de pôr do sol de guias/rankings de viagem; coordenadas do OpenStreetMap conferidas contra o catálogo) pelo **próprio
   `LocationService`** (slug, vínculo município/localidade e checagem de duplicados idênticos aos de um usuário). Simulação por padrão

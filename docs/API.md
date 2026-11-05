@@ -52,6 +52,8 @@ these are the diffs to check:
   [Caching and rate limits](#caching-and-rate-limits).
 - **⚠ `POST /locations` can now answer `409` (possible duplicate)** — send `"confirmDistinct": true` to go ahead; the
   site must handle it. See [Duplicate check](#location-duplicates).
+- **Growth statistics for the moderation dashboard**: `GET /moderation/stats/growth` (Moderator/Admin only) — new and
+  cumulative users, locations, photos and ratings over time, ready for a line chart. See [Moderation](#moderation).
 - **Locality pages** (long tail, "Pôr do sol na Praia do Rosa"): `GET /cities/{slug}` (and `/locations`, `/photos`, `/sunset`)
   now also answer for a **locality**, once one of its locations has a photo; `GET /cities?kind=locality` lists those
   localities; `GET /sitemap/entries?type=locality` feeds the sitemap — see [Cities](#cities).
@@ -1058,6 +1060,37 @@ already deleted) → `404` otherwise.
   "status": "Pending", "createdAt": "date", "resolvedByUserId": "guid|null", "resolvedAt": "date|null"
 }
 ```
+
+### 🔒🛡️ `GET /moderation/stats/growth` (Moderator or Admin)
+Data for the dashboard's growth chart. **Staff only** (`401` anonymous, `403` for a regular user); never public and never cached.
+
+| Param | |
+|---|---|
+| `granularity` | `day` (default) \| `week` \| `month` (case-insensitive). Weeks start on **Monday**, months on the **1st**. |
+| `from`, `to` | `YYYY-MM-DD`, inclusive, in **Brasília time**. Default: `to` = today, `from` = 30 days / 12 weeks / 12 months before it. |
+| `metrics` | Comma-separated: `users`, `locations`, `photos`, `ratings`. Default: all four. |
+
+```json
+{
+  "granularity": "Day", "timeZone": "America/Sao_Paulo", "from": "2026-10-27", "to": "2026-10-29",
+  "series": {
+    "users":     [ { "date": "2026-10-27", "new": 4, "total": 4 }, { "date": "2026-10-28", "new": 1, "total": 5 }, { "date": "2026-10-29", "new": 0, "total": 5 } ],
+    "locations": [ ... ], "photos": [ ... ], "ratings": [ ... ]
+  },
+  "summary": { "users": 9, "activeAccounts": 8, "removedAccounts": 1, "locations": 27, "photos": 2, "ratings": 2 }
+}
+```
+
+- Every period of the range is present, quiet ones with `new: 0`, so the x-axis has no gaps. `date` is the **first day** of the period.
+- `new` = rows created in the period; `total` = everything created up to the end of it (**cumulative, counting what existed before
+  `from`**, so the line does not start at zero by mistake). Plot `total` for "size of the system" and `new` for "growth per period".
+- Days are cut in Brasília time (a signup at 23:30 belongs to that day, not the next).
+- **What is counted.** `users`: every account ever created — a deleted/anonymized account stays counted (the row is kept), so the
+  curve only rises; `summary.activeAccounts` / `removedAccounts` tell how many of them are gone **today** (the date of removal is not
+  recorded, so removals cannot be drawn over time). `locations` and `photos`: only those **currently visible**, by creation date — what
+  moderation hid is not counted (so hiding something lowers the total from its creation date on). `ratings`: all.
+- `400` for: `from` after `to`, more than 400 periods in the range (use a coarser `granularity`), an unknown `metrics` name, a bad date
+  or an unknown `granularity`.
 
 ### 🔒🛡️ `GET /moderation/reports?status=Pending&cursor=&limit=` (Moderator or Admin)
 `status` defaults to `Pending` (also accepts `Resolved`/`Dismissed`). →
