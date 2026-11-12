@@ -21,6 +21,9 @@ public static class DependencyInjection
         services.AddScoped<ICityService, CityService>();
         services.AddScoped<ISitemapService, SitemapService>();
         services.AddScoped<IStatsService, StatsService>();
+        services.AddScoped<IPushDeviceService, PushDeviceService>();
+        services.AddScoped<IPushDispatchService, PushDispatchService>();
+        services.AddSingleton<Sunset.Application.Push.PushThrottle>();
         services.AddScoped<Sunset.Application.Cities.CityResolver>();
 
         return services;

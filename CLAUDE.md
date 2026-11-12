@@ -62,6 +62,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 **Users**
 - `GET /users/:id`, `PATCH /users/me` (auth), `GET /users/:id/photos`
 - `PUT /users/me/password` (auth — troca de senha; revoga os outros dispositivos, rate limited)
+- `POST /users/me/devices` / `DELETE /users/me/devices` (auth — registra/remove o token de push Expo do celular; 5 aparelhos por usuário)
 - `POST /users/:id/follow` / `DELETE /users/:id/follow` (auth), `GET /users/:id/followers`, `GET /users/:id/following`
 
 **Cities** (público)
@@ -204,6 +205,22 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   Render → salto interno; com 1 o "cliente" seria um IP 10.x que muda a cada requisição). Sem isso todos os limitadores por IP (Search, Reports, PasswordReset,
   ChangePassword) dividiam um balde só. `GET /health/client-ip` mostra como a API vê a requisição (para conferir o limite
   em produção). Há CI em `.github/workflows/ci.yml` (build + testes unitários + de integração, o runner tem Docker).
+- **Push notifications (Expo), fase 1**: toda `Notification` também vira push no celular. **Gancho único**: `NotificationRepository.AddAsync`
+  grava e, depois do `SaveChanges`, chama `IPushNotifier.Enqueue` (sem esperar, sem lançar) — vale para qualquer tipo, atual ou futuro, e
+  herda a regra "nunca notifica o próprio autor". Fila em memória (`PushNotifier`, 1000, descarta a mais antiga) → `PushNotifierWorker` (junta ~1 s,
+  lotes de 100, escopo próprio) → `PushDispatchService`: pula destinatário banido/anonimizado/sem aparelho, limita **20 pushes/hora/pessoa**
+  (`PushThrottle`, em memória; excedente fica só no app), compõe o texto pt-BR no servidor (`PushMessageComposer`: título, corpo, `badge` = não lidas,
+  `data` só com ids), manda 1 mensagem por aparelho. `IPushSender` é a abstração do provedor; `ExpoPushSender` (HTTP `exp.host`, lotes de 100,
+  3 tentativas com backoff em 429/5xx/rede, nunca lança por falha de entrega, **token só mascarado nos logs**) trocável depois. **Opção "C"**:
+  envio rápido em memória (um reinício perde só aquele push; a notificação segue no app) **mais** a tabela `push_tickets` (ticket aceito + token) lida
+  a cada 5 min por `PushMaintenanceWorker` ~15 min depois (receipts): `DeviceNotRegistered` apaga o token; ticket sem resposta some em 24 h.
+  Tabelas: `push_devices` (token único; **um token = um dono** — registrar token de outra conta o move; `installId` conhecido com token novo
+  atualiza a linha; máx. **5 aparelhos**/usuário, o menos recente sai) e `push_tickets`. Token apagado em: exclusão de conta
+  (`DeleteAccountAsync`), anonimização e banimento (moderação), `DeviceNotRegistered` e 90 dias sem registrar (job diário, roda mesmo com push
+  desligado — retenção de dado pessoal). Config `Push:*` (`Enabled` **desligado por padrão**, `DryRun` só loga, `ExpoAccessToken` opcional/segredo,
+  `BaseUrl`, `MaxPushesPerUserPerHour`, `MaxDevicesPerUser`, `DeviceRetentionDays`); desligado = registro de token funciona, nada é enviado.
+  Testes de integração trocam o provedor por `FakePushSender` (nada de rede). Token de push é dado pessoal: está no rascunho da Política
+  (`docs/legal`). Fora da fase 1 (fica no `docs/proposal-push-notifications.md`): preferências por tipo, agrupamento, endpoint de teste, pushes de moderação.
 - **Estatísticas de crescimento (moderação)**: `GET /moderation/stats/growth` — `StatsService` monta os períodos (dia; semana começando na
   segunda; mês no dia 1) e preenche os vazios com zero; `StatsRepository` conta por data de criação com **SQL cru** (`date_trunc` em
   `America/Sao_Paulo`, só tabela/granularidade de listas fixas, valores como parâmetros). SQL cru **ignora o `HasQueryFilter`**, então locais e

@@ -25,6 +25,9 @@ public class SunsetApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public FakeEmailSender EmailSender { get; } = new();
 
+    /// <summary>Stands in for Expo: records every push the API sends and never touches the network.</summary>
+    public FakePushSender PushSender { get; } = new();
+
     /// <summary>The secret the suite's server accepts as X-Service-Key.</summary>
     public const string ServiceApiKey = "test-only-service-key-0123456789abcdef";
 
@@ -39,6 +42,9 @@ public class SunsetApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
             // Test photo/avatar URLs point at storage that doesn't exist in this suite (no
             // LocalStack): the real sanitizer would fail to download them.
+            services.RemoveAll<IPushSender>();
+            services.AddSingleton<IPushSender>(PushSender);
+
             services.RemoveAll<IUploadedImageSanitizer>();
             services.AddSingleton<IUploadedImageSanitizer>(new AlwaysCleanImageSanitizer());
         });
@@ -68,6 +74,7 @@ public class SunsetApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("Cors__AllowedOrigins__0", "http://localhost:3000");
         Environment.SetEnvironmentVariable("Frontend__BaseUrl", "https://sunset-tests.dev");
         Environment.SetEnvironmentVariable("Service__ApiKey", ServiceApiKey);
+        Environment.SetEnvironmentVariable("Push__Enabled", "true");
 
         // Triggers host build (reads the env vars set above), then applies migrations so the
         // schema - full-text index included - actually exists.
@@ -89,4 +96,39 @@ internal sealed class AlwaysCleanImageSanitizer : IUploadedImageSanitizer
 
     public Task<Sunset.Application.Common.ImageDimensions?> SanitizeAndMeasureAsync(string imageUrl, CancellationToken cancellationToken = default) =>
         Task.FromResult<Sunset.Application.Common.ImageDimensions?>(new Sunset.Application.Common.ImageDimensions(1200, 800));
+}
+
+/// <summary>
+/// A push provider for tests: keeps every message it was given. A token containing "dead" is reported as
+/// DeviceNotRegistered (the app was uninstalled); any other is accepted with a ticket. Receipts can be scripted.
+/// </summary>
+public sealed class FakePushSender : IPushSender
+{
+    private int _tickets;
+
+    public System.Collections.Concurrent.ConcurrentQueue<Sunset.Application.Push.PushMessage> Sent { get; } = new();
+
+    /// <summary>Receipts handed back to the API, by ticket id (empty until a test fills it).</summary>
+    public System.Collections.Concurrent.ConcurrentDictionary<string, Sunset.Application.Push.PushReceipt> Receipts { get; } = new();
+
+    public Task<IReadOnlyList<Sunset.Application.Push.PushSendResult>> SendAsync(IReadOnlyList<Sunset.Application.Push.PushMessage> messages, CancellationToken cancellationToken = default)
+    {
+        var results = new List<Sunset.Application.Push.PushSendResult>();
+        foreach (var message in messages)
+        {
+            Sent.Enqueue(message);
+            results.Add(message.To.Contains("dead", StringComparison.Ordinal)
+                ? Sunset.Application.Push.PushSendResult.Failed(Sunset.Application.Push.PushFailure.DeviceNotRegistered)
+                : Sunset.Application.Push.PushSendResult.Accepted($"fake-ticket-{Interlocked.Increment(ref _tickets)}"));
+        }
+
+        return Task.FromResult<IReadOnlyList<Sunset.Application.Push.PushSendResult>>(results);
+    }
+
+    public Task<IReadOnlyDictionary<string, Sunset.Application.Push.PushReceipt>> GetReceiptsAsync(IReadOnlyCollection<string> ticketIds, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyDictionary<string, Sunset.Application.Push.PushReceipt>>(
+            ticketIds.Where(Receipts.ContainsKey).ToDictionary(id => id, id => Receipts[id]));
+
+    /// <summary>The pushes sent to one token so far.</summary>
+    public List<Sunset.Application.Push.PushMessage> To(string token) => Sent.Where(m => m.To == token).ToList();
 }

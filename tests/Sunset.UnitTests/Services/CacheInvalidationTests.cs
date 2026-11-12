@@ -176,7 +176,7 @@ public class ModerationCacheInvalidationTests
         _sut = new ModerationService(
             new Mock<IReportRepository>().Object, new Mock<IModerationActionRepository>().Object, new Mock<ILegalDocumentRepository>().Object,
             _users.Object, _photos.Object, new Mock<IRefreshTokenRepository>().Object, new Mock<IEmailSender>().Object,
-            new Mock<IBanStatusService>().Object, _locations.Object, _hasher.Object, _cities.Object, new CityResolver(_cities.Object), _cache.Object);
+            new Mock<IBanStatusService>().Object, _locations.Object, _hasher.Object, _cities.Object, new CityResolver(_cities.Object), _cache.Object, new Mock<IPushDeviceRepository>().Object);
     }
 
     private Location Visible()

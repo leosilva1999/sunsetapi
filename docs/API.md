@@ -52,6 +52,9 @@ these are the diffs to check:
   [Caching and rate limits](#caching-and-rate-limits).
 - **⚠ `POST /locations` can now answer `409` (possible duplicate)** — send `"confirmDistinct": true` to go ahead; the
   site must handle it. See [Duplicate check](#location-duplicates).
+- **Push notifications (phase 1)**: `POST` / `DELETE /users/me/devices` register and remove the phone's Expo push token;
+  every `Notification` now also reaches the recipient's phone. See [Push notifications](#push-notifications). Push is **off in
+  production until `Push__Enabled` is set**, so nothing is sent yet; registering a token already works.
 - **Growth statistics for the moderation dashboard**: `GET /moderation/stats/growth` (Moderator/Admin only) — new and
   cumulative users, locations, photos and ratings over time, ready for a line chart. See [Moderation](#moderation).
 - **Locality pages** (long tail, "Pôr do sol na Praia do Rosa"): `GET /cities/{slug}` (and `/locations`, `/photos`, `/sunset`)
@@ -550,6 +553,54 @@ avatars instead of photo images. Body: `{ "contentType": string }` — only `ima
 (no auth header, `Content-Type` must match what you requested); `uploadUrl` expires in 5 minutes.
 Once the `PUT` succeeds, send `avatarUrl` to `PATCH /users/me` above to actually set it on the
 profile — this endpoint only generates the URL, it doesn't touch the user record itself.
+
+### <a id="push-notifications"></a>🔒 `POST /users/me/devices` · `DELETE /users/me/devices` (push notifications)
+The mobile app registers its **Expo push token** so the API can send a push when a notification is created. The in-app
+list/counter (`/notifications`) is unchanged; the push is an extra channel.
+
+`POST /users/me/devices` — register or refresh the phone. Call it after login, on every app open and whenever the token changes.
+```json
+{ "token": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]", "platform": "android", "installId": "b9a3e1f0-0c2d-4f6a-9d58-1d3f6c5e7a21",
+  "appVersion": "1.0.0", "locale": "pt-BR" }
+```
+- `token` required, format `ExponentPushToken[...]` / `ExpoPushToken[...]` (≤ 255 chars) → otherwise `400` (`errors.Token`).
+  `platform` required: `"android"` or `"ios"`. `installId` (a UUID the app keeps per installation), `appVersion`, `locale` (≤ 32) optional.
+- **Idempotent**, `204 No Content`. Registering the same token again just refreshes it.
+- A token already held by **another account** (shared phone, logout without clean-up, account switch) **moves to the caller**:
+  one token never receives the pushes of two accounts.
+- A known `installId` with a **new token** (the OS rotated it) updates that row instead of adding one.
+- **At most 5 devices per user**: registering a 6th drops the least recently seen one.
+- Rate limited: 30 requests / 15 min per IP (`429`).
+
+`DELETE /users/me/devices` — body `{ "token": "..." }` **or** `{ "installId": "..." }` (one is required, else `400`). `204`,
+**idempotent** (an unknown device, or someone else's token, is a quiet `204` that changes nothing). Call it **before**
+`POST /auth/logout` (it needs the Bearer token) and when the account is deleted.
+
+**What triggers a push.** Every notification: `NewFollower`, `PhotoLiked`, `PhotoCommented`, `CommentReplied` (never to the author
+of the action). It is sent to **all** the recipient's devices within a few seconds, by a background worker: the like/comment/follow
+itself never waits for it and never fails because of it. A push is **not** sent to a banned or removed account, and a person
+gets **at most 20 pushes per hour** (the rest stay in-app only).
+
+**What the phone receives** (Expo format, text in pt-BR composed by the server):
+
+| `type` | `title` | `body` |
+|---|---|---|
+| `NewFollower` | Novo seguidor | `{name} começou a seguir você` |
+| `PhotoLiked` | Nova curtida | `{name} curtiu sua foto` |
+| `PhotoCommented` | Novo comentário | `{name} comentou na sua foto` |
+| `CommentReplied` | Nova resposta | `{name} respondeu seu comentário` |
+
+`badge` = unread count after the notification; `sound: "default"`, `channelId: "default"`, `priority: "high"`, `ttl` 24 h. The `data`
+object carries **only ids and labels** (nothing sensitive; the text is what a lock screen shows):
+```json
+{ "v": 1, "notificationId": "guid", "type": "PhotoLiked", "actorUserId": "guid", "targetDescription": "Photo:guid" }
+```
+`targetDescription` is the same label as in `GET /notifications` (`Photo:{id}`, `Comment:{id}`, `User:{id}`), so the app opens the
+screen with the navigation it already has, then calls `POST /notifications/{id}/read`.
+
+**Housekeeping (server side).** A token the provider reports dead (`DeviceNotRegistered`, immediately or in the receipt read ~15 min
+later) is deleted. All of a user's tokens are deleted when the account is deleted or anonymized and when the user is banned.
+A device not registered again for **90 days** is forgotten.
 
 ### 🔒 `DELETE /users/me`
 Deletes the **authenticated** user's own account (LGPD Art. 18, IX - right to erasure). This

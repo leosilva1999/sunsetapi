@@ -29,6 +29,7 @@ Canal geral de privacidade: sunsetsss.app@outlook.com.
 
 2.2. Dados gerados pelo uso do serviço
 - Notificações recebidas (curtidas, comentários, novos seguidores) e seu estado de leitura.
+- Notificações no celular (push): se você permitir, guardamos um identificador do seu aparelho para o aplicativo (o "token de notificação"), a plataforma (Android ou iOS), a versão do aplicativo, o idioma e a data do último uso. Esse token é enviado ao nosso prestador de envio de notificações (Expo, que repassa ao serviço de notificações do Google ou da Apple) junto com o texto da notificação. Você pode desligar as notificações a qualquer momento nas configurações do aparelho.
 - Sessões: códigos (tokens) de sessão que mantêm você conectado, armazenados de forma protegida (somente em hash) no servidor, com data de criação e validade.
 - Registro de aceite: qual versão dos Termos de Uso e da Política de Privacidade você aceitou, e quando (data e hora) e em que momento (cadastro ou novo aceite).
 - Registros de moderação relacionados a você: denúncias, medidas aplicadas (como remoção de conteúdo, suspensão, banimento ou remoção de conta), motivo e quem aplicou.
@@ -83,6 +84,7 @@ Não solicitamos dados pessoais sensíveis (como origem racial, saúde, religiã
 - Banco de dados (PostgreSQL): Neon, Inc., em servidores na região de São Paulo (AWS sa-east-1).
 - Armazenamento de imagens: Amazon Web Services (Amazon S3), na região de São Paulo (sa-east-1).
 - Envio de e-mails transacionais: Hostinger.
+- Envio de notificações no celular (push): Expo (650 Industries, Inc.), que repassa as mensagens ao Firebase Cloud Messaging (Google) e ao Apple Push Notification service.
 - Autenticação (login com Google): Google LLC.
 - Hospedagem do site/aplicativo web: [PROVEDOR DE HOSPEDAGEM DO FRONTEND].
 - Cálculo do horário do pôr do sol: serviço sunrise-sunset.org, que recebe apenas as coordenadas do local consultado (e não dados pessoais seus).
@@ -99,7 +101,7 @@ Não solicitamos dados pessoais sensíveis (como origem racial, saúde, religiã
 
 6. TRANSFERÊNCIA INTERNACIONAL
 
-6.1. Alguns prestadores (como Render, Google, Hostinger e Amazon Web Services) podem tratar dados em servidores fora do Brasil. Nesses casos, a transferência é feita com base na LGPD (art. 33), por exemplo mediante cláusulas contratuais, garantias de nível adequado de proteção ou, quando necessário, o seu consentimento específico. [O jurídico deve confirmar o fundamento adotado para cada prestador.]
+6.1. Alguns prestadores (como Render, Google, Apple, Expo, Hostinger e Amazon Web Services) podem tratar dados em servidores fora do Brasil. Nesses casos, a transferência é feita com base na LGPD (art. 33), por exemplo mediante cláusulas contratuais, garantias de nível adequado de proteção ou, quando necessário, o seu consentimento específico. [O jurídico deve confirmar o fundamento adotado para cada prestador.]
 
 
 7. POR QUANTO TEMPO GUARDAMOS
@@ -107,6 +109,7 @@ Não solicitamos dados pessoais sensíveis (como origem racial, saúde, religiã
 7.1. Mantemos os dados pelo tempo necessário às finalidades desta Política e aos prazos legais:
 - Conta e perfil (nome, e-mail, imagem, biografia): enquanto a conta existir. Se você excluir a conta, esses dados são eliminados/anonimizados imediatamente (item 10).
 - Conteúdo publicado (fotos, comentários, avaliações): enquanto estiver publicado ou até você excluí-lo. Após a exclusão da conta, o que não for excluído pode permanecer sem identificar você (item 10).
+- Identificador de notificações no celular (token de push): enquanto o aplicativo registrá-lo; apagado quando você sai da conta, exclui a conta ou é banido, quando o serviço de notificações informa que ele deixou de valer, e após 90 dias sem uso.
 - Sessões (refresh token): até 30 dias, ou até o encerramento da sessão; links de redefinição de senha: 30 minutos e uso único.
 - Registros de acesso a aplicação (IP, data e hora): no mínimo 6 meses, conforme o art. 15 do Marco Civil da Internet, e pelo prazo adicional necessário para segurança e defesa de direitos [prazo máximo a definir pelo jurídico].
 - Demais logs técnicos de aplicação: [PRAZO A DEFINIR, por exemplo 30 a 90 dias].

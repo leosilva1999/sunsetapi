@@ -23,6 +23,8 @@ public class UserServiceTests
     private readonly Mock<IUploadedImageSanitizer> _imageSanitizer = new();
     private readonly UserService _sut;
 
+    private readonly Mock<IPushDeviceRepository> _pushDevices = new();
+
     public UserServiceTests()
     {
         _passwordHasher.Setup(h => h.Hash(It.IsAny<string>())).Returns("hashed");
@@ -36,7 +38,8 @@ public class UserServiceTests
             _notificationRepository.Object,
             _passwordHasher.Object,
             _emailSender.Object,
-            _imageSanitizer.Object);
+            _imageSanitizer.Object,
+            _pushDevices.Object);
     }
 
     [Fact]
@@ -297,6 +300,7 @@ public class UserServiceTests
         Assert.Null(user.Bio);
         _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(user.Id, default), Times.Once);
         _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
+        _pushDevices.Verify(r => r.DeleteAllForUserAsync(user.Id, default), Times.Once);   // the push token leaves with the account
     }
 
     [Fact]

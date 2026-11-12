@@ -59,6 +59,14 @@ public static class StartupConfigurationValidator
         if (!string.IsNullOrWhiteSpace(indexNowKey) && !System.Text.RegularExpressions.Regex.IsMatch(indexNowKey, "^[A-Za-z0-9-]{8,128}$"))
             problems.Add("IndexNow:Key must be 8-128 characters: letters, digits and hyphens (env var IndexNow__Key).");
 
+        // Push is optional (off unless Push:Enabled); when it is on, the provider URL must be usable.
+        if (configuration.GetValue<bool>("Push:Enabled"))
+        {
+            var pushUrl = configuration["Push:BaseUrl"];
+            if (!string.IsNullOrWhiteSpace(pushUrl) && !Uri.TryCreate(pushUrl, UriKind.Absolute, out _))
+                problems.Add("Push:BaseUrl is not a valid absolute URL (env var Push__BaseUrl).");
+        }
+
         Require(configuration, problems, "ConnectionStrings:DefaultConnection", "ConnectionStrings__DefaultConnection");
         Require(configuration, problems, "Frontend:BaseUrl", "Frontend__BaseUrl");
 

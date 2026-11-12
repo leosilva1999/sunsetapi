@@ -20,6 +20,8 @@ public class SunsetDbContext(DbContextOptions<SunsetDbContext> options) : DbCont
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<LegalAcceptance> LegalAcceptances => Set<LegalAcceptance>();
     public DbSet<City> Cities => Set<City>();
+    public DbSet<PushDevice> PushDevices => Set<PushDevice>();
+    public DbSet<PushTicket> PushTickets => Set<PushTicket>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

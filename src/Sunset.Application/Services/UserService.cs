@@ -19,7 +19,8 @@ public class UserService(
     INotificationRepository notificationRepository,
     IPasswordHasher passwordHasher,
     IEmailSender emailSender,
-    IUploadedImageSanitizer imageSanitizer) : IUserService
+    IUploadedImageSanitizer imageSanitizer,
+    IPushDeviceRepository pushDeviceRepository) : IUserService
 {
     public async Task<PublicUserResponse> GetByIdAsync(Guid id, Guid? currentUserId, CancellationToken cancellationToken = default)
     {
@@ -124,6 +125,9 @@ public class UserService(
 
         await refreshTokenRepository.RevokeAllForUserAsync(userId, cancellationToken);
         await userRepository.SaveChangesAsync(cancellationToken);
+
+        // A push token is a device identifier (personal data): it goes with the account.
+        await pushDeviceRepository.DeleteAllForUserAsync(userId, cancellationToken);
     }
 
     public async Task FollowAsync(Guid followerId, Guid followingId, CancellationToken cancellationToken = default)

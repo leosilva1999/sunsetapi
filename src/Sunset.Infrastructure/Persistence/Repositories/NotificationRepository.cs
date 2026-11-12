@@ -1,17 +1,23 @@
 using Microsoft.EntityFrameworkCore;
 using Sunset.Application.Common;
+using Sunset.Application.Interfaces;
+using Sunset.Application.Push;
 using Sunset.Application.Interfaces.Repositories;
 using Sunset.Domain.Entities;
 using Sunset.Infrastructure.Persistence.Cursors;
 
 namespace Sunset.Infrastructure.Persistence.Repositories;
 
-public class NotificationRepository(SunsetDbContext context) : INotificationRepository
+public class NotificationRepository(SunsetDbContext context, IPushNotifier pushNotifier) : INotificationRepository
 {
     public async Task AddAsync(Notification notification, CancellationToken cancellationToken = default)
     {
         await context.Notifications.AddAsync(notification, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
+
+        // Every notification, whatever its type, may also reach the phone. Queued after the save and never awaited:
+        // the push channel can neither slow down nor break the like/comment/follow that produced the notification.
+        pushNotifier.Enqueue(new PushRequest(notification.Id, notification.RecipientUserId, notification.ActorUserId, notification.Type, notification.TargetDescription));
     }
 
     public Task<Notification?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>

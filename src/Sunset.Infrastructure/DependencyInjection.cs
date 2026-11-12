@@ -11,6 +11,8 @@ using Sunset.Infrastructure.ExternalServices;
 using Sunset.Infrastructure.Persistence;
 using Sunset.Infrastructure.Persistence.Repositories;
 using Sunset.Infrastructure.Security;
+using Sunset.Application.Push;
+using Sunset.Infrastructure.Push;
 using Sunset.Infrastructure.SiteNotifications;
 using Sunset.Infrastructure.Storage;
 
@@ -43,6 +45,23 @@ public static class DependencyInjection
         services.AddSingleton<ISiteNotifier>(sp => sp.GetRequiredService<SiteNotifier>());
         services.AddSingleton<SiteNotificationSender>();
         services.AddHostedService<SiteNotifierWorker>();
+
+        // Push notifications (Expo): off until Push:Enabled. The settings object is shared with the Application layer.
+        var pushSettings = new PushSettings();
+        configuration.GetSection("Push").Bind(pushSettings);
+        services.AddSingleton(pushSettings);
+        services.AddHttpClient<IPushSender, ExpoPushSender>((sp, client) =>
+        {
+            var settings = sp.GetRequiredService<PushSettings>();
+            client.BaseAddress = new Uri(settings.BaseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+        services.AddScoped<IPushDeviceRepository, PushDeviceRepository>();
+        services.AddScoped<IPushTicketRepository, PushTicketRepository>();
+        services.AddSingleton<PushNotifier>();
+        services.AddSingleton<IPushNotifier>(sp => sp.GetRequiredService<PushNotifier>());
+        services.AddHostedService<PushNotifierWorker>();
+        services.AddHostedService<PushMaintenanceWorker>();
 
         services.AddHttpContextAccessor();
         services.AddMemoryCache();

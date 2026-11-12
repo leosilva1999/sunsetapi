@@ -133,6 +133,9 @@ const string PasswordResetRateLimitPolicy = "PasswordReset";
 // "ChangePassword" policy: the endpoint verifies the current password, so without a cap a stolen
 // access token could be used to brute-force it.
 const string ChangePasswordRateLimitPolicy = "ChangePassword";
+// "DeviceRegistration" policy: the app registers its push token on login, on open and when the token changes;
+// 30 per 15 minutes per IP is far above a real phone and still stops a script from filling the table.
+const string DeviceRegistrationRateLimitPolicy = "DeviceRegistration";
 var rateLimitTitlesByPolicy = new Dictionary<string, string>
 {
     [SearchRateLimitPolicy] = "Too many search requests. Please slow down.",
@@ -140,6 +143,7 @@ var rateLimitTitlesByPolicy = new Dictionary<string, string>
     [ReportsRateLimitPolicy] = "Too many reports. Please slow down.",
     [PasswordResetRateLimitPolicy] = "Too many password reset requests. Please slow down.",
     [ChangePasswordRateLimitPolicy] = "Too many password change attempts. Please try again later.",
+    [DeviceRegistrationRateLimitPolicy] = "Too many device registrations. Please try again later.",
 };
 // Trust X-Forwarded-For / -Proto from the platform proxy. The app is only reachable through it, so
 // the default "loopback only" trust list (which would ignore the headers entirely) is cleared.
@@ -226,6 +230,17 @@ builder.Services.AddRateLimiter(options =>
         factory: _ => new SlidingWindowRateLimiterOptions
         {
             PermitLimit = changePasswordPermitLimit,
+            Window = TimeSpan.FromMinutes(15),
+            SegmentsPerWindow = 3,
+            QueueLimit = 0,
+        }));
+
+    var deviceRegistrationPermitLimit = builder.Environment.IsEnvironment("Testing") ? int.MaxValue : 30;
+    options.AddPolicy(DeviceRegistrationRateLimitPolicy, httpContext => RateLimitPartition.GetSlidingWindowLimiter(
+        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = deviceRegistrationPermitLimit,
             Window = TimeSpan.FromMinutes(15),
             SegmentsPerWindow = 3,
             QueueLimit = 0,

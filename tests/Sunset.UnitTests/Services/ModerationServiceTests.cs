@@ -23,6 +23,7 @@ public class ModerationServiceTests
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
     private readonly Mock<ICityRepository> _cityRepository = new();
     private readonly Mock<IResponseCacheInvalidator> _cache = new();
+    private readonly Mock<IPushDeviceRepository> _pushDevices = new();
     private readonly ModerationService _sut;
 
     public ModerationServiceTests()
@@ -43,7 +44,8 @@ public class ModerationServiceTests
             _passwordHasher.Object,
             _cityRepository.Object,
             new Sunset.Application.Cities.CityResolver(_cityRepository.Object),
-            _cache.Object);
+            _cache.Object,
+            _pushDevices.Object);
     }
 
     private static Report CreateReport(Guid reporterId, User reporter, ReportTargetType targetType, Guid targetId, ReportReason reason = ReportReason.Spam)
@@ -226,6 +228,7 @@ public class ModerationServiceTests
         _userRepository.Verify(r => r.SaveChangesAsync(default), Times.Once);
         _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(target.Id, default), Times.Once);
         _banStatusService.Verify(s => s.Invalidate(target.Id), Times.Once);
+        _pushDevices.Verify(r => r.DeleteAllForUserAsync(target.Id, default), Times.Once);   // a banned account gets no pushes
         _moderationActionRepository.Verify(
             r => r.AddAsync(It.Is<ModerationAction>(a => a.ModeratorId == moderator.Id && a.ActionType == ModerationActionType.UserBanned), default),
             Times.Once);
@@ -454,6 +457,7 @@ public class ModerationServiceTests
         Assert.True(target.IsBanned(DateTime.UtcNow));
         _refreshTokenRepository.Verify(r => r.RevokeAllForUserAsync(target.Id, default), Times.Once);
         _banStatusService.Verify(s => s.Invalidate(target.Id), Times.Once);
+        _pushDevices.Verify(r => r.DeleteAllForUserAsync(target.Id, default), Times.Once);   // anonymizing erases the push token too
         _photoRepository.Verify(r => r.SoftDeleteAllByUserAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<DateTime>(), default), Times.Never);
         _moderationActionRepository.Verify(
             r => r.AddAsync(It.Is<ModerationAction>(a => a.ActionType == ModerationActionType.UserAnonymized && a.Notes!.Contains("content kept")), default),

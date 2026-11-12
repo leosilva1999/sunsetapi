@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Sunset.Application.Common;
+using Sunset.Application.DTOs.Devices;
 using Sunset.Application.DTOs.Legal;
 using Sunset.Application.DTOs.Moderation;
 using Sunset.Application.DTOs.Photos;
@@ -23,6 +24,9 @@ public class UsersController(
     IValidator<CreateAvatarUploadUrlRequest> createAvatarUploadUrlValidator,
     IValidator<CreateReportRequest> createReportValidator,
     IValidator<AcceptLegalDocumentsRequest> acceptLegalDocumentsValidator,
+    IValidator<RegisterDeviceRequest> registerDeviceValidator,
+    IValidator<RemoveDeviceRequest> removeDeviceValidator,
+    IPushDeviceService pushDeviceService,
     ILegalAcceptanceService legalAcceptanceService,
     IModerationService moderationService,
     ICurrentUserService currentUserService) : ControllerBase
@@ -102,6 +106,32 @@ public class UsersController(
 
         var response = await userService.UpdateProfileAsync(userId, request, cancellationToken);
         return Ok(response);
+    }
+
+    // The app registers its push token after login, on open and whenever the token changes.
+    [Authorize]
+    [EnableRateLimiting("DeviceRegistration")]
+    [HttpPost("me/devices")]
+    public async Task<IActionResult> RegisterDevice(RegisterDeviceRequest request, CancellationToken cancellationToken)
+    {
+        await registerDeviceValidator.ValidateAndThrowAsync(request, cancellationToken);
+        var userId = currentUserService.UserId ?? throw new UnauthorizedActionException("User is not authenticated.");
+
+        await pushDeviceService.RegisterAsync(userId, request, cancellationToken);
+        return NoContent();
+    }
+
+    // Called by the app BEFORE logout (it needs the Bearer token) and on account deletion.
+    [Authorize]
+    [EnableRateLimiting("DeviceRegistration")]
+    [HttpDelete("me/devices")]
+    public async Task<IActionResult> RemoveDevice(RemoveDeviceRequest request, CancellationToken cancellationToken)
+    {
+        await removeDeviceValidator.ValidateAndThrowAsync(request, cancellationToken);
+        var userId = currentUserService.UserId ?? throw new UnauthorizedActionException("User is not authenticated.");
+
+        await pushDeviceService.RemoveAsync(userId, request, cancellationToken);
+        return NoContent();
     }
 
     [Authorize]

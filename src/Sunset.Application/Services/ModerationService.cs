@@ -27,7 +27,8 @@ public class ModerationService(
     IPasswordHasher passwordHasher,
     ICityRepository cityRepository,
     CityResolver cityResolver,
-    IResponseCacheInvalidator cacheInvalidator) : IModerationService
+    IResponseCacheInvalidator cacheInvalidator,
+    IPushDeviceRepository pushDeviceRepository) : IModerationService
 {
     public async Task<ReportResponse> CreateReportAsync(Guid reporterId, ReportTargetType targetType, Guid targetId, CreateReportRequest request, CancellationToken cancellationToken = default)
     {
@@ -334,6 +335,7 @@ public class ModerationService(
         target.Ban("Account removed by moderation.", null, adminId, DateTime.UtcNow);
         await userRepository.SaveChangesAsync(cancellationToken);
         await refreshTokenRepository.RevokeAllForUserAsync(targetUserId, cancellationToken);
+        await pushDeviceRepository.DeleteAllForUserAsync(targetUserId, cancellationToken);
         banStatusService.Invalidate(targetUserId);
 
         await moderationActionRepository.AddAsync(
@@ -414,6 +416,7 @@ public class ModerationService(
         // Signs the user out everywhere; the access token already issued stops working
         // immediately through IBanStatusService (see Program.cs, OnTokenValidated).
         await refreshTokenRepository.RevokeAllForUserAsync(targetUserId, cancellationToken);
+        await pushDeviceRepository.DeleteAllForUserAsync(targetUserId, cancellationToken);   // a banned account gets no pushes
         banStatusService.Invalidate(targetUserId);
 
         await moderationActionRepository.AddAsync(

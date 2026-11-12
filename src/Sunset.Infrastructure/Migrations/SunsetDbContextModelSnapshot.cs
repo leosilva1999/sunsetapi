@@ -534,6 +534,80 @@ namespace Sunset.Infrastructure.Migrations
                     b.ToTable("photos", (string)null);
                 });
 
+            modelBuilder.Entity("Sunset.Domain.Entities.PushDevice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AppVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("InstallId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Locale")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("Platform")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LastSeenAt");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "InstallId");
+
+                    b.HasIndex("UserId", "LastSeenAt");
+
+                    b.ToTable("push_devices", (string)null);
+                });
+
+            modelBuilder.Entity("Sunset.Domain.Entities.PushTicket", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProviderTicketId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.ToTable("push_tickets", (string)null);
+                });
+
             modelBuilder.Entity("Sunset.Domain.Entities.Rating", b =>
                 {
                     b.Property<Guid>("Id")
@@ -900,6 +974,17 @@ namespace Sunset.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Location");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Sunset.Domain.Entities.PushDevice", b =>
+                {
+                    b.HasOne("Sunset.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("User");
                 });
