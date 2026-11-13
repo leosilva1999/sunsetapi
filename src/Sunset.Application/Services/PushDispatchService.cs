@@ -85,6 +85,34 @@ public class PushDispatchService(
         return new PushTestResult(devices.Count, accepted, removed);
     }
 
+    public async Task DispatchAnnouncementAsync(Announcement announcement, IReadOnlyCollection<(Guid UserId, Guid NotificationId)> recipients, CancellationToken cancellationToken = default)
+    {
+        if (!settings.Enabled || recipients.Count == 0)
+            return;
+
+        var ids = recipients.Select(r => r.UserId).ToList();
+        var choices = await settingRepository.GetByUsersAsync(ids, cancellationToken);
+        var devices = (await deviceRepository.ListByUsersAsync(ids, cancellationToken)).ToLookup(d => d.UserId);
+        var unread = await notificationRepository.GetUnreadCountsAsync(ids, cancellationToken);
+
+        var messages = new List<PushMessage>();
+        foreach (var (userId, notificationId) in recipients)
+        {
+            // Pushes switched off at the phone's master switch: the announcement is still in the app.
+            if (choices.TryGetValue(userId, out var choice) && !choice.PushEnabled)
+                continue;
+
+            messages.AddRange(devices[userId].Select(d =>
+                PushAnnouncementComposer.Compose(d.Token, announcement, notificationId, unread.GetValueOrDefault(userId))));
+        }
+
+        if (messages.Count == 0)
+            return;
+
+        var results = await sender.SendAsync(messages, cancellationToken);
+        await BookAsync(messages, results, cancellationToken);
+    }
+
     private async Task SendGroupsAsync(IReadOnlyCollection<PushGroup> groups, DateTime now, CancellationToken cancellationToken)
     {
         if (groups.Count == 0)

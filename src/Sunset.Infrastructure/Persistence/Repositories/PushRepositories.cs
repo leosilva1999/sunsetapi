@@ -18,6 +18,12 @@ public class PushDeviceRepository(SunsetDbContext context) : IPushDeviceReposito
             .OrderByDescending(d => d.LastSeenAt).ThenByDescending(d => d.Id)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<PushDevice>> ListByUsersAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken = default) =>
+        await context.PushDevices.AsNoTracking()
+            .Where(d => userIds.Contains(d.UserId))
+            .OrderByDescending(d => d.LastSeenAt)
+            .ToListAsync(cancellationToken);
+
     public async Task AddAsync(PushDevice device, CancellationToken cancellationToken = default) =>
         await context.PushDevices.AddAsync(device, cancellationToken);
 

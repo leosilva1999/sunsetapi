@@ -16,5 +16,6 @@ public enum ModerationActionType
     UserAnonymized,
     LocationMerged,
     LocationCityChanged,
-    LocationDetailsChanged
+    LocationDetailsChanged,
+    AnnouncementSent
 }

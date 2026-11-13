@@ -15,6 +15,11 @@ public class Notification : BaseEntity
     public string TargetDescription { get; private set; } = null!;
     public DateTime? ReadAt { get; private set; }
 
+    /// <summary>Set when this notification delivers an announcement from the team (then <see cref="Type"/> is Announcement).</summary>
+    public Guid? AnnouncementId { get; private set; }
+
+    public Announcement? Announcement { get; private set; }
+
     public User Recipient { get; private set; } = null!;
     public User Actor { get; private set; } = null!;
 
@@ -33,6 +38,16 @@ public class Notification : BaseEntity
         Type = type;
         ActorUserId = actorUserId;
         TargetDescription = targetDescription;
+    }
+
+    /// <summary>The copy of an announcement that goes to one recipient. The "actor" is the staff sender and is never shown.</summary>
+    public static Notification ForAnnouncement(Guid recipientUserId, Guid senderUserId, Guid announcementId)
+    {
+        var notification = new Notification(recipientUserId, NotificationType.Announcement, senderUserId, $"Announcement:{announcementId}")
+        {
+            AnnouncementId = announcementId,
+        };
+        return notification;
     }
 
     public void MarkRead() => ReadAt ??= DateTime.UtcNow;

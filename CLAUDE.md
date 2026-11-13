@@ -92,6 +92,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - `DELETE /comments/:id` (auth, autor ou moderador/admin — soft delete)
 
 **Moderation** (moderador/admin)
+- `POST /moderation/announcements/preview`, `POST /moderation/announcements` (202), `GET /moderation/announcements`, `GET /moderation/announcements/:id` — comunicados da equipe: serviço ou promoção, por notificação no app e push (Admin: qualquer público; Moderador: só contas nomeadas)
 - `DELETE /moderation/locations/:id` (soft delete + esconde as fotos), `POST .../restore`, `GET /moderation/locations/deleted`, `PATCH /moderation/locations/:id/coordinates` (moderador/admin)
 - `GET /moderation/locations/unresolved-city` (fila: locais sem cidade do catálogo, com sugestões), `PATCH /moderation/locations/:id/city` (vincula; aceita município ou localidade)
 - `POST /moderation/locations/:id/merge` (mescla duplicata no local `targetId`: move fotos e avaliações, apaga a duplicata)
@@ -231,6 +232,19 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   token morto); só Admin ou `Development`; 409 com o push desligado; 5/15 min.
   Testes de integração trocam o provedor por `FakePushSender` (nada de rede). Token de push é dado pessoal: está no rascunho da Política
   (`docs/legal`). Fora da fase 1 (fica no `docs/proposal-push-notifications.md`): preferências por tipo, agrupamento, endpoint de teste, pushes de moderação.
+- **Comunicados da equipe (promoções e avisos)**: tabela `announcements` (conteúdo, categoria `Service|Promotional`, público `All|Users|PushEnabled`, estado
+  `Pending→Sending→Sent`, `ExpectedRecipients`/`CreatedCount`) + **uma `Notification` por destinatário** (`Type=Announcement`, `AnnouncementId`, ator = a conta da
+  equipe, que a resposta **esconde**: "Equipe Sunset", sem avatar, `ActorUserId` zerado). Assim lista, contador de não lidas, "marcar como lida" e push reaproveitam
+  tudo; `NotificationResponse` ganha `title/body/category/link/announcementId`. **Entrega durável**: `AnnouncementWorker` (a cada `Push:AnnouncementPollSeconds`)
+  → `AnnouncementDeliveryService` pega o mais antigo não concluído e cria as notificações em lotes (`AnnouncementBatchSize`, 200) com a consulta "elegíveis sem
+  notificação deste comunicado" — **a própria consulta é o ponteiro de retomada** (reinício continua de onde parou; índice único `(RecipientUserId, AnnouncementId)`
+  é a rede de segurança); depois `DispatchAnnouncementAsync` manda o push (texto da equipe, `data` com `announcementId/category/link`; sem agrupamento e **fora** do limite de 20/h;
+  respeita só o interruptor geral do push). Notificações salvas antes do push (no app: pelo menos uma vez; push: melhor esforço). **Elegibilidade**: conta ativa (não banida,
+  não `@sunset.invalid`); `Promotional` exige `NotificationSetting.PromotionalEnabled` (**opt-in**, padrão desligado; `PUT` de settings que omite o campo desliga — direção segura) e no
+  máximo **1 promoção/24 h** por pessoa (vale para app e push); `Service` vai a todos. **Permissões**: Admin qualquer público; Moderador só `Users` (1–20 contas). **Salvaguardas**:
+  `POST /moderation/announcements/preview` conta; o envio exige `expectedRecipients` igual à contagem refeita (senão 409 com o número real); no máx. 5 envios em massa/24 h (409);
+  `link` só `Location|City|Photo|User:{id/slug}` (nunca URL externa); auditado como `AnnouncementSent`. 202 na criação; acompanhar por `GET .../{id}`. Sem agendamento, sem
+  recolher (retirar) e sem segmentos por cidade — fase B. Os testes de integração só usam público `Users` (um envio em massa notificaria usuários de testes posteriores).
 - **Estatísticas de crescimento (moderação)**: `GET /moderation/stats/growth` — `StatsService` monta os períodos (dia; semana começando na
   segunda; mês no dia 1) e preenche os vazios com zero; `StatsRepository` conta por data de criação com **SQL cru** (`date_trunc` em
   `America/Sao_Paulo`, só tabela/granularidade de listas fixas, valores como parâmetros). SQL cru **ignora o `HasQueryFilter`**, então locais e

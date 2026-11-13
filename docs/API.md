@@ -55,6 +55,10 @@ these are the diffs to check:
 - **Push notifications (phase 1)**: `POST` / `DELETE /users/me/devices` register and remove the phone's Expo push token;
   every `Notification` now also reaches the recipient's phone. See [Push notifications](#push-notifications). Push is **off in
   production until `Push__Enabled` is set**, so nothing is sent yet; registering a token already works.
+- **Announcements from the team** (service notices and promotions) by admin/moderation: `POST /moderation/announcements`
+  (+ `/preview`, history), arriving as a new notification `type: "Announcement"` with `title`, `body`, `category` and `link`; and a
+  consent flag `promotionalEnabled` in the notification settings (off until the person turns it on). See
+  [Announcements](#announcements).
 - **Push notifications (phase 2)**: `GET` / `PUT /users/me/notification-settings` (switch pushes off, or per kind),
   **grouping** of bursts into one push ("Ana e mais 3 curtiram sua foto") and `POST /users/me/devices/test`. See
   [Push notifications](#push-notifications).
@@ -955,6 +959,55 @@ most one rating per location, so there's nothing to disambiguate.
 
 ---
 
+## <a id="announcements"></a>Announcements (admin & moderation)
+
+Messages from the team to the app's users: **service notices** (terms, safety, maintenance) and **promotions**. Each recipient gets a normal
+notification of `type: "Announcement"` (see [Notifications](#notifications)) and, if they have the app registered, a push. All endpoints are
+🔒🛡️ Moderator or Admin; there is no public access.
+
+**Who can send what.** An **Admin** may address everyone (`All`), every account with the app registered for push (`PushEnabled`) or a list of
+accounts (`Users`). A **Moderator** may only write to a list of accounts (`Users`, 1 to 20) — never in bulk; anything else is `403`.
+
+**Categories and consent.**
+- `Service`: reaches every active account. The push still follows the person's master switch for pushes.
+- `Promotional`: reaches **only people who turned `promotionalEnabled` on** (opt-in; it starts off — see the settings below), and at most
+  **one promotion per person per 24 hours**. People who did not opt in get neither the notification nor the push.
+- Banned and removed accounts are never reached.
+
+### `POST /moderation/announcements/preview`
+How many people would receive it, without sending anything. Body `{ "category": "Promotional", "audience": { "type": "Users", "userIds": ["guid"] } }`
+(`audience.type`: `All` | `Users` | `PushEnabled`; `userIds` only for `Users`) → `{ "recipients": 42 }`. The number already applies the
+rules above (consent, daily promotion cap, banned accounts).
+
+### `POST /moderation/announcements`
+```json
+{ "title": "Novos locais em Santa Catarina", "body": "Veja os pontos de pôr do sol mais bonitos da semana.",
+  "category": "Promotional", "audience": { "type": "All" }, "expectedRecipients": 42, "link": "City:florianopolis-sc" }
+```
+- `title` 1–65 characters, `body` 1–240, `link` optional and **only** `Location:{id}`, `City:{slug}`, `Photo:{id}` or `User:{id}` (never a URL → `400`).
+- **`expectedRecipients` must be the number the preview returned.** The audience is counted again at send time; if it differs, nothing is
+  sent and the answer is `409` with the real number in `errors.recipients` — preview again and confirm. This is the guard against sending
+  to the wrong people.
+- `400` when nobody would receive it, for a bad title/body/link/category/audience (or more than 20 accounts), `403` for a moderator
+  addressing more than named accounts, `409` for a mismatched count **or** after 5 announcements to the whole base in 24 hours.
+- Answers **`202 Accepted`** with the announcement (`status: "Pending"`) and a `Location` header: it is saved and the delivery runs in the
+  background within a few seconds, in batches (it survives a server restart and continues where it stopped). The send is written to the
+  audit log (`AnnouncementSent`).
+
+### `GET /moderation/announcements?cursor=&limit=` · `GET /moderation/announcements/{id}`
+History, newest first (`CursorPagedResult`), or one announcement:
+```json
+{ "id": "guid", "title": "...", "body": "...", "category": "Promotional", "audience": "All", "audienceUserIds": [], "link": "City:florianopolis-sc",
+  "status": "Sent", "expectedRecipients": 42, "createdCount": 41, "readCount": 17, "sentByUserId": "guid", "createdAt": "...", "completedAt": "..." }
+```
+`status`: `Pending` → `Sending` → `Sent`. Poll the `{id}` endpoint to follow a delivery. `createdCount` is how many notifications exist so far and can end
+slightly below `expectedRecipients` (someone left, or got another promotion, between the preview and the delivery). `readCount` is how many were read.
+There is no recall: a sent announcement stays in the recipients' lists.
+
+**Preferences.** `GET`/`PUT /users/me/notification-settings` now also carry **`promotionalEnabled`** (boolean, `false` until the person turns it on). The
+`PUT` still replaces everything, so a client that omits the field switches the consent **off** — send it explicitly. Announcements are not one of
+the `types` that can be muted (a service notice follows the master `pushEnabled`; promotions have this flag).
+
 ## <a id="sitemap"></a>Sitemap
 
 ### `GET /sitemap/entries?type=city|locality|location|photo&cursor=&limit=`
@@ -1448,6 +1501,14 @@ Newest-first. → `CursorPagedResult<NotificationResponse>`:
 [Moderation](#moderation)): `"User:{id}"` for `NewFollower`, `"Photo:{id}"` for `PhotoLiked`/
 `PhotoCommented`, `"Comment:{id}"` for `CommentReplied` (the comment that got replied to, not the
 new reply itself). `readAt` is `null` until marked read.
+
+**Announcements in this list.** A notification of `type: "Announcement"` is a message from the team. It comes with its own content and
+has no real author: `title`, `body`, `category` (`Service` | `Promotional`), `link` (an in-app destination or `null`) and `announcementId`
+are filled, `actorName` is always `"Equipe Sunset"`, `actorAvatarUrl` is `null` and `actorUserId` is the all-zero GUID (the staff member
+who sent it is never exposed — do not link to a profile). For every other type those five fields are `null`. It counts in the unread
+counter and is marked read like any other. `link` uses the same labels as `targetDescription`: `Location:{id}`, `City:{slug}`,
+`Photo:{id}` or `User:{id}` — open the matching screen, or just the notifications screen when it is `null`. Its push has the same
+`data` plus `announcementId`, `category` and `link`, and is not grouped.
 
 ### 🔒 `GET /notifications/unread-count`
 → `{ "count": 3 }` — what the bell badge shows. Cheap `COUNT(*)`; safe to poll.

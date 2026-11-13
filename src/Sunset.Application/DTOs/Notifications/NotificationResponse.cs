@@ -11,4 +11,9 @@ public sealed record NotificationResponse(
     string? ActorAvatarUrl,
     string TargetDescription,
     DateTime? ReadAt,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string? Title = null,
+    string? Body = null,
+    [property: JsonConverter(typeof(JsonStringEnumConverter))] AnnouncementCategory? Category = null,
+    string? Link = null,
+    Guid? AnnouncementId = null);

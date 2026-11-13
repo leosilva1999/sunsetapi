@@ -33,6 +33,12 @@ public sealed class PushSettings
     /// collected and sent as one ("Ana e mais 3 curtiram sua foto"). 0 turns grouping off.
     /// </summary>
     public int GroupWindowSeconds { get; set; } = 60;
+
+    /// <summary>How often the worker looks for announcements to deliver.</summary>
+    public int AnnouncementPollSeconds { get; set; } = 5;
+
+    /// <summary>Recipients handled per round while delivering an announcement.</summary>
+    public int AnnouncementBatchSize { get; set; } = 200;
 }
 
 /// <summary>A notification that has just been saved and may deserve a push to its recipient.</summary>

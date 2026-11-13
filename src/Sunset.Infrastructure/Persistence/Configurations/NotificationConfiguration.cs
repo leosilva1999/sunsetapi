@@ -21,6 +21,17 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
 
         builder.HasIndex(n => n.RecipientUserId);
 
+        builder.HasOne(n => n.Announcement)
+            .WithMany()
+            .HasForeignKey(n => n.AnnouncementId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // A person gets a given announcement once: also the safety net if a delivery batch is retried.
+        builder.HasIndex(n => new { n.RecipientUserId, n.AnnouncementId })
+            .IsUnique()
+            .HasFilter("\"AnnouncementId\" IS NOT NULL");
+        builder.HasIndex(n => n.AnnouncementId);
+
         builder.HasOne(n => n.Recipient)
             .WithMany()
             .HasForeignKey(n => n.RecipientUserId)

@@ -62,6 +62,26 @@ public static class PushMessageComposer
     }
 }
 
+public static class PushAnnouncementComposer
+{
+    /// <summary>An announcement's push: the team's own title and body, ids and the in-app destination in <c>data</c>.</summary>
+    public static PushMessage Compose(string token, Domain.Entities.Announcement announcement, Guid notificationId, int unreadCount)
+    {
+        var data = new Dictionary<string, object>
+        {
+            ["v"] = PushMessageComposer.PayloadVersion,
+            ["notificationId"] = notificationId,
+            ["type"] = "Announcement",
+            ["announcementId"] = announcement.Id,
+            ["category"] = announcement.Category.ToString(),
+        };
+        if (announcement.Link is not null)
+            data["link"] = announcement.Link;
+
+        return new PushMessage(token, announcement.Title, announcement.Body, unreadCount, data);
+    }
+}
+
 /// <summary>
 /// A person gets at most N pushes per hour (sliding window); the rest stay in-app only, so a burst of likes
 /// is not spam. In memory: there is one API instance, and losing the counters on a restart only forgives a few.

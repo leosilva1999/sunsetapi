@@ -27,6 +27,7 @@ public class NotificationRepository(SunsetDbContext context, IPushNotifier pushN
     {
         var notifications = context.Notifications
             .Include(n => n.Actor)
+            .Include(n => n.Announcement)
             .Where(n => n.RecipientUserId == recipientUserId)
             .AsQueryable();
 
@@ -50,6 +51,13 @@ public class NotificationRepository(SunsetDbContext context, IPushNotifier pushN
 
         return new CursorPagedResult<Notification>(page, nextCursor, hasMore);
     }
+
+    public async Task<IReadOnlyDictionary<Guid, int>> GetUnreadCountsAsync(IReadOnlyCollection<Guid> recipientUserIds, CancellationToken cancellationToken = default) =>
+        await context.Notifications.AsNoTracking()
+            .Where(n => recipientUserIds.Contains(n.RecipientUserId) && n.ReadAt == null)
+            .GroupBy(n => n.RecipientUserId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count, cancellationToken);
 
     public Task<int> GetUnreadCountAsync(Guid recipientUserId, CancellationToken cancellationToken = default) =>
         context.Notifications.CountAsync(n => n.RecipientUserId == recipientUserId && n.ReadAt == null, cancellationToken);

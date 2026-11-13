@@ -23,6 +23,7 @@ public class SunsetDbContext(DbContextOptions<SunsetDbContext> options) : DbCont
     public DbSet<PushDevice> PushDevices => Set<PushDevice>();
     public DbSet<PushTicket> PushTickets => Set<PushTicket>();
     public DbSet<NotificationSetting> NotificationSettings => Set<NotificationSetting>();
+    public DbSet<Announcement> Announcements => Set<Announcement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

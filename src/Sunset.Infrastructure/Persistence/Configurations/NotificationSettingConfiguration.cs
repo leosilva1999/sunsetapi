@@ -14,6 +14,7 @@ public class NotificationSettingConfiguration : IEntityTypeConfiguration<Notific
 
         builder.Property(s => s.PushEnabled).IsRequired().HasDefaultValue(true);
         builder.Property(s => s.MutedTypes).IsRequired().HasDefaultValue(0);
+        builder.Property(s => s.PromotionalEnabled).IsRequired().HasDefaultValue(false);
 
         // One row per person.
         builder.HasIndex(s => s.UserId).IsUnique();

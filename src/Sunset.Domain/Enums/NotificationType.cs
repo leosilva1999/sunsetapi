@@ -5,5 +5,6 @@ public enum NotificationType
     NewFollower,
     PhotoLiked,
     PhotoCommented,
-    CommentReplied
+    CommentReplied,
+    Announcement
 }

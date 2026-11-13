@@ -13,6 +13,12 @@ public class NotificationSetting : BaseEntity
     /// <summary>Master switch for pushes to the phone.</summary>
     public bool PushEnabled { get; private set; } = true;
 
+    /// <summary>
+    /// Consent to promotional announcements. Off until the person turns it on (opt-in): service notices reach everyone,
+    /// promotions only those who said yes.
+    /// </summary>
+    public bool PromotionalEnabled { get; private set; }
+
     /// <summary>Bit i set = pushes of the <see cref="NotificationType"/> with value i are off.</summary>
     public int MutedTypes { get; private set; }
 
@@ -33,9 +39,10 @@ public class NotificationSetting : BaseEntity
     public bool IsMuted(NotificationType type) => (MutedTypes & Bit(type)) != 0;
 
     /// <summary>Replaces all the choices: the types listed are muted, every other type is on.</summary>
-    public void Replace(bool pushEnabled, IEnumerable<NotificationType> mutedTypes)
+    public void Replace(bool pushEnabled, IEnumerable<NotificationType> mutedTypes, bool promotionalEnabled = false)
     {
         PushEnabled = pushEnabled;
+        PromotionalEnabled = promotionalEnabled;
         MutedTypes = mutedTypes.Aggregate(0, (mask, type) => mask | Bit(type));
     }
 

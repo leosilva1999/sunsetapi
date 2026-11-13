@@ -9,6 +9,9 @@ public interface IPushDeviceRepository
     /// <summary>The user's device for this installation of the app, if the app told us its install id.</summary>
     Task<PushDevice?> GetByInstallAsync(Guid userId, Guid installId, CancellationToken cancellationToken = default);
 
+    /// <summary>The devices of several users in one round trip.</summary>
+    Task<IReadOnlyList<PushDevice>> ListByUsersAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken = default);
+
     /// <summary>The user's devices, most recently seen first.</summary>
     Task<IReadOnlyList<PushDevice>> ListByUserAsync(Guid userId, CancellationToken cancellationToken = default);
 

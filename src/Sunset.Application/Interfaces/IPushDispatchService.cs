@@ -23,6 +23,12 @@ public interface IPushDispatchService
     /// </summary>
     Task<PushTestResult> SendTestAsync(Guid userId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Pushes a freshly delivered announcement to the recipients' phones (the notifications already exist). Skips people who
+    /// switched pushes off. Not grouped and outside the hourly cap of social pushes.
+    /// </summary>
+    Task DispatchAnnouncementAsync(Domain.Entities.Announcement announcement, IReadOnlyCollection<(Guid UserId, Guid NotificationId)> recipients, CancellationToken cancellationToken = default);
+
     /// <summary>Reads the receipts of pushes sent at least 15 minutes ago and removes the tokens the provider reports dead.</summary>
     Task ProcessReceiptsAsync(CancellationToken cancellationToken = default);
 

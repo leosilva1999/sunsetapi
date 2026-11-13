@@ -61,7 +61,8 @@ Não solicitamos dados pessoais sensíveis (como origem racial, saúde, religiã
 - Entrada com Google: execução de contrato (art. 7º, V), a partir da sua escolha de usar essa forma de acesso.
 - Cumprir obrigações legais e regulatórias e ordens de autoridades: art. 7º, II.
 - Melhorar e manter a qualidade do serviço (estatísticas agregadas, correção de erros): legítimo interesse (art. 7º, IX), sempre que possível com dados agregados ou anonimizados.
-- Comunicações de marketing, se um dia existirem: somente com seu consentimento (art. 7º, I).
+- Avisos da equipe sobre o serviço (por exemplo, manutenção, segurança, mudanças nestes documentos), por notificação no aplicativo e no celular: execução de contrato (art. 7º, V) e legítimo interesse (art. 7º, IX). Você pode desligar as notificações no celular a qualquer momento.
+- Comunicações promocionais (novidades, campanhas) por notificação no aplicativo e no celular: somente com seu consentimento (art. 7º, I), que começa desligado e que você liga e desliga quando quiser nas configurações de notificações. Enviamos no máximo uma por dia.
 
 3.2. Quando a base é o legítimo interesse, avaliamos o impacto sobre você e adotamos salvaguardas. Você pode se opor ao tratamento (item 9).
 

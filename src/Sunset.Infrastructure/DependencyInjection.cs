@@ -59,11 +59,13 @@ public static class DependencyInjection
         services.AddScoped<IPushDeviceRepository, PushDeviceRepository>();
         services.AddScoped<IPushTicketRepository, PushTicketRepository>();
         services.AddScoped<INotificationSettingRepository, NotificationSettingRepository>();
+        services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
         services.AddSingleton<PushNotifier>();
         services.AddSingleton<IPushNotifier>(sp => sp.GetRequiredService<PushNotifier>());
         services.AddHostedService<PushNotifierWorker>();
         services.AddHostedService<PushMaintenanceWorker>();
         services.AddHostedService<PushGroupFlushWorker>();
+        services.AddHostedService<AnnouncementWorker>();
 
         services.AddHttpContextAccessor();
         services.AddMemoryCache();
