@@ -206,6 +206,17 @@ A decisão fica com a sessão da API; o app funciona com qualquer uma delas, poi
 7. A conta de **Admin/Moderador** deve receber algum push específico (ex.: nova denúncia pendente)? Se
    sim, entra na fase 3.
 
+### 8.2 Fase 2 (implementada no `dev` da API)
+
+- **Preferências (3.4):** `GET` / `PUT /users/me/notification-settings` exatamente no formato da proposta. `PUT` **substitui** tudo; tipo omitido em `types`
+  conta como ligado. Valem **só para o push** — a lista do app (`/notifications`) e o contador seguem completos. Nome de tipo desconhecido → `400`.
+- **Agrupamento (4.4, opção 2):** janela de **60 s**; **o primeiro push de cada rajada sai na hora** e os seguintes saem juntos no fim da janela
+  ("Ana e mais 3 curtiram sua foto"). Chave: pessoa + tipo + alvo (`NewFollower`: todos os seguidores de uma pessoa formam um grupo). O `data` do push
+  agrupado ganha `count` (nº de pessoas) e traz os ids da notificação mais recente; `v` continua `1`. Quem comenta várias vezes conta como uma pessoa só.
+- **Push de teste (3.5):** `POST /users/me/devices/test` — só conta **Admin** (ou ambiente Development); manda um push "Teste de notificação" a todos os aparelhos
+  de quem chamou e responde `{ devices, accepted, removed }`; `409` se o push estiver desligado no servidor; 5 / 15 min.
+- O limite de 20 pushes/hora da fase 1 continua e agora conta pushes enviados (um grupo vale 1).
+
 ### 8.1 Respostas da sessão da API (decisões tomadas)
 
 Implementação da **fase 1** concluída no `dev` da API (contrato completo em `docs/API.md`, seção "Push notifications"). O push

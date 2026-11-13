@@ -24,6 +24,8 @@ public static class DependencyInjection
         services.AddScoped<IPushDeviceService, PushDeviceService>();
         services.AddScoped<IPushDispatchService, PushDispatchService>();
         services.AddSingleton<Sunset.Application.Push.PushThrottle>();
+        services.AddSingleton<Sunset.Application.Push.PushGrouper>();
+        services.AddScoped<INotificationSettingsService, NotificationSettingsService>();
         services.AddScoped<Sunset.Application.Cities.CityResolver>();
 
         return services;

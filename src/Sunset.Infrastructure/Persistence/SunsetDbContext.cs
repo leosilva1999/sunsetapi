@@ -22,6 +22,7 @@ public class SunsetDbContext(DbContextOptions<SunsetDbContext> options) : DbCont
     public DbSet<City> Cities => Set<City>();
     public DbSet<PushDevice> PushDevices => Set<PushDevice>();
     public DbSet<PushTicket> PushTickets => Set<PushTicket>();
+    public DbSet<NotificationSetting> NotificationSettings => Set<NotificationSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

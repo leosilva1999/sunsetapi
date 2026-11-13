@@ -136,6 +136,8 @@ const string ChangePasswordRateLimitPolicy = "ChangePassword";
 // "DeviceRegistration" policy: the app registers its push token on login, on open and when the token changes;
 // 30 per 15 minutes per IP is far above a real phone and still stops a script from filling the table.
 const string DeviceRegistrationRateLimitPolicy = "DeviceRegistration";
+// "PushTest" policy: a test push really goes through the provider, so it is capped hard.
+const string PushTestRateLimitPolicy = "PushTest";
 var rateLimitTitlesByPolicy = new Dictionary<string, string>
 {
     [SearchRateLimitPolicy] = "Too many search requests. Please slow down.",
@@ -144,6 +146,7 @@ var rateLimitTitlesByPolicy = new Dictionary<string, string>
     [PasswordResetRateLimitPolicy] = "Too many password reset requests. Please slow down.",
     [ChangePasswordRateLimitPolicy] = "Too many password change attempts. Please try again later.",
     [DeviceRegistrationRateLimitPolicy] = "Too many device registrations. Please try again later.",
+    [PushTestRateLimitPolicy] = "Too many test pushes. Please try again later.",
 };
 // Trust X-Forwarded-For / -Proto from the platform proxy. The app is only reachable through it, so
 // the default "loopback only" trust list (which would ignore the headers entirely) is cleared.
@@ -241,6 +244,17 @@ builder.Services.AddRateLimiter(options =>
         factory: _ => new SlidingWindowRateLimiterOptions
         {
             PermitLimit = deviceRegistrationPermitLimit,
+            Window = TimeSpan.FromMinutes(15),
+            SegmentsPerWindow = 3,
+            QueueLimit = 0,
+        }));
+
+    var pushTestPermitLimit = builder.Environment.IsEnvironment("Testing") ? int.MaxValue : 5;
+    options.AddPolicy(PushTestRateLimitPolicy, httpContext => RateLimitPartition.GetSlidingWindowLimiter(
+        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = pushTestPermitLimit,
             Window = TimeSpan.FromMinutes(15),
             SegmentsPerWindow = 3,
             QueueLimit = 0,

@@ -226,7 +226,9 @@ public class PushDispatchServiceTests
     private readonly Mock<IUserRepository> _users = new();
     private readonly Mock<INotificationRepository> _notifications = new();
     private readonly Mock<IPushSender> _sender = new();
-    private readonly PushSettings _settings = new() { Enabled = true, MaxPushesPerUserPerHour = 20, DeviceRetentionDays = 90 };
+    private readonly Mock<INotificationSettingRepository> _choices = new();
+    // Grouping is off here (window 0) so each test sees one push per notification; PushGroupingTests covers the window.
+    private readonly PushSettings _settings = new() { Enabled = true, MaxPushesPerUserPerHour = 20, DeviceRetentionDays = 90, GroupWindowSeconds = 0 };
     private readonly PushDispatchService _sut;
 
     private readonly User _ana = new("Ana", "ana@sunset.com", "hashed");
@@ -239,7 +241,9 @@ public class PushDispatchServiceTests
         _notifications.Setup(r => r.GetUnreadCountAsync(It.IsAny<Guid>(), default)).ReturnsAsync(4);
         _sender.Setup(s => s.SendAsync(It.IsAny<IReadOnlyList<PushMessage>>(), default))
             .ReturnsAsync((IReadOnlyList<PushMessage> m, CancellationToken _) => (IReadOnlyList<PushSendResult>)m.Select((_, i) => PushSendResult.Accepted($"t{i}")).ToList());
-        _sut = new PushDispatchService(_devices.Object, _tickets.Object, _users.Object, _notifications.Object, _sender.Object, new PushThrottle(_settings), _settings);
+        _choices.Setup(c => c.GetByUsersAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default)).ReturnsAsync(new Dictionary<Guid, NotificationSetting>());
+        _sut = new PushDispatchService(_devices.Object, _tickets.Object, _users.Object, _notifications.Object, _choices.Object, _sender.Object,
+            new PushThrottle(_settings), new PushGrouper(_settings), _settings);
     }
 
     private void HasDevices(User user, params string[] tokens) =>

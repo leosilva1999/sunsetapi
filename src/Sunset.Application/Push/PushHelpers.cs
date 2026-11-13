@@ -23,16 +23,26 @@ public static class PushMessageComposer
 {
     public const int PayloadVersion = 1;
 
-    public static PushMessage Compose(string token, PushRequest request, string actorName, int unreadCount)
+    /// <param name="otherActors">0 for a single notification; otherwise how many MORE people did it ("Ana e mais 3 curtiram...").</param>
+    public static PushMessage Compose(string token, PushRequest request, string actorName, int unreadCount, int otherActors = 0)
     {
-        var (title, body) = request.Type switch
-        {
-            NotificationType.NewFollower => ("Novo seguidor", $"{actorName} começou a seguir você"),
-            NotificationType.PhotoLiked => ("Nova curtida", $"{actorName} curtiu sua foto"),
-            NotificationType.PhotoCommented => ("Novo comentário", $"{actorName} comentou na sua foto"),
-            NotificationType.CommentReplied => ("Nova resposta", $"{actorName} respondeu seu comentário"),
-            _ => ("Sunset", "Você tem uma nova notificação"),
-        };
+        var (title, body) = otherActors <= 0
+            ? request.Type switch
+            {
+                NotificationType.NewFollower => ("Novo seguidor", $"{actorName} começou a seguir você"),
+                NotificationType.PhotoLiked => ("Nova curtida", $"{actorName} curtiu sua foto"),
+                NotificationType.PhotoCommented => ("Novo comentário", $"{actorName} comentou na sua foto"),
+                NotificationType.CommentReplied => ("Nova resposta", $"{actorName} respondeu seu comentário"),
+                _ => ("Sunset", "Você tem uma nova notificação"),
+            }
+            : request.Type switch
+            {
+                NotificationType.NewFollower => ("Novos seguidores", $"{actorName} e mais {otherActors} começaram a seguir você"),
+                NotificationType.PhotoLiked => ("Novas curtidas", $"{actorName} e mais {otherActors} curtiram sua foto"),
+                NotificationType.PhotoCommented => ("Novos comentários", $"{actorName} e mais {otherActors} comentaram na sua foto"),
+                NotificationType.CommentReplied => ("Novas respostas", $"{actorName} e mais {otherActors} responderam seu comentário"),
+                _ => ("Sunset", "Você tem novas notificações"),
+            };
 
         // Only ids and labels travel in `data`: the text itself is the only thing a lock screen shows.
         var data = new Dictionary<string, object>
@@ -43,6 +53,10 @@ public static class PushMessageComposer
             ["actorUserId"] = request.ActorUserId,
             ["targetDescription"] = request.TargetDescription,
         };
+
+        // A grouped push says how many people it stands for; the ids are those of the latest notification.
+        if (otherActors > 0)
+            data["count"] = otherActors + 1;
 
         return new PushMessage(token, title, body, unreadCount, data);
     }

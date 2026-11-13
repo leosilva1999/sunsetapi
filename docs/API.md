@@ -55,6 +55,9 @@ these are the diffs to check:
 - **Push notifications (phase 1)**: `POST` / `DELETE /users/me/devices` register and remove the phone's Expo push token;
   every `Notification` now also reaches the recipient's phone. See [Push notifications](#push-notifications). Push is **off in
   production until `Push__Enabled` is set**, so nothing is sent yet; registering a token already works.
+- **Push notifications (phase 2)**: `GET` / `PUT /users/me/notification-settings` (switch pushes off, or per kind),
+  **grouping** of bursts into one push ("Ana e mais 3 curtiram sua foto") and `POST /users/me/devices/test`. See
+  [Push notifications](#push-notifications).
 - **Growth statistics for the moderation dashboard**: `GET /moderation/stats/growth` (Moderator/Admin only) — new and
   cumulative users, locations, photos and ratings over time, ready for a line chart. See [Moderation](#moderation).
 - **Locality pages** (long tail, "Pôr do sol na Praia do Rosa"): `GET /cities/{slug}` (and `/locations`, `/photos`, `/sunset`)
@@ -598,9 +601,40 @@ object carries **only ids and labels** (nothing sensitive; the text is what a lo
 `targetDescription` is the same label as in `GET /notifications` (`Photo:{id}`, `Comment:{id}`, `User:{id}`), so the app opens the
 screen with the navigation it already has, then calls `POST /notifications/{id}/read`.
 
+**Grouping (a burst is not a burst of pushes).** The first notification of a kind for the same person and target
+(`PhotoLiked`/`PhotoCommented`: the same photo; `CommentReplied`: the same comment; `NewFollower`: all followers) goes out at
+once. Further ones within the next **60 seconds** are held and leave **together as one push** when the window ends, after which a
+new window opens. A grouped push names the first of the held people and counts the others, and its `data` gains `count` (people it
+stands for); the ids in `data` are those of the latest notification:
+
+| `type` | `title` | `body` (grouped) |
+|---|---|---|
+| `NewFollower` | Novos seguidores | `{name} e mais {n} começaram a seguir você` |
+| `PhotoLiked` | Novas curtidas | `{name} e mais {n} curtiram sua foto` |
+| `PhotoCommented` | Novos comentários | `{name} e mais {n} comentaram na sua foto` |
+| `CommentReplied` | Novas respostas | `{name} e mais {n} responderam seu comentário` |
+
+`n` counts different people (one chatty commenter is not a crowd). The in-app list still has **one entry per event**; grouping
+changes only the push. A held push is lost if the server restarts in that minute (the notifications are in the app anyway).
+
 **Housekeeping (server side).** A token the provider reports dead (`DeviceNotRegistered`, immediately or in the receipt read ~15 min
 later) is deleted. All of a user's tokens are deleted when the account is deleted or anonymized and when the user is banned.
 A device not registered again for **90 days** is forgotten.
+
+### 🔒 `GET /users/me/notification-settings` · `PUT /users/me/notification-settings` (push preferences)
+```json
+{ "pushEnabled": true, "types": { "NewFollower": true, "PhotoLiked": true, "PhotoCommented": true, "CommentReplied": true } }
+```
+- `GET` returns the current choices; **everything is on** until the person saves something. All four kinds are always present.
+- `PUT` **replaces** everything: `pushEnabled` is the master switch; in `types`, a kind set to `false` is off and **a kind left out is on**
+  (so send all four to be explicit). Kind names are matched ignoring case; an unknown one is `400` (`errors.types`). Answers `200` with the saved choices.
+- These choices affect **only the push** to the phone. The notifications list and `GET /notifications/unread-count` are unchanged and
+  complete. A kind turned off sends no push and does not open a grouping window. Switching on again takes effect on the next notification.
+
+### 🔒 `POST /users/me/devices/test` (test push)
+Sends a test push ("Teste de notificação") to **all the caller's own devices**, immediately (no queue, no grouping, ignoring the preferences), to check
+the whole chain end to end. Only for an **Admin** account, or in a Development environment (`403` otherwise); `409` while push is switched off on the server;
+rate limited to 5 per 15 minutes. → `{ "devices": 2, "accepted": 1, "removed": 1 }`: devices the person has, messages the provider accepted, dead tokens removed.
 
 ### 🔒 `DELETE /users/me`
 Deletes the **authenticated** user's own account (LGPD Art. 18, IX - right to erasure). This

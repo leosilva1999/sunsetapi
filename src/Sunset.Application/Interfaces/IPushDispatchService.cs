@@ -11,6 +11,18 @@ public interface IPushDispatchService
     /// </summary>
     Task DispatchAsync(IReadOnlyCollection<PushRequest> requests, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Sends the groups whose window has ended ("Ana e mais 3 curtiram sua foto"). Called every few seconds by the
+    /// background worker.
+    /// </summary>
+    Task FlushDueGroupsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a test push to every device of the person, straight away (no queue, no grouping, no preferences) - to check
+    /// the whole chain. Raises a conflict when push is switched off on the server.
+    /// </summary>
+    Task<PushTestResult> SendTestAsync(Guid userId, CancellationToken cancellationToken = default);
+
     /// <summary>Reads the receipts of pushes sent at least 15 minutes ago and removes the tokens the provider reports dead.</summary>
     Task ProcessReceiptsAsync(CancellationToken cancellationToken = default);
 

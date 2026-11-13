@@ -63,6 +63,7 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
 - `GET /users/:id`, `PATCH /users/me` (auth), `GET /users/:id/photos`
 - `PUT /users/me/password` (auth — troca de senha; revoga os outros dispositivos, rate limited)
 - `POST /users/me/devices` / `DELETE /users/me/devices` (auth — registra/remove o token de push Expo do celular; 5 aparelhos por usuário)
+- `GET` / `PUT /users/me/notification-settings` (auth — preferências de push, só o push), `POST /users/me/devices/test` (Admin ou Development — push de teste)
 - `POST /users/:id/follow` / `DELETE /users/:id/follow` (auth), `GET /users/:id/followers`, `GET /users/:id/following`
 
 **Cities** (público)
@@ -219,6 +220,15 @@ Relacionamentos: `User` 1:N `Photo`/`Like`/`Comment`/`Rating`/`Report`/`Moderati
   (`DeleteAccountAsync`), anonimização e banimento (moderação), `DeviceNotRegistered` e 90 dias sem registrar (job diário, roda mesmo com push
   desligado — retenção de dado pessoal). Config `Push:*` (`Enabled` **desligado por padrão**, `DryRun` só loga, `ExpoAccessToken` opcional/segredo,
   `BaseUrl`, `MaxPushesPerUserPerHour`, `MaxDevicesPerUser`, `DeviceRetentionDays`); desligado = registro de token funciona, nada é enviado.
+  **Fase 2**: (1) *Preferências* — `notification_settings` (uma linha por pessoa, criada no 1º salvamento; sem linha = tudo ligado; `PushEnabled` +
+  `MutedTypes` bitmask por `NotificationType`); `PUT` **substitui** (tipo omitido = ligado; nome desconhecido = 400); afetam **só o push** — a lista
+  `/notifications` e o contador seguem completos; tipo desligado nem abre janela de agrupamento. (2) *Agrupamento* — `PushGrouper` (singleton, em memória):
+  chave (destinatário, tipo, alvo) — `NewFollower` ignora o alvo (todos os seguidores de uma pessoa = 1 grupo); **o 1º sai na hora** e abre uma janela de
+  `Push:GroupWindowSeconds` (60; 0 desliga); os seguintes ficam retidos e saem juntos no fim da janela ("Ana e mais 3 curtiram sua foto", `data.count`), quando abre
+  nova janela; conta pessoas **distintas** (alguém que comenta 3 vezes não vira "e mais 2"). `PushGroupFlushWorker` varre a cada 5 s
+  (`FlushDueGroupsAsync`, que reaplica as preferências). Reinício perde só os pushes retidos. O limite de 20/hora conta pushes enviados (cada grupo vale 1).
+  (3) *Push de teste* — `POST /users/me/devices/test` → `PushDispatchService.SendTestAsync` (direto, sem fila/agrupamento/preferências; contabiliza tickets e remove
+  token morto); só Admin ou `Development`; 409 com o push desligado; 5/15 min.
   Testes de integração trocam o provedor por `FakePushSender` (nada de rede). Token de push é dado pessoal: está no rascunho da Política
   (`docs/legal`). Fora da fase 1 (fica no `docs/proposal-push-notifications.md`): preferências por tipo, agrupamento, endpoint de teste, pushes de moderação.
 - **Estatísticas de crescimento (moderação)**: `GET /moderation/stats/growth` — `StatsService` monta os períodos (dia; semana começando na

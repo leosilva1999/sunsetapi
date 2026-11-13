@@ -75,6 +75,7 @@ public class SunsetApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("Frontend__BaseUrl", "https://sunset-tests.dev");
         Environment.SetEnvironmentVariable("Service__ApiKey", ServiceApiKey);
         Environment.SetEnvironmentVariable("Push__Enabled", "true");
+        Environment.SetEnvironmentVariable("Push__GroupWindowSeconds", "3");   // production uses 60; the suite cannot wait that long
 
         // Triggers host build (reads the env vars set above), then applies migrations so the
         // schema - full-text index included - actually exists.

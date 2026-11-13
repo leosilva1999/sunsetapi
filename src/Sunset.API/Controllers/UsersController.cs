@@ -6,6 +6,7 @@ using Sunset.Application.Common;
 using Sunset.Application.DTOs.Devices;
 using Sunset.Application.DTOs.Legal;
 using Sunset.Application.DTOs.Moderation;
+using Sunset.Application.DTOs.Notifications;
 using Sunset.Application.DTOs.Photos;
 using Sunset.Application.DTOs.Users;
 using Sunset.Application.Exceptions;
@@ -27,6 +28,9 @@ public class UsersController(
     IValidator<RegisterDeviceRequest> registerDeviceValidator,
     IValidator<RemoveDeviceRequest> removeDeviceValidator,
     IPushDeviceService pushDeviceService,
+    INotificationSettingsService notificationSettingsService,
+    IPushDispatchService pushDispatchService,
+    IWebHostEnvironment environment,
     ILegalAcceptanceService legalAcceptanceService,
     IModerationService moderationService,
     ICurrentUserService currentUserService) : ControllerBase
@@ -132,6 +136,35 @@ public class UsersController(
 
         await pushDeviceService.RemoveAsync(userId, request, cancellationToken);
         return NoContent();
+    }
+
+    // Sends a test push to the caller's own devices. Meant for QA: only in Development, or for an Admin account.
+    [Authorize]
+    [EnableRateLimiting("PushTest")]
+    [HttpPost("me/devices/test")]
+    public async Task<ActionResult<Sunset.Application.Push.PushTestResult>> TestPush(CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.UserId ?? throw new UnauthorizedActionException("User is not authenticated.");
+        if (!environment.IsDevelopment() && currentUserService.Role != UserRole.Admin)
+            throw new ForbiddenException("The test push is only available to administrators.");
+
+        return Ok(await pushDispatchService.SendTestAsync(userId, cancellationToken));
+    }
+
+    [Authorize]
+    [HttpGet("me/notification-settings")]
+    public async Task<ActionResult<NotificationSettingsResponse>> GetNotificationSettings(CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.UserId ?? throw new UnauthorizedActionException("User is not authenticated.");
+        return Ok(await notificationSettingsService.GetAsync(userId, cancellationToken));
+    }
+
+    [Authorize]
+    [HttpPut("me/notification-settings")]
+    public async Task<ActionResult<NotificationSettingsResponse>> UpdateNotificationSettings(UpdateNotificationSettingsRequest request, CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.UserId ?? throw new UnauthorizedActionException("User is not authenticated.");
+        return Ok(await notificationSettingsService.UpdateAsync(userId, request, cancellationToken));
     }
 
     [Authorize]

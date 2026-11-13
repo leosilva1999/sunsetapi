@@ -47,6 +47,39 @@ public sealed class PushNotifierWorker(PushNotifier notifier, IServiceScopeFacto
     }
 }
 
+/// <summary>Every few seconds, sends the grouped pushes whose window has ended ("Ana e mais 3 curtiram sua foto").</summary>
+public sealed class PushGroupFlushWorker(IServiceScopeFactory scopeFactory, PushSettings settings, ILogger<PushGroupFlushWorker> logger) : BackgroundService
+{
+    private static readonly TimeSpan Every = TimeSpan.FromSeconds(5);
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await Task.Delay(Every, stoppingToken);
+                if (!settings.Enabled || settings.GroupWindowSeconds <= 0)
+                    continue;
+
+                try
+                {
+                    await using var scope = scopeFactory.CreateAsyncScope();
+                    await scope.ServiceProvider.GetRequiredService<IPushDispatchService>().FlushDueGroupsAsync(stoppingToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger.LogWarning(ex, "Flushing the grouped pushes failed; it will be tried again");
+                }
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // shutting down
+        }
+    }
+}
+
 /// <summary>Housekeeping: reads delivery receipts every few minutes (dead tokens go), forgets unused devices once a day.</summary>
 public sealed class PushMaintenanceWorker(IServiceScopeFactory scopeFactory, ILogger<PushMaintenanceWorker> logger) : BackgroundService
 {

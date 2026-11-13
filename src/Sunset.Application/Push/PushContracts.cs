@@ -27,6 +27,12 @@ public sealed class PushSettings
 
     /// <summary>First wait between attempts when the provider is unreachable or busy; it doubles each time.</summary>
     public int RetryDelayMs { get; set; } = 1000;
+
+    /// <summary>
+    /// After a push goes out for (person, kind, target), further ones for the same key within this many seconds are
+    /// collected and sent as one ("Ana e mais 3 curtiram sua foto"). 0 turns grouping off.
+    /// </summary>
+    public int GroupWindowSeconds { get; set; } = 60;
 }
 
 /// <summary>A notification that has just been saved and may deserve a push to its recipient.</summary>
@@ -55,6 +61,9 @@ public sealed record PushSendResult(string? TicketId, PushFailure Failure)
     public static PushSendResult Accepted(string ticketId) => new(ticketId, PushFailure.None);
     public static PushSendResult Failed(PushFailure failure) => new(null, failure);
 }
+
+/// <summary>What a test push reached: devices the person has, messages the provider accepted, dead tokens removed.</summary>
+public sealed record PushTestResult(int Devices, int Accepted, int Removed);
 
 /// <summary>What the provider finally said about a message it had accepted.</summary>
 public sealed record PushReceipt(bool Delivered, PushFailure Failure);

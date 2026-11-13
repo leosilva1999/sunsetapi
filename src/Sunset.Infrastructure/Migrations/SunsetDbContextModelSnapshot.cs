@@ -440,6 +440,36 @@ namespace Sunset.Infrastructure.Migrations
                     b.ToTable("notifications", (string)null);
                 });
 
+            modelBuilder.Entity("Sunset.Domain.Entities.NotificationSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("MutedTypes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<bool>("PushEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("notification_settings", (string)null);
+                });
+
             modelBuilder.Entity("Sunset.Domain.Entities.PasswordResetToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -941,6 +971,17 @@ namespace Sunset.Infrastructure.Migrations
                     b.Navigation("Actor");
 
                     b.Navigation("Recipient");
+                });
+
+            modelBuilder.Entity("Sunset.Domain.Entities.NotificationSetting", b =>
+                {
+                    b.HasOne("Sunset.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Sunset.Domain.Entities.PasswordResetToken", b =>
