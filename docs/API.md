@@ -627,11 +627,13 @@ A device not registered again for **90 days** is forgotten.
 
 ### 🔒 `GET /users/me/notification-settings` · `PUT /users/me/notification-settings` (push preferences)
 ```json
-{ "pushEnabled": true, "types": { "NewFollower": true, "PhotoLiked": true, "PhotoCommented": true, "CommentReplied": true } }
+{ "pushEnabled": true, "types": { "NewFollower": true, "PhotoLiked": true, "PhotoCommented": true, "CommentReplied": true }, "promotionalEnabled": false }
 ```
-- `GET` returns the current choices; **everything is on** until the person saves something. All four kinds are always present.
+- `GET` returns the current choices; **everything is on** until the person saves something, **except `promotionalEnabled`, which is `false`** (consent to
+  promotional announcements from the team is opt-in — see [Announcements](#announcements)). All four kinds are always present.
 - `PUT` **replaces** everything: `pushEnabled` is the master switch; in `types`, a kind set to `false` is off and **a kind left out is on**
-  (so send all four to be explicit). Kind names are matched ignoring case; an unknown one is `400` (`errors.types`). Answers `200` with the saved choices.
+  (so send all four to be explicit). **`promotionalEnabled` left out means `false`**, so always send it to keep a consent that was given. Kind names are
+  matched ignoring case; an unknown one is `400` (`errors.types`; `Announcement` is not a kind that can be muted). Answers `200` with the saved choices.
 - These choices affect **only the push** to the phone. The notifications list and `GET /notifications/unread-count` are unchanged and
   complete. A kind turned off sends no push and does not open a grouping window. Switching on again takes effect on the next notification.
 
@@ -1477,8 +1479,9 @@ a bell icon in the top-right corner: **polling-based**, no WebSocket/SignalR —
 `GET /notifications/unread-count` on an interval (e.g. every 30-60s) and refresh the dropdown
 list (`GET /notifications`) when the count changes or the bell is opened.
 
-Four triggers write a `Notification`, always skipping the case where the actor would be
-notifying themselves (liking/commenting on your own photo, replying to your own comment):
+Four triggers write a `Notification` for what other users do, always skipping the case where the actor would be
+notifying themselves (liking/commenting on your own photo, replying to your own comment). A fifth kind,
+`Announcement`, is written by the team's [announcements](#announcements) and has no actor at all:
 - Someone follows you → `NewFollower`.
 - Someone likes your photo → `PhotoLiked`.
 - Someone posts a **root** comment on your photo → `PhotoCommented`.
@@ -1491,12 +1494,14 @@ Newest-first. → `CursorPagedResult<NotificationResponse>`:
 ```json
 {
   "id": "guid",
-  "type": "NewFollower" | "PhotoLiked" | "PhotoCommented" | "CommentReplied",
+  "type": "NewFollower" | "PhotoLiked" | "PhotoCommented" | "CommentReplied" | "Announcement",
   "actorUserId": "guid", "actorName": "string", "actorAvatarUrl": "string|null",
   "targetDescription": "string",
-  "readAt": "date|null", "createdAt": "date"
+  "readAt": "date|null", "createdAt": "date",
+  "title": "string|null", "body": "string|null", "category": "Service|Promotional|null", "link": "string|null", "announcementId": "guid|null"
 }
 ```
+The last five fields are filled only for `type: "Announcement"` (below); they are `null` otherwise.
 `targetDescription` is a free-text label, same convention as `ModerationAction` (see
 [Moderation](#moderation)): `"User:{id}"` for `NewFollower`, `"Photo:{id}"` for `PhotoLiked`/
 `PhotoCommented`, `"Comment:{id}"` for `CommentReplied` (the comment that got replied to, not the
